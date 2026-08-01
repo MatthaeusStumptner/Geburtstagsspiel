@@ -12,6 +12,7 @@ const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 4;
 const EASTER_EGG_COUNT = 3;
+const SWIPE_ACTIVATION_DISTANCE = 7;
 const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
 
 const TEXT = {
@@ -30,7 +31,7 @@ const TEXT = {
     languageLabel: 'SPRACHE', standardButton: 'Schönes Deutsch', dialectButton: 'Niederbairisch*',
     languageJoke: '* Amtlich keine eigene Sprache – aber versuchen Sie das einmal einem Niederbayern zu erklären.',
     flavourQuote: '„Nur noch eine kleine Runde.“', flavourByline: '— Franz, seit 45 Minuten',
-    keyHint: 'PFEILTASTEN / WASD · P ZUM PAUSIEREN', mobileHint: 'TIPPE ODER WISCHE AUF DEM SPIELFELD',
+    keyHint: 'PFEILTASTEN / WASD · P ZUM PAUSIEREN', mobileHint: 'WISCHEN LENKT SOFORT',
     mobileBackMap: 'PASSAU-KARTE', enterFullscreenLabel: 'Vollbild aktivieren', exitFullscreenLabel: 'Vollbild verlassen',
     routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNISSE',
     guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkte',
@@ -77,7 +78,7 @@ const TEXT = {
     languageLabel: 'SPRACH', standardButton: 'Schönes Deutsch', dialectButton: 'Niederbairisch*',
     languageJoke: "* Koa richtige Sprach – aber des sogn aa bloß Leit, de's ned vastehn.",
     flavourQuote: '„Bloß no a kloane Rundn.“', flavourByline: '— da Franz, seit 45 Minutn',
-    keyHint: 'PFEILTASTN / WASD · P ZUM PAUSIEREN', mobileHint: 'TIPP ODA WISCH AM SPIELFELD',
+    keyHint: 'PFEILTASTN / WASD · P ZUM PAUSIEREN', mobileHint: 'WISCHN LENKT GLEI',
     mobileBackMap: 'ZUR PASSAU-KARTN', enterFullscreenLabel: 'Vollbild o', exitFullscreenLabel: 'Vollbild aus',
     routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNIS',
     guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkt',
@@ -1932,17 +1933,60 @@ document.querySelectorAll('[data-direction]').forEach((button) => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
-  swipeStart = { x: event.clientX, y: event.clientY };
+  if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+  event.preventDefault();
+  swipeStart = {
+    x: event.clientX,
+    y: event.clientY,
+    pointerId: event.pointerId,
+    lastDirection: null,
+  };
   canvas.setPointerCapture?.(event.pointerId);
 });
 
+function processSwipePointer(event) {
+  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return false;
+  const samples = event.getCoalescedEvents?.() ?? [];
+  const point = samples.at(-1) ?? event;
+  const dx = point.clientX - swipeStart.x;
+  const dy = point.clientY - swipeStart.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_ACTIVATION_DISTANCE) return false;
+
+  const direction = Math.abs(dx) > Math.abs(dy)
+    ? (dx > 0 ? 'right' : 'left')
+    : (dy > 0 ? 'down' : 'up');
+  const changedDirection = direction !== swipeStart.lastDirection;
+  swipeStart.x = point.clientX;
+  swipeStart.y = point.clientY;
+  swipeStart.lastDirection = direction;
+
+  if (changedDirection) {
+    setDirection(direction);
+    if (state === 'playing') vibrate(4);
+  }
+  return changedDirection;
+}
+
+canvas.addEventListener('pointermove', (event) => {
+  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  event.preventDefault();
+  processSwipePointer(event);
+});
+
 canvas.addEventListener('pointerup', (event) => {
-  if (!swipeStart) return;
-  const dx = event.clientX - swipeStart.x;
-  const dy = event.clientY - swipeStart.y;
+  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  event.preventDefault();
+  processSwipePointer(event);
+  if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   swipeStart = null;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
-  setDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+});
+
+canvas.addEventListener('pointercancel', (event) => {
+  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+});
+
+canvas.addEventListener('lostpointercapture', (event) => {
+  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
 });
 
 ui.pauseButton.addEventListener('click', togglePause);
@@ -2001,6 +2045,7 @@ if (import.meta.env.DEV) {
     globalProgress: globalProgressPercent(),
     lives,
     difficulty,
+    directionHistory: [...directionHistory],
     treatsCollected: Math.max(0, levelTreatTotal - pellets.size - powerPellets.size),
     treatsTotal: levelTreatTotal,
     eggs: [...unlockedEggs],

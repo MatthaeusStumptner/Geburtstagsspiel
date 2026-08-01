@@ -24,6 +24,8 @@ Der Produktions-Build wird mit `npm run build` erzeugt und landet in `dist/`.
 
 Beim Start eines Levels wechselt die mobile Ansicht in einen scrollgesperrten Fokusmodus: Spielfeld, Steuerkreuz und Aktionen bleiben gemeinsam im sichtbaren Bereich. Unterstützte Browser öffnen zusätzlich den nativen Vollbildmodus; eine feste Schaltfläche in der Kopfzeile führt jederzeit zurück zur Passau-Karte. Hoch- und Querformat besitzen dafür eigene Layouts.
 
+Wischrichtungen werden bereits während der Fingerbewegung mit kurzer Aktivierungsdistanz verarbeitet. Dadurch lassen sich auch mehrere Richtungswechsel in einer einzigen durchgehenden Geste vorbereiten.
+
 Die Oberfläche lässt sich jederzeit zwischen schönem Deutsch und Niederbairisch umschalten. Natürlich mit der gebotenen wissenschaftlichen Strenge zur Frage, ob Letzteres überhaupt eine richtige Sprache ist.
 
 Es gibt drei Schwierigkeitsstufen:
