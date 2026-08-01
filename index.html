@@ -48,6 +48,25 @@
 
       <section class="game-layout">
         <div class="board-column">
+          <div class="mobile-game-header" id="mobile-game-header">
+            <button class="mobile-game-map" id="mobile-game-map-button" type="button">
+              <span aria-hidden="true">‹</span>
+              <span data-i18n="mobileBackMap">PASSAU-KARTE</span>
+            </button>
+            <div class="mobile-game-location">
+              <small id="mobile-game-level">LEVEL 01</small>
+              <strong id="mobile-game-location">DAHOAM</strong>
+            </div>
+            <button
+              class="mobile-fullscreen-button"
+              id="mobile-fullscreen-button"
+              type="button"
+              aria-label="Vollbild aktivieren"
+              aria-pressed="false"
+            >
+              ⛶
+            </button>
+          </div>
           <div class="board-frame">
             <div class="location-ribbon" aria-hidden="true">
               <span id="location-river">PASSAU</span>
@@ -221,7 +240,7 @@
       <footer>
         <span data-i18n="footerPlace">PASSAU · STADT &amp; FLÜSSE</span>
         <span data-i18n="footerTagline">PIXEL FÜR PIXEL DURCH DIE NACHT</span>
-        <span>V0.6</span>
+        <span>V0.7</span>
       </footer>
     </main>
 

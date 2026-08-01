@@ -31,6 +31,7 @@ const TEXT = {
     languageJoke: '* Amtlich keine eigene Sprache – aber versuchen Sie das einmal einem Niederbayern zu erklären.',
     flavourQuote: '„Nur noch eine kleine Runde.“', flavourByline: '— Franz, seit 45 Minuten',
     keyHint: 'PFEILTASTEN / WASD · P ZUM PAUSIEREN', mobileHint: 'TIPPE ODER WISCHE AUF DEM SPIELFELD',
+    mobileBackMap: 'PASSAU-KARTE', enterFullscreenLabel: 'Vollbild aktivieren', exitFullscreenLabel: 'Vollbild verlassen',
     routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNISSE',
     guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkte',
     powerTitle: 'Schnüffel-Power', powerCopy: 'Die Katzen suchen das Weite',
@@ -77,6 +78,7 @@ const TEXT = {
     languageJoke: "* Koa richtige Sprach – aber des sogn aa bloß Leit, de's ned vastehn.",
     flavourQuote: '„Bloß no a kloane Rundn.“', flavourByline: '— da Franz, seit 45 Minutn',
     keyHint: 'PFEILTASTN / WASD · P ZUM PAUSIEREN', mobileHint: 'TIPP ODA WISCH AM SPIELFELD',
+    mobileBackMap: 'ZUR PASSAU-KARTN', enterFullscreenLabel: 'Vollbild o', exitFullscreenLabel: 'Vollbild aus',
     routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNIS',
     guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkt',
     powerTitle: 'Schnüffel-Power', powerCopy: "D'Katzn gebn Fersngeld",
@@ -273,6 +275,7 @@ const CAT_STARTS = [
 ];
 
 const ui = {
+  boardColumn: document.querySelector('.board-column'),
   score: document.querySelector('#score'),
   best: document.querySelector('#best'),
   level: document.querySelector('#level'),
@@ -291,6 +294,11 @@ const ui = {
   soundButton: document.querySelector('#sound-button'),
   mobilePauseButton: document.querySelector('#mobile-pause-button'),
   mobileSoundButton: document.querySelector('#mobile-sound-button'),
+  mobileGameHeader: document.querySelector('#mobile-game-header'),
+  mobileGameMapButton: document.querySelector('#mobile-game-map-button'),
+  mobileGameLevel: document.querySelector('#mobile-game-level'),
+  mobileGameLocation: document.querySelector('#mobile-game-location'),
+  mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
   mapButton: document.querySelector('#map-button'),
   mobileMapButton: document.querySelector('#mobile-map-button'),
   mapScreen: document.querySelector('#map-screen'),
@@ -354,6 +362,7 @@ let lastFrame = performance.now();
 let elapsed = 0;
 let autoSaveElapsed = 0;
 let swipeStart = null;
+let mobileScrollPosition = 0;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -504,10 +513,13 @@ function selectMapLocation(id) {
 
 function updateLocationUi() {
   const item = currentLocation();
+  const locationLevel = PASSAU_LEVELS.indexOf(item) + 1;
   ui.locationRiver.textContent = item.river;
   ui.locationCoordinates.textContent = `${item.lat.toFixed(3)}° N · ${item.lon.toFixed(3)}° E`;
   ui.locationName.textContent = localized(item.name).toUpperCase();
-  ui.missionLabel.textContent = `${t('missionPrefix')} · ${String(PASSAU_LEVELS.indexOf(item) + 1).padStart(2, '0')} · ${t(difficultyConfig().nameKey).toUpperCase()}`;
+  ui.mobileGameLevel.textContent = `LEVEL ${String(locationLevel).padStart(2, '0')}`;
+  ui.mobileGameLocation.textContent = localized(item.name).toUpperCase();
+  ui.missionLabel.textContent = `${t('missionPrefix')} · ${String(locationLevel).padStart(2, '0')} · ${t(difficultyConfig().nameKey).toUpperCase()}`;
   ui.missionTitle.textContent = localized(item.mission);
   canvas.setAttribute('aria-label', `${localized(item.name)}: Gassi-Runde mit Franz und Lola`);
 }
@@ -527,6 +539,7 @@ function applyLanguage() {
   updateLocationUi();
   setPauseButtons(state === 'paused');
   syncSoundButtons();
+  syncFullscreenUi();
   renderPassauMap();
   if (currentOverlay) refreshOverlay();
 }
@@ -538,7 +551,99 @@ function setLanguage(nextLanguage) {
   saveGame();
 }
 
+function isMobileGameLayout() {
+  return window.matchMedia(
+    '(pointer: coarse), (max-width: 740px), (max-width: 900px) and (max-height: 600px) and (orientation: landscape)',
+  ).matches;
+}
+
+function nativeFullscreenElement() {
+  return document.fullscreenElement ?? document.webkitFullscreenElement ?? null;
+}
+
+function syncFullscreenUi() {
+  const nativeActive = nativeFullscreenElement() === ui.boardColumn;
+  ui.mobileFullscreenButton.setAttribute('aria-pressed', String(nativeActive));
+  ui.mobileFullscreenButton.setAttribute(
+    'aria-label',
+    nativeActive ? t('exitFullscreenLabel') : t('enterFullscreenLabel'),
+  );
+  ui.mobileFullscreenButton.textContent = nativeActive ? '×' : '⛶';
+}
+
+function requestNativeFullscreen() {
+  if (!isMobileGameLayout() || nativeFullscreenElement()) {
+    syncFullscreenUi();
+    return;
+  }
+  const request = ui.boardColumn.requestFullscreen ?? ui.boardColumn.webkitRequestFullscreen;
+  if (!request) {
+    syncFullscreenUi();
+    return;
+  }
+  try {
+    const pending = request.call(ui.boardColumn);
+    pending?.catch(() => syncFullscreenUi());
+  } catch {
+    syncFullscreenUi();
+  }
+}
+
+function enterMobileGameMode(requestNative = false) {
+  if (!isMobileGameLayout()) return false;
+  const alreadyActive = document.body.classList.contains('mobile-game-active');
+  if (!alreadyActive) {
+    mobileScrollPosition = window.scrollY;
+    document.body.style.top = `-${mobileScrollPosition}px`;
+    document.body.classList.add('mobile-game-active');
+  }
+  syncFullscreenUi();
+  if (requestNative) requestNativeFullscreen();
+  return !alreadyActive;
+}
+
+function leaveMobileGameMode(returnToBoard = false) {
+  const wasActive = document.body.classList.contains('mobile-game-active');
+  document.body.classList.remove('mobile-game-active');
+  document.body.style.top = '';
+
+  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
+  if (nativeFullscreenElement() === ui.boardColumn && exit) {
+    try {
+      const pending = exit.call(document);
+      pending?.catch(() => syncFullscreenUi());
+    } catch {
+      syncFullscreenUi();
+    }
+  }
+
+  if (wasActive) {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, mobileScrollPosition);
+      if (returnToBoard) ui.boardColumn.scrollIntoView({ block: 'start' });
+    });
+  }
+  syncFullscreenUi();
+  return wasActive;
+}
+
+function toggleNativeFullscreen() {
+  enterMobileGameMode(false);
+  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
+  if (nativeFullscreenElement() === ui.boardColumn && exit) {
+    try {
+      const pending = exit.call(document);
+      pending?.catch(() => syncFullscreenUi());
+    } catch {
+      syncFullscreenUi();
+    }
+  } else {
+    requestNativeFullscreen();
+  }
+}
+
 function openMap() {
+  leaveMobileGameMode(true);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
   mapSelectionId = selectedLevelId;
@@ -549,6 +654,7 @@ function openMap() {
 }
 
 function startMapSelection() {
+  enterMobileGameMode(true);
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
   if (!resumable) {
     selectedLevelId = mapSelectionId;
@@ -569,6 +675,7 @@ function startMapSelection() {
 }
 
 function resetGameProgress() {
+  leaveMobileGameMode(true);
   state = 'map';
   score = 0;
   best = 0;
@@ -877,6 +984,8 @@ function restoreGame(save) {
   applyLanguage();
   updateHud();
 
+  if (save.mode !== 'map') enterMobileGameMode(false);
+
   if (save.mode === 'map') {
     openMap();
   } else if (!runStarted) {
@@ -898,6 +1007,7 @@ function restoreGame(save) {
       'resumeCopy',
       'resumeButton',
       () => {
+        requestNativeFullscreen();
         state = 'playing';
         setPauseButtons(false);
         hideOverlay();
@@ -944,6 +1054,7 @@ function setDirection(name) {
 }
 
 function startGame(reset = false) {
+  enterMobileGameMode(true);
   if (reset) {
     score = 0;
     level = PASSAU_LEVELS.findIndex((item) => item.id === selectedLevelId) + 1;
@@ -965,6 +1076,7 @@ function togglePause() {
     state = 'paused';
     setPauseButtons(true);
     showOverlay('pauseKicker', 'pauseTitle', 'pauseCopy', 'pauseButton', () => {
+      requestNativeFullscreen();
       state = 'playing';
       setPauseButtons(false);
       hideOverlay();
@@ -972,6 +1084,7 @@ function togglePause() {
     });
     saveGame();
   } else if (state === 'paused') {
+    requestNativeFullscreen();
     state = 'playing';
     setPauseButtons(false);
     hideOverlay();
@@ -1838,6 +1951,8 @@ ui.soundButton.addEventListener('click', toggleSound);
 ui.mobileSoundButton.addEventListener('click', toggleSound);
 ui.mapButton.addEventListener('click', openMap);
 ui.mobileMapButton.addEventListener('click', openMap);
+ui.mobileGameMapButton.addEventListener('click', openMap);
+ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.newGameButton.addEventListener('click', showNewGameConfirmation);
 document.querySelectorAll('[data-language]').forEach((button) => {
@@ -1851,7 +1966,16 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
 
-window.addEventListener('resize', resizeCanvas);
+document.addEventListener('fullscreenchange', syncFullscreenUi);
+document.addEventListener('webkitfullscreenchange', syncFullscreenUi);
+document.addEventListener('touchmove', (event) => {
+  if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
+}, { passive: false });
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  syncFullscreenUi();
+});
 window.addEventListener('pagehide', () => saveGame(true));
 
 if (storedGame) restoreGame(storedGame);
