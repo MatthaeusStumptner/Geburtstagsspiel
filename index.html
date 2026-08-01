@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#071522" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <meta
+      name="description"
+      content="Franz &amp; Lola – ein liebevoller Pixel-Art Maze-Chase an neun Orten in Passau."
+    />
+    <title>Franz &amp; Lola – Gassi-Runde Passau</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand" aria-label="Gassi-Runde Passau">
+          <p class="eyebrow" data-i18n="eyebrow">EIN KLEINES ABENTEUER AUS PASSAU</p>
+          <div class="brand-line">
+            <h1>GASSI-RUNDE</h1>
+            <span>PASSAU</span>
+          </div>
+        </div>
+
+        <div class="hud" aria-label="Spielstand">
+          <div class="hud-card">
+            <span data-i18n="scoreLabel">PUNKTE</span>
+            <strong id="score">000000</strong>
+          </div>
+          <div class="hud-card">
+            <span data-i18n="bestLabel">BESTE RUNDE</span>
+            <strong id="best">000000</strong>
+          </div>
+          <div class="hud-card compact">
+            <span data-i18n="roundLabel">RUNDE</span>
+            <strong id="level">01</strong>
+          </div>
+          <div class="hud-card compact">
+            <span data-i18n="livesLabel">LEINEN</span>
+            <strong id="lives" aria-label="3 Leben">● ● ●</strong>
+          </div>
+          <div class="hud-card compact progress-card">
+            <span data-i18n="globalProgressLabel">PASSAU</span>
+            <strong id="global-progress">0%</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="game-layout">
+        <div class="board-column">
+          <div class="board-frame">
+            <div class="location-ribbon" aria-hidden="true">
+              <span id="location-river">PASSAU</span>
+              <span id="location-coordinates">48.58° N</span>
+              <span id="location-name">DAHOAM</span>
+            </div>
+            <canvas
+              id="game"
+              width="600"
+              height="600"
+              role="img"
+              aria-label="Spielfeld der Gassi-Runde durch Hals"
+            ></canvas>
+
+            <div class="easter-toast" id="easter-toast" hidden role="status">
+              <span aria-hidden="true">✦</span>
+              <p id="easter-toast-copy"></p>
+            </div>
+
+            <section class="passau-map-screen" id="map-screen" hidden aria-labelledby="map-title">
+              <div class="map-heading">
+                <div>
+                  <p class="section-label" data-i18n="mapKicker">DEINE GASSI-KARTE</p>
+                  <h2 id="map-title" data-i18n="mapTitle">Wo geht's heute hin?</h2>
+                </div>
+                <p data-i18n="mapCopy">Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.</p>
+              </div>
+              <div class="map-canvas" id="map-canvas">
+                <svg id="passau-map" viewBox="0 0 1000 700" aria-label="Schematische, maßstäblich angeordnete Karte von Passau"></svg>
+                <div class="map-markers" id="map-markers"></div>
+                <div class="map-scale" aria-hidden="true"><i></i><span>1 KM</span></div>
+              </div>
+              <div class="map-selection">
+                <div>
+                  <p class="section-label" id="map-selection-kicker">LEVEL 01</p>
+                  <h3 id="map-selection-title">Dahoam</h3>
+                  <p id="map-selection-copy">Franz und Lola starten direkt vor ihrer Haustür.</p>
+                </div>
+                <button class="primary-button" id="map-start-button" type="button" data-i18n="mapStart">LEVEL STARTEN →</button>
+              </div>
+            </section>
+
+            <div class="game-overlay" id="overlay">
+              <div class="overlay-card">
+                <div class="completion-emblem" id="overlay-celebration" hidden aria-hidden="true">
+                  <strong>100%</strong>
+                  <span>PASSAU</span>
+                </div>
+                <p class="overlay-kicker" id="overlay-kicker">D'ABENDRUNDN GEHT O</p>
+                <h2 id="overlay-title">Pack ma's, Franz!</h2>
+                <p id="overlay-copy">
+                  Sammel olle Guttis ei, hoid di von de Nochbarskatzn fern und bring d'Lola guad
+                  durch'n Hals.
+                </p>
+                <button class="primary-button" id="overlay-button" type="button">
+                  AUF GEHT'S <span aria-hidden="true">→</span>
+                </button>
+                <button class="secondary-button" id="overlay-secondary-button" type="button" hidden>
+                  ABBRECHEN
+                </button>
+                <p class="key-hint" data-i18n="keyHint">PFEILTASTEN / WASD · P ZUM PAUSIEREN</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mobile-controls" aria-label="Touch-Steuerung">
+            <div class="d-pad">
+              <button data-direction="up" aria-label="Nach oben">▲</button>
+              <button data-direction="left" aria-label="Nach links">◀</button>
+              <span class="d-pad-center" aria-hidden="true">✦</span>
+              <button data-direction="right" aria-label="Nach rechts">▶</button>
+              <button data-direction="down" aria-label="Nach unten">▼</button>
+            </div>
+            <div class="mobile-control-copy">
+              <p data-i18n="mobileHint">TIPPE ODER WISCHE AUF DEM SPIELFELD</p>
+              <div class="mobile-utilities">
+                <button id="mobile-pause-button" type="button" aria-pressed="false" aria-label="Spiel pausieren">Ⅱ</button>
+                <button id="mobile-sound-button" type="button" aria-pressed="false" aria-label="Ton einschalten">♪</button>
+                <button id="mobile-map-button" type="button" aria-label="Passau-Karte öffnen">⌖</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="side-panel">
+          <section class="mission-card">
+            <p class="section-label" id="mission-label">HEITIGE RUNDN</p>
+            <h2 id="mission-title">Oamoi um an Hals</h2>
+            <div class="route-line" aria-hidden="true">
+              <span class="route-dot active"></span>
+              <i></i>
+              <span class="route-dot"></span>
+              <i></i>
+              <span class="route-dot"></span>
+            </div>
+            <div class="route-names">
+              <span data-i18n="routeOne">START</span><span data-i18n="routeTwo">GUTTIS</span><span data-i18n="routeThree">ZIEL</span>
+            </div>
+            <div class="treat-meter">
+              <span data-i18n="treatProgressLabel">GUTTIS GESAMMELT</span>
+              <strong id="treat-progress">0 / 0</strong>
+            </div>
+            <div class="global-progress-panel">
+              <div>
+                <span data-i18n="globalProgressLabel">PASSAU-FORTSCHRITT</span>
+                <strong id="global-progress-copy">0%</strong>
+              </div>
+              <span class="global-progress-track" aria-hidden="true"><i id="global-progress-bar"></i></span>
+            </div>
+            <div class="secret-meter">
+              <span data-i18n="secretsLabel">PASSAU-GEHEIMNISSE</span>
+              <strong id="eggs">0 / 3</strong>
+            </div>
+            <p class="save-note"><i aria-hidden="true"></i><span id="save-status">IM BROWSER G'SPEICHERT</span></p>
+          </section>
+
+          <section class="legend-card">
+            <p class="section-label" data-i18n="guideLabel">GASSI-GUIDE</p>
+            <ul>
+              <li>
+                <span class="legend-icon treat" aria-hidden="true"></span>
+                <div><strong data-i18n="treatTitle">Gutti</strong><small data-i18n="treatCopy">+10 Punkte</small></div>
+              </li>
+              <li>
+                <span class="legend-icon paw" aria-hidden="true">✦</span>
+                <div><strong data-i18n="powerTitle">Schnüffel-Power</strong><small data-i18n="powerCopy">D'Katzn gebn Fersngeld</small></div>
+              </li>
+              <li>
+                <span class="legend-icon cat" aria-hidden="true">▲</span>
+                <div><strong data-i18n="catTitle">Nochbarskatzn</strong><small data-i18n="catCopy">Liaba Abstand hoidn</small></div>
+              </li>
+            </ul>
+          </section>
+
+          <section class="controls-card">
+            <p class="section-label" data-i18n="controlsLabel">STEUERUNG</p>
+            <div class="key-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span data-i18n="orLabel">oder</span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+            <div class="utility-buttons">
+              <button id="pause-button" type="button" aria-pressed="false">Ⅱ &nbsp; PAUSE</button>
+              <button id="sound-button" type="button" aria-pressed="false">♪ &nbsp; TON AUS</button>
+              <button id="map-button" class="map-button" type="button">⌖ &nbsp; <span data-i18n="mapButton">PASSAU-KARTE</span></button>
+            </div>
+          </section>
+
+          <section class="difficulty-card">
+            <p class="section-label" data-i18n="difficultyLabel">SCHWIERIGKEIT</p>
+            <div class="difficulty-switch" role="group" aria-label="Schwierigkeit wählen">
+              <button type="button" data-difficulty="easy" data-i18n="difficultyEasy">Spaziergang</button>
+              <button type="button" data-difficulty="normal" data-i18n="difficultyNormal">Gassirunde</button>
+              <button type="button" data-difficulty="hard" data-i18n="difficultyHard">Abenteuer</button>
+            </div>
+            <p class="difficulty-hint" id="difficulty-hint"></p>
+            <button class="new-game-button" id="new-game-button" type="button" data-i18n="newGameButton">
+              ↺ NEUER SPIELSTAND
+            </button>
+          </section>
+
+          <section class="language-card">
+            <p class="section-label" data-i18n="languageLabel">SPRACHE</p>
+            <div class="language-switch" role="group" aria-label="Sprache wählen">
+              <button type="button" data-language="standard" data-i18n="standardButton">Schönes Deutsch</button>
+              <button type="button" data-language="dialect" data-i18n="dialectButton">Niederbairisch*</button>
+            </div>
+            <p class="language-joke" data-i18n="languageJoke">* Keine richtige Sprache – eher eine sehr überzeugte Geräuschkulisse.</p>
+          </section>
+
+          <p class="flavour-copy"><span data-i18n="flavourQuote">„Nur noch eine kleine Runde.“</span><br /><small data-i18n="flavourByline">— Franz, seit 45 Minuten</small></p>
+        </aside>
+      </section>
+
+      <footer>
+        <span data-i18n="footerPlace">PASSAU · STADT &amp; FLÜSSE</span>
+        <span data-i18n="footerTagline">PIXEL FÜR PIXEL DURCH DIE NACHT</span>
+        <span>V0.6</span>
+      </footer>
+    </main>
+
+    <div class="sr-only" id="announcement" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
