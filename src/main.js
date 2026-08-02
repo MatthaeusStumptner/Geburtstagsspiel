@@ -77,6 +77,13 @@ const TEXT = {
     newGameTitle: 'Eine neue Gassi-Karte?',
     newGameCopy: 'Punkte, Orts-Häkchen und Geheimnisse werden gelöscht. Sprache, Ton und Schwierigkeit bleiben erhalten.',
     newGameConfirm: 'JA, NEU STARTEN', cancelButton: 'ABBRECHEN',
+    deleteBrowserDataButton: '⚠ ALLE BROWSERDATEN LÖSCHEN',
+    deleteDataKicker: 'LETZTE SICHERHEITSABFRAGE', deleteDataTitle: 'Die komplette Akte vernichten?',
+    deleteDataCopy: 'Der gesamte Spielstand dieses Spiels wird aus dem Browser gelöscht – einschließlich Leveln, Punkten, Einstellungen und Einweisung. Danach beginnt Vorgang 60 wieder ganz von vorn. Das lässt sich nicht rückgängig machen.',
+    deleteDataConfirm: 'JA, ALLES ENDGÜLTIG LÖSCHEN',
+    deleteDataErrorKicker: 'LÖSCHUNG BLOCKIERT', deleteDataErrorTitle: 'Die Akte klemmt im Schredder',
+    deleteDataErrorCopy: 'Der Browser hat das Löschen verhindert. Bitte prüfe, ob Website-Daten oder privater Modus blockiert sind.',
+    deleteDataErrorButton: 'ZURÜCK ZUM SPIEL',
   },
   dialect: {
     eyebrow: 'A KLOANS ABENTEUER AUS PASSAU',
@@ -134,7 +141,93 @@ const TEXT = {
     newGameTitle: 'A frische Gassi-Kartn?',
     newGameCopy: "Punkt, Orts-Hakerl und Geheimnis werdn glöscht. Sprach, Ton und Schwierigkeit bleibn wia's san.",
     newGameConfirm: 'JA, NEI STARTN', cancelButton: 'ABBRECHN',
+    deleteBrowserDataButton: '⚠ OLLE BROWSERDATEN LÖSCHN',
+    deleteDataKicker: 'LETZTE SICHERHEITSABFRAG', deleteDataTitle: 'De komplette Akt vernichtn?',
+    deleteDataCopy: 'Da ganze Spielstand von dem Spiel werd ausm Browser glöscht – Level, Punkt, Einstellungen und Einweisung. Danach fangt Vorgang 60 wieder ganz von vorn o. Des ko ma ned rückgängig macha.',
+    deleteDataConfirm: 'JA, OIS ENDGÜLTIG LÖSCHN',
+    deleteDataErrorKicker: 'LÖSCHN BLOCKIERT', deleteDataErrorTitle: 'De Akt hängt im Schredder',
+    deleteDataErrorCopy: 'Da Browser hod des Löschn verhindert. Bittsche prüaf, ob Website-Daten oder da private Modus blockiert san.',
+    deleteDataErrorButton: 'ZRUCK ZUM SPIEL',
   },
+};
+
+const ONBOARDING_GUIDE = {
+  standard: [
+    {
+      kicker: 'SONDERAKTE F-60 · OFFENLEGUNG',
+      title: 'Der Auftrag',
+      copy: 'Der versiegelte Umschlag springt auf. Darin liegt eine Karte von Passau – und daneben wartet Lola bereits mit angelegter Leine. Zum 60. Geburtstag wurde eine ganz besondere Ehrenrunde genehmigt.',
+      points: [
+        'Neun Passauer Orte bilden das offizielle Einsatzgebiet.',
+        'An jedem Ort müssen sämtliche Guttis ordnungsgemäß sichergestellt werden.',
+        'Nachbarskatzen betrachten den Vorgang leider als ihre Zuständigkeit.',
+      ],
+      finePrint: 'Aktenvermerk: Lola führt die operative Leitung. Franz trägt die Leine und die Verantwortung.',
+      next: 'ZUR BEDIENUNGSANWEISUNG →',
+    },
+    {
+      kicker: 'DIENSTANWEISUNG · FORTBEWEGUNG',
+      title: 'Lola gibt die Richtung vor',
+      copy: 'Sobald sich die beiden in Bewegung setzen, genügt ein kurzer Richtungswunsch. Lola versteht ihn sofort – meistens sogar schneller als eine kommunale Dienststelle.',
+      points: [
+        'Desktop: Pfeiltasten oder W, A, S und D verwenden.',
+        'Mobil: direkt auf dem Spielfeld in die gewünschte Richtung wischen.',
+        'Richtungen dürfen schon kurz vor der nächsten Kreuzung vorgemerkt werden.',
+      ],
+      finePrint: 'P oder die Leertaste pausieren den Vorgang. Spontane Schuhbindepausen sind zulässig.',
+      next: 'ZU DEN EINSATZMITTELN →',
+    },
+    {
+      kicker: 'DIENSTANWEISUNG · EINSATZMITTEL',
+      title: 'Was unterwegs wichtig wird',
+      copy: 'Die Sonderstelle hat drei auffällig unbürokratische Hilfsmittel genehmigt. Das Zahnrad-Menü enthält außerdem Karte, Pause und Ton – falls die Lage eine geordnete Unterbrechung verlangt.',
+      points: [
+        'Gelbe Guttis zählen zum Auftrag und müssen vollständig eingesammelt werden.',
+        'Die große Pfote aktiviert Schnüffel-Power und vertreibt Katzen vorübergehend.',
+        'Randpfeile zeigen Katzen an, die außerhalb des sichtbaren Bereichs lauern.',
+      ],
+      finePrint: 'Damit ist die Einweisung abgeschlossen. Der eigentliche Vorgang beginnt auf der Passau-Karte.',
+      finish: 'VORGANG 60 STARTEN →',
+    },
+  ],
+  dialect: [
+    {
+      kicker: 'SONDERAKT F-60 · JETZT WERD AUFGMACHT',
+      title: 'Da Auftrag',
+      copy: "Da versiegelte Umschlag springt auf. Drin liegt a Kartn von Passau – und daneben wart d'Lola scho mit da Lein. Zum 60er is a ganz bsondere Ehrenrundn genehmigt worn.",
+      points: [
+        'Neun Passauer Platzerl san des amtliche Einsatzgebiet.',
+        'An jedem Platzerl miassn olle Guttis sauber sichergstellt werdn.',
+        "De Nochbarskatzn hoitn des leider aa für eahna Zuständigkeit.",
+      ],
+      finePrint: "Aktenvermerk: D'Lola hod d'Einsatzleitung. Da Franz hod d'Lein und d'Verantwortung.",
+      next: 'ZUR BEDIENUNGSANWEISUNG →',
+    },
+    {
+      kicker: 'DIENSTANWEISUNG · FORTBEWEGUNG',
+      title: "D'Lola gibt d'Richtung vor",
+      copy: "Sobald de zwoa unterwegs san, reicht a kurzer Richtungswunsch. D'Lola vasteht'n sofort – meistens schneller ois a kommunale Dienststell.",
+      points: [
+        'Am Rechner: Pfeiltastn oder W, A, S und D nehma.',
+        'Mobil: direkt aufm Spielfeld in de gewünschte Richtung wischn.',
+        'D Richtung ko scho kurz vor da nächsten Kreuzung vorgemerkt werdn.',
+      ],
+      finePrint: 'P oder d Leertastn pausiern den Vorgang. Schuahbindn is ausdrücklich erlaubt.',
+      next: 'ZU DE EINSATZMITTEL →',
+    },
+    {
+      kicker: 'DIENSTANWEISUNG · EINSATZMITTEL',
+      title: 'Wos unterwegs wichtig werd',
+      copy: 'De Sonderstell hod drei erstaunlich unbürokratische Hilfsmittel genehmigt. Im Zahnrad-Menü san außerdem Kartn, Pause und Ton – falls d Lage a gscheide Unterbrechung braucht.',
+      points: [
+        'De gelbn Guttis ghern zum Auftrag und miassn olle eigsammelt werdn.',
+        'De große Pfotn aktiviert d Schnüffel-Power und vertreibt Katzn für a Zeitl.',
+        'Randpfeile zoagn Katzn, de grad außerhalb vom sichtbaren Bereich lauern.',
+      ],
+      finePrint: 'Damit war d Einweisung. Da eigentliche Vorgang fangt auf da Passau-Kartn o.',
+      finish: 'JETZT PACK MA VORGANG 60 →',
+    },
+  ],
 };
 
 const DIFFICULTIES = {
@@ -314,6 +407,7 @@ const CAT_STARTS = [
 ];
 
 const ui = {
+  appShell: document.querySelector('.app-shell'),
   boardColumn: document.querySelector('.board-column'),
   score: document.querySelector('#score'),
   best: document.querySelector('#best'),
@@ -374,15 +468,37 @@ const ui = {
   treatProgress: document.querySelector('#treat-progress'),
   difficultyHint: document.querySelector('#difficulty-hint'),
   newGameButton: document.querySelector('#new-game-button'),
+  deleteBrowserDataButton: document.querySelector('#delete-browser-data-button'),
   eggs: document.querySelector('#eggs'),
   saveStatus: document.querySelector('#save-status'),
   saveNote: document.querySelector('.save-note'),
   easterToast: document.querySelector('#easter-toast'),
   easterToastCopy: document.querySelector('#easter-toast-copy'),
   announcement: document.querySelector('#announcement'),
+  onboardingDialog: document.querySelector('#onboarding-dialog'),
+  onboardingPanel: document.querySelector('.onboarding-panel'),
+  onboardingLoginForm: document.querySelector('#onboarding-login-form'),
+  onboardingName: document.querySelector('#onboarding-name'),
+  onboardingAge: document.querySelector('#onboarding-age'),
+  onboardingLoginError: document.querySelector('#onboarding-login-error'),
+  onboardingSetupNext: document.querySelector('#onboarding-setup-next'),
+  onboardingGuideKicker: document.querySelector('#onboarding-guide-kicker'),
+  onboardingGuideTitle: document.querySelector('#onboarding-guide-title'),
+  onboardingGuideCopy: document.querySelector('#onboarding-guide-copy'),
+  onboardingGuidePoints: document.querySelector('#onboarding-guide-points'),
+  onboardingGuidePosition: document.querySelector('.onboarding-guide-position'),
+  onboardingGuideBack: document.querySelector('#onboarding-guide-back'),
+  onboardingGuideNext: document.querySelector('#onboarding-guide-next'),
+  onboardingGuideFinePrint: document.querySelector('#onboarding-guide-fine-print'),
+  onboardingFinish: document.querySelector('#onboarding-finish'),
 };
 
 const storedGame = loadGame();
+const onboardingParams = new URLSearchParams(window.location.search);
+const forceOnboarding = onboardingParams.get('onboarding') === '1'
+  || (import.meta.env.DEV && onboardingParams.has('onboarding'));
+const onboardingPreview = Boolean(storedGame && forceOnboarding);
+const requiresOnboarding = !storedGame || forceOnboarding;
 let grid = [];
 let pellets = new Set();
 let powerPellets = new Set();
@@ -426,6 +542,11 @@ let mobileScrollPosition = 0;
 let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
+let onboardingComplete = !requiresOnboarding;
+let onboardingLanguage = language;
+let onboardingDifficulty = difficulty;
+let onboardingLoginAttempts = 0;
+let onboardingGuidePage = 0;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -433,6 +554,176 @@ function t(key, values = {}) {
     (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
     template,
   );
+}
+
+function updateOnboardingChoices() {
+  document.querySelectorAll('[data-onboarding-language]').forEach((button) => {
+    const active = button.dataset.onboardingLanguage === onboardingLanguage;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  document.querySelectorAll('[data-onboarding-difficulty]').forEach((button) => {
+    const active = button.dataset.onboardingDifficulty === onboardingDifficulty;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function showOnboardingStep(step) {
+  const order = ['identity', 'setup', 'guide'];
+  const titleIds = {
+    identity: 'onboarding-title',
+    setup: 'onboarding-setup-title',
+    guide: 'onboarding-guide-title',
+  };
+  const activeIndex = order.indexOf(step);
+  document.querySelectorAll('[data-onboarding-step]').forEach((section) => {
+    section.hidden = section.dataset.onboardingStep !== step;
+  });
+  document.querySelectorAll('[data-onboarding-progress]').forEach((indicator, index) => {
+    indicator.classList.toggle('active', index === activeIndex);
+    indicator.classList.toggle('done', index < activeIndex);
+  });
+  ui.onboardingDialog.querySelector('.onboarding-progress')
+    .setAttribute('aria-label', `Einrichtung, Schritt ${activeIndex + 1} von ${order.length}`);
+  ui.onboardingPanel.setAttribute('aria-labelledby', titleIds[step]);
+  requestAnimationFrame(() => {
+    if (step === 'identity') ui.onboardingName.focus();
+    if (step === 'setup') document.querySelector('[data-onboarding-language].active')?.focus();
+    if (step === 'guide') ui.onboardingGuideNext.focus();
+  });
+}
+
+function showOnboarding() {
+  updateOnboardingChoices();
+  showOnboardingStep('identity');
+  ui.onboardingDialog.hidden = false;
+  ui.onboardingDialog.inert = false;
+  ui.onboardingDialog.setAttribute('aria-hidden', 'false');
+  ui.appShell.inert = true;
+  document.body.classList.add('onboarding-open');
+}
+
+function hideOnboarding() {
+  ui.onboardingDialog.hidden = true;
+  ui.onboardingDialog.inert = true;
+  ui.onboardingDialog.setAttribute('aria-hidden', 'true');
+  ui.appShell.inert = false;
+  document.body.classList.remove('onboarding-open');
+}
+
+function validateOnboardingLogin() {
+  const enteredName = ui.onboardingName.value.trim().toLocaleLowerCase('de-DE');
+  const enteredAge = Number(ui.onboardingAge.value);
+  const nameMatches = enteredName === 'franz';
+  const ageMatches = ui.onboardingAge.value !== '' && enteredAge === 60;
+  ui.onboardingName.setAttribute('aria-invalid', String(!nameMatches));
+  ui.onboardingAge.setAttribute('aria-invalid', String(!ageMatches));
+
+  if (nameMatches && ageMatches) {
+    ui.onboardingLoginError.classList.add('success');
+    ui.onboardingLoginError.textContent = 'Treffer. Personalakte F-60 bestätigt. Der versiegelte Umschlag wird aus dem Archiv geholt …';
+    ui.onboardingLoginForm.querySelector('button[type="submit"]').disabled = true;
+    setTimeout(() => {
+      ui.onboardingLoginError.classList.remove('success');
+      ui.onboardingLoginForm.querySelector('button[type="submit"]').disabled = false;
+      showOnboardingStep('setup');
+    }, 650);
+    return;
+  }
+
+  onboardingLoginAttempts += 1;
+  ui.onboardingLoginError.classList.remove('success');
+  if (!enteredName && ui.onboardingAge.value === '') {
+    ui.onboardingLoginError.textContent = 'Ganz ohne Angaben wird selbst eine Fake-Behörde misstrauisch. Name und Alter bitte!';
+  } else if (!nameMatches && !ageMatches) {
+    ui.onboardingLoginError.textContent = 'Kein Treffer im Sonderregister. Hinterlegt sind Franz und die Kennzahl 60.';
+  } else if (!nameMatches) {
+    ui.onboardingLoginError.textContent = 'Die Kennzahl passt, der Personenschlüssel nicht. Zuständig ist ausschließlich Franz.';
+  } else if (enteredAge < 60) {
+    ui.onboardingLoginError.textContent = 'Fast! Aber unter 60 fehlt noch die amtliche Geburtstagsreife.';
+  } else {
+    ui.onboardingLoginError.textContent = 'Die Akte sagt 60. Komplimente über zusätzliche Lebenserfahrung zählen leider nicht.';
+  }
+  if (onboardingLoginAttempts >= 3) {
+    ui.onboardingLoginError.textContent += ' Inoffizieller Amtshinweis: F… wie Franz und sechzig ohne Formulargebühr.';
+  }
+}
+
+function renderOnboardingGuidePage() {
+  const pages = ONBOARDING_GUIDE[language] ?? ONBOARDING_GUIDE.standard;
+  const page = pages[onboardingGuidePage];
+  const lastPage = onboardingGuidePage === pages.length - 1;
+  ui.onboardingGuideKicker.textContent = page.kicker;
+  ui.onboardingGuideTitle.textContent = page.title;
+  ui.onboardingGuideCopy.textContent = page.copy;
+  [...ui.onboardingGuidePoints.children].forEach((item, index) => {
+    item.textContent = page.points[index] ?? '';
+  });
+  document.querySelectorAll('[data-guide-visual]').forEach((visual, index) => {
+    visual.hidden = index !== onboardingGuidePage;
+  });
+  [...ui.onboardingGuidePosition.children].forEach((indicator, index) => {
+    indicator.classList.toggle('active', index === onboardingGuidePage);
+    indicator.classList.toggle('done', index < onboardingGuidePage);
+  });
+  ui.onboardingGuidePosition.setAttribute(
+    'aria-label',
+    `Einweisung, Seite ${onboardingGuidePage + 1} von ${pages.length}`,
+  );
+  ui.onboardingGuideBack.hidden = onboardingGuidePage === 0;
+  ui.onboardingGuideNext.hidden = lastPage;
+  ui.onboardingFinish.hidden = !lastPage;
+  ui.onboardingGuideNext.textContent = page.next ?? 'WEITER →';
+  ui.onboardingFinish.textContent = page.finish ?? 'VORGANG 60 STARTEN →';
+  ui.onboardingGuideBack.textContent = language === 'dialect' ? '← ZRUCK' : '← ZURÜCK';
+  ui.onboardingGuideFinePrint.textContent = page.finePrint;
+  ui.onboardingPanel.scrollTop = 0;
+}
+
+function moveOnboardingGuide(direction) {
+  const pages = ONBOARDING_GUIDE[language] ?? ONBOARDING_GUIDE.standard;
+  onboardingGuidePage = Math.max(0, Math.min(pages.length - 1, onboardingGuidePage + direction));
+  renderOnboardingGuidePage();
+  requestAnimationFrame(() => {
+    if (onboardingGuidePage === pages.length - 1) ui.onboardingFinish.focus();
+    else ui.onboardingGuideNext.focus();
+  });
+}
+
+function prepareOnboardingGuide() {
+  language = onboardingLanguage;
+  difficulty = onboardingDifficulty;
+  lives = difficultyConfig().lives;
+  graceTimer = difficultyConfig().grace;
+  levelRunScore = 0;
+  rebaseLevelStatsForDifficulty();
+  buildLevel();
+  runStarted = false;
+  applyLanguage();
+  updateLocationUi();
+  updateHud();
+  renderPassauMap();
+  onboardingGuidePage = 0;
+  renderOnboardingGuidePage();
+  showOnboardingStep('guide');
+}
+
+function finishOnboarding() {
+  if (onboardingPreview) {
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('onboarding');
+    window.history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    window.location.reload();
+    return;
+  }
+  onboardingComplete = true;
+  hideOnboarding();
+  saveGame();
+  ui.announcement.textContent = language === 'dialect'
+    ? "Servus Franz, d'Passau-Kartn is freigschoit!"
+    : 'Willkommen Franz, die Passau-Karte ist freigeschaltet!';
+  requestAnimationFrame(() => ui.settingsButton.focus());
 }
 
 function currentLocation() {
@@ -971,6 +1262,59 @@ function showNewGameConfirmation() {
   );
 }
 
+function deleteStoredBrowserData() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(LEGACY_BEST_KEY);
+  } catch {
+    showOverlay(
+      'deleteDataErrorKicker',
+      'deleteDataErrorTitle',
+      'deleteDataErrorCopy',
+      'deleteDataErrorButton',
+      hideOverlay,
+    );
+    return;
+  }
+
+  onboardingComplete = false;
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.search = '';
+  window.location.replace(`${cleanUrl.pathname}${cleanUrl.hash}`);
+}
+
+function showDeleteBrowserDataConfirmation() {
+  const previous = {
+    state,
+    mapHidden: ui.mapScreen.hidden,
+    overlay: currentOverlay ? { ...currentOverlay } : null,
+  };
+  if (state === 'playing' || state === 'hit') {
+    state = 'paused';
+    setPauseButtons(true);
+  }
+  const cancel = () => {
+    state = previous.state === 'hit' ? 'playing' : previous.state;
+    ui.mapScreen.hidden = previous.mapHidden;
+    if (previous.overlay) {
+      currentOverlay = previous.overlay;
+      refreshOverlay();
+    } else {
+      hideOverlay();
+    }
+    setPauseButtons(state === 'paused');
+  };
+  showOverlay(
+    'deleteDataKicker',
+    'deleteDataTitle',
+    'deleteDataCopy',
+    'deleteDataConfirm',
+    deleteStoredBrowserData,
+    {},
+    { variant: 'confirmation', secondaryKey: 'cancelButton', secondaryHandler: cancel },
+  );
+}
+
 function loadLegacyBest() {
   try {
     return Number(localStorage.getItem(LEGACY_BEST_KEY)) || 0;
@@ -1042,6 +1386,7 @@ function loadGame() {
 }
 
 function saveGame(quiet = false) {
+  if (!onboardingComplete) return;
   best = Math.max(best, score);
   if (runStarted) updateCurrentLevelStatsSnapshot(state === 'won');
   const payload = {
@@ -2432,6 +2777,7 @@ function resizeCanvas() {
 }
 
 document.addEventListener('keydown', (event) => {
+  if (!ui.onboardingDialog.hidden) return;
   if (!ui.settingsDialog.hidden) {
     if (event.code === 'Escape') {
       event.preventDefault();
@@ -2578,9 +2924,33 @@ ui.settingsCloseButton.addEventListener('click', () => closeSettings());
 ui.settingsDialog.addEventListener('click', (event) => {
   if (event.target === ui.settingsDialog) closeSettings();
 });
+ui.onboardingLoginForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  validateOnboardingLogin();
+});
+document.querySelectorAll('[data-onboarding-language]').forEach((button) => {
+  button.addEventListener('click', () => {
+    onboardingLanguage = button.dataset.onboardingLanguage;
+    updateOnboardingChoices();
+  });
+});
+document.querySelectorAll('[data-onboarding-difficulty]').forEach((button) => {
+  button.addEventListener('click', () => {
+    onboardingDifficulty = button.dataset.onboardingDifficulty;
+    updateOnboardingChoices();
+  });
+});
+ui.onboardingSetupNext.addEventListener('click', prepareOnboardingGuide);
+ui.onboardingGuideBack.addEventListener('click', () => moveOnboardingGuide(-1));
+ui.onboardingGuideNext.addEventListener('click', () => moveOnboardingGuide(1));
+ui.onboardingFinish.addEventListener('click', finishOnboarding);
 ui.newGameButton.addEventListener('click', () => {
   closeSettings(false);
   showNewGameConfirmation();
+});
+ui.deleteBrowserDataButton.addEventListener('click', () => {
+  closeSettings(false);
+  showDeleteBrowserDataConfirmation();
 });
 document.querySelectorAll('[data-language]').forEach((button) => {
   button.addEventListener('click', () => setLanguage(button.dataset.language));
@@ -2626,6 +2996,7 @@ else {
   updateHud();
   openMap();
 }
+if (requiresOnboarding) showOnboarding();
 resizeCanvas();
 requestAnimationFrame(frame);
 

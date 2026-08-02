@@ -276,6 +276,127 @@
       </footer>
     </main>
 
+    <div class="onboarding-dialog" id="onboarding-dialog" hidden inert aria-hidden="true">
+      <section class="onboarding-panel" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <div class="onboarding-progress" aria-label="Einrichtung, Schritt 1 von 3">
+          <span class="active" data-onboarding-progress="identity"><b>1</b></span>
+          <i></i>
+          <span data-onboarding-progress="setup"><b>2</b></span>
+          <i></i>
+          <span data-onboarding-progress="guide"><b>3</b></span>
+        </div>
+
+        <section class="onboarding-step" data-onboarding-step="identity">
+          <p class="section-label">KOMMUNALE SONDERSTELLE · VORGANG 60</p>
+          <h2 id="onboarding-title">Identitätsfeststellung</h2>
+          <p class="onboarding-copy">
+            Für dich liegt eine anlassbezogene Sonderakte vor. Inhalt, Zweck und etwaige
+            Nebenwirkungen dürfen erst nach eindeutigem Personenabgleich offengelegt werden.
+          </p>
+          <form id="onboarding-login-form" novalidate>
+            <div class="onboarding-fields">
+              <label>
+                <span>VORNAME LAUT PERSONALAKTE</span>
+                <input id="onboarding-name" name="name" type="text" autocomplete="given-name" placeholder="Zum Beispiel: Franz" />
+              </label>
+              <label>
+                <span>VOLLENDETE DIENSTJAHRE</span>
+                <input id="onboarding-age" name="age" type="number" inputmode="numeric" min="1" max="120" placeholder="??" />
+              </label>
+            </div>
+            <p class="onboarding-error" id="onboarding-login-error" role="alert" aria-live="polite"></p>
+            <button class="primary-button" type="submit">IDENTITÄT PRÜFEN →</button>
+          </form>
+          <p class="onboarding-fine-print">🔒 Dienstlich versiegelt. Ein Passwort ist laut Formular 60-B nicht vorgesehen.</p>
+        </section>
+
+        <section class="onboarding-step" data-onboarding-step="setup" hidden>
+          <p class="section-label">VORPRÜFUNG · PERSÖNLICHE PRÄFERENZEN</p>
+          <h2 id="onboarding-setup-title">Verfahrensparameter</h2>
+          <p class="onboarding-copy">
+            Vor Öffnung der Sonderakte sind zwei formlose Festlegungen erforderlich.
+            Der Gegenstand des Verfahrens bleibt bis zur Einweisung pflichtgemäß geheim.
+          </p>
+
+          <fieldset class="onboarding-choice-group">
+            <legend>1 · KOMMUNIKATIONSPROTOKOLL</legend>
+            <div class="onboarding-language-options">
+              <button type="button" data-onboarding-language="standard">
+                <strong>Schönes Deutsch</strong>
+                <small>Normgerechte Zustellung in vollständigen Sätzen.</small>
+              </button>
+              <button type="button" data-onboarding-language="dialect">
+                <strong>Niederbairisch</strong>
+                <small>Regionalverfahren mit maximaler Verständlichkeit vor Ort.</small>
+              </button>
+            </div>
+          </fieldset>
+
+          <fieldset class="onboarding-choice-group">
+            <legend>2 · VORGANGSINTENSITÄT</legend>
+            <div class="onboarding-difficulty-options">
+              <button type="button" data-onboarding-difficulty="easy">
+                <strong>Regelbetrieb</strong>
+                <small>Großzügige Ermessensspielräume.<br />Jubiläumsschonend.</small>
+              </button>
+              <button type="button" data-onboarding-difficulty="normal">
+                <strong>Außendienst</strong>
+                <small>Ausgewogenes Verfahren.<br />Gelegentlicher Handlungsbedarf.</small>
+              </button>
+              <button type="button" data-onboarding-difficulty="hard">
+                <strong>Sonderlage</strong>
+                <small>Verdichtete Aktenlage.<br />Reaktionsfähigkeit vorausgesetzt.</small>
+              </button>
+            </div>
+          </fieldset>
+
+          <button class="primary-button" id="onboarding-setup-next" type="button">PARAMETER VERSIEGELN →</button>
+        </section>
+
+        <section class="onboarding-step onboarding-guide" data-onboarding-step="guide" hidden>
+          <p class="section-label" id="onboarding-guide-kicker">SONDERAKTE F-60 · EINWEISUNG</p>
+          <h2 id="onboarding-guide-title">Der Umschlag wird geöffnet</h2>
+
+          <div class="onboarding-guide-visuals" aria-hidden="true">
+            <div class="onboarding-guide-visual dossier" data-guide-visual="0">
+              <div class="onboarding-dossier-stamp"><strong>F-60</strong><span>NUR FÜR<br />FRANZ</span></div>
+              <span class="onboarding-dossier-line"></span>
+              <strong>FRANZ &amp; LOLA</strong>
+            </div>
+            <div class="onboarding-guide-visual controls" data-guide-visual="1" hidden>
+              <div class="control-demo" aria-hidden="true">
+                <span class="control-demo-route"></span>
+                <span class="control-demo-dog">◆</span>
+                <span class="control-demo-touch"></span>
+                <span class="control-demo-arrow">→</span>
+              </div>
+              <div class="onboarding-guide-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>ODER WISCHEN</span></div>
+            </div>
+            <div class="onboarding-guide-visual equipment" data-guide-visual="2" hidden>
+              <span><i>◆</i><small>GUTTI</small></span>
+              <span><i>✦</i><small>SCHNÜFFEL-POWER</small></span>
+              <span><i>▲</i><small>KATZEN-RADAR</small></span>
+            </div>
+          </div>
+
+          <p class="onboarding-copy" id="onboarding-guide-copy"></p>
+          <ul class="onboarding-guide-points" id="onboarding-guide-points">
+            <li></li><li></li><li></li>
+          </ul>
+
+          <div class="onboarding-guide-position" aria-label="Einweisung, Seite 1 von 3">
+            <span class="active"></span><span></span><span></span>
+          </div>
+          <div class="onboarding-guide-actions">
+            <button class="secondary-button" id="onboarding-guide-back" type="button" hidden>← ZURÜCK</button>
+            <button class="primary-button" id="onboarding-guide-next" type="button">AKTE WEITERLESEN →</button>
+            <button class="primary-button" id="onboarding-finish" type="button" hidden>VORGANG 60 STARTEN →</button>
+          </div>
+          <p class="onboarding-fine-print" id="onboarding-guide-fine-print">Die Einweisung ist vor Aufnahme des Außendienstes vollständig zur Kenntnis zu nehmen.</p>
+        </section>
+      </section>
+    </div>
+
     <div class="settings-dialog" id="settings-dialog" hidden inert aria-hidden="true">
       <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-header">
@@ -325,6 +446,9 @@
               <button id="settings-map-button" type="button">⌖ &nbsp; <span data-i18n="mapButton">PASSAU-KARTE</span></button>
               <button class="new-game-button" id="new-game-button" type="button" data-i18n="newGameButton">
                 ↺ NEUER SPIELSTAND
+              </button>
+              <button class="delete-browser-data-button" id="delete-browser-data-button" type="button" data-i18n="deleteBrowserDataButton">
+                ⚠ ALLE BROWSERDATEN LÖSCHEN
               </button>
             </div>
           </section>

@@ -6,6 +6,15 @@ Ein responsives Pixel-Art Maze-Chase-Spiel aus Passau. Franz und sein Maltipoo L
 
 Die Level besitzen eigene Themen und Pixelkulissen. Im Bschüttpark stehen Grünflächen, Streetball und Betonrampen im Mittelpunkt. Die Tabakfabrik erscheint als Backstein- und Proberaumkulisse. Im Zauberberg leuchten Bühne, Verstärker, Lautsprecher und Scheinwerfer zu Rock, Punk und Metal.
 
+Beim ersten Start ohne vorhandenen Spielstand erscheint eine scherzhafte, bewusst
+geheimnisvolle Zutrittskontrolle der „Kommunalen Sonderstelle · Vorgang 60“. Nur
+`Franz` und das Alter `60` öffnen die versiegelte Akte. Sprache und globaler
+Schwierigkeitsgrad werden davor als unverfängliche Verfahrensparameter gewählt, ohne
+das Spiel bereits zu verraten. Anschließend führt eine dreiseitige kleine Geschichte
+durch Auftrag, Steuerung und Einsatzmittel. Erst der letzte Freigabeknopf startet den
+eigentlichen Spielablauf auf der Passau-Karte und speichert die Einrichtung im Browser,
+sodass sie bei späteren Besuchen übersprungen wird.
+
 ## Lokal starten
 
 ```bash
@@ -14,6 +23,11 @@ npm run dev
 ```
 
 Der Produktions-Build wird mit `npm run build` erzeugt und landet in `dist/`.
+
+Die Einweisung lässt sich auch in der veröffentlichten Version mit
+`?onboarding=1` erneut öffnen. Bei einem bereits vorhandenen Spielstand läuft sie dann
+als sichere Vorschau: Fortschritt und bisherige Einstellungen bleiben unangetastet,
+und nach der letzten Seite kehrt die App automatisch zur normalen Spieladresse zurück.
 
 Die sichtbare Versionsnummer wird beim Vite-Build automatisch aus den Commits auf dem
 ersten Elternpfad von `main` berechnet. Ausgangspunkt ist die erste Pages-Version
@@ -43,7 +57,7 @@ Es gibt drei Schwierigkeitsstufen:
 
 Die Ortsnummer verändert die Geschwindigkeit nicht mehr. Alle platzierten Guttis werden vor Levelbeginn über eine Wegsuche auf Erreichbarkeit geprüft. Nach dem letzten Gutti erscheint der Abschlussdialog und der Ort wird dauerhaft auf der Passau-Karte abgehakt.
 
-Der globale Passau-Fortschritt wird im HUD und als Prozentbalken in der Missionskarte angezeigt. Sind alle neun Orte geschafft, erscheint ein eigener 100%-Abschluss für Franz und Lola. Über „Neuer Spielstand“ lassen sich Punkte, Orts-Häkchen und Geheimnisse nach einer Sicherheitsabfrage zurücksetzen; Sprache, Ton und gewählte Schwierigkeit bleiben dabei erhalten.
+Der globale Passau-Fortschritt wird im HUD und als Prozentbalken in der Missionskarte angezeigt. Sind alle neun Orte geschafft, erscheint ein eigener 100%-Abschluss für Franz und Lola. Über „Neuer Spielstand“ lassen sich Punkte, Orts-Häkchen und Geheimnisse nach einer Sicherheitsabfrage zurücksetzen; Sprache, Ton und gewählte Schwierigkeit bleiben dabei erhalten. Die getrennte Funktion „Alle Browserdaten löschen“ entfernt nach einer besonders deutlichen Bestätigung sämtliche von diesem Spiel gespeicherten Daten und startet anschließend wieder bei Vorgang 60.
 
 Der komplette laufende Spielstand wird automatisch im LocalStorage des Browsers gesichert: aktiver Ort, abgeschlossene Level, Schwierigkeit, Sprache, Positionen, verbleibende Guttis, Gutti-Gesamtzahl, Punkte, Leben, Sound-Einstellung und bereits entdeckte Passau-Geheimnisse. Beim nächsten Besuch kann die Runde direkt fortgesetzt werden.
 
