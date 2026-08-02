@@ -13,7 +13,7 @@ const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 const EASTER_EGG_COUNT = 3;
 const SWIPE_ACTIVATION_DISTANCE = 7;
 const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
@@ -63,6 +63,9 @@ const TEXT = {
     eggIlz: 'Donnerwetter, ein Eisvogel an der Ilz!', eggPark: 'Lola hat ihren Lieblingsplatz gefunden!',
     eggBell: 'Bim bam! Die Passauer Glocken läuten nur für euch.', secretFound: 'Geheimnis entdeckt: {message}',
     missionPrefix: 'HEUTIGE RUNDE', mapSelected: 'AUSGEWÄHLT', mapCompleted: 'GESCHAFFT',
+    mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUCHE', mapStatsScore: 'BESTE PUNKTE',
+    mapStatsStatus: 'STATUS', mapStatsOpen: 'NOCH OFFEN', mapStatsActive: 'AKTIVE RUNDE',
+    mapStatsDone: 'GESCHAFFT', mapDetailsClose: 'Ortsdetails schließen',
     finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau ist geschafft!',
     finaleCopy: 'Franz und Lola haben alle neun Gassi-Orte erkundet. Jedes Gutti, jeder Umweg und jede Leine haben sich gelohnt.',
     finaleButton: 'ZUR EHRENRUNDE →',
@@ -115,6 +118,9 @@ const TEXT = {
     eggIlz: 'Sakradi, a Eisvogl an da Ilz!', eggPark: "Ja mei, d'Lola hod ihr Lieblingsplatzerl gfundn!",
     eggBell: "Bim bam! D'Passauer Glockn läutn bloß für eich.", secretFound: 'Geheimnis entdeckt: {message}',
     missionPrefix: 'HEITIGE RUNDN', mapSelected: 'AUSGWÄHLT', mapCompleted: 'GSCHAFFT',
+    mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUACH', mapStatsScore: 'BESTE PUNKT',
+    mapStatsStatus: 'STATUS', mapStatsOpen: 'NO OFFN', mapStatsActive: 'AKTIVE RUNDN',
+    mapStatsDone: 'GSCHAFFT', mapDetailsClose: 'Ortsdetails zumacha',
     finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau is abgassi’d!',
     finaleCopy: "Da Franz und d'Lola ham olle neun Gassi-Platzerl erkundet. Jeds Gutti, jeda Umweg und jede Leine ham se rentiert.",
     finaleButton: 'ZUR EHRENRUNDN →',
@@ -330,9 +336,15 @@ const ui = {
   mapCanvas: document.querySelector('#map-canvas'),
   mapSvg: document.querySelector('#passau-map'),
   mapMarkers: document.querySelector('#map-markers'),
+  mapSelection: document.querySelector('#map-selection'),
+  mapSelectionClose: document.querySelector('#map-selection-close'),
   mapSelectionKicker: document.querySelector('#map-selection-kicker'),
   mapSelectionTitle: document.querySelector('#map-selection-title'),
   mapSelectionCopy: document.querySelector('#map-selection-copy'),
+  mapStatsTreats: document.querySelector('#map-stats-treats'),
+  mapStatsAttempts: document.querySelector('#map-stats-attempts'),
+  mapStatsScore: document.querySelector('#map-stats-score'),
+  mapStatsStatus: document.querySelector('#map-stats-status'),
   mapStartButton: document.querySelector('#map-start-button'),
   settingsDialog: document.querySelector('#settings-dialog'),
   settingsButton: document.querySelector('#settings-open-button'),
@@ -384,6 +396,8 @@ let completedLevelIds = new Set(
     ? storedGame.completedLevelIds.filter((id) => PASSAU_LEVELS.some((item) => item.id === id))
     : [],
 );
+let levelStats = normalizeLevelStats(storedGame?.levelStats);
+let levelRunScore = Math.max(0, Math.floor(Number(storedGame?.levelRunScore) || 0));
 let unlockedEggs = new Set();
 let activeEasterEgg = null;
 let currentOverlay = null;
@@ -420,6 +434,48 @@ function difficultyConfig() {
 
 function globalProgressPercent() {
   return Math.round((completedLevelIds.size / PASSAU_LEVELS.length) * 100);
+}
+
+function normalizeLevelStats(rawStats = {}) {
+  return Object.fromEntries(PASSAU_LEVELS.map((item) => {
+    const raw = rawStats && typeof rawStats[item.id] === 'object' ? rawStats[item.id] : {};
+    const completed = completedLevelIds.has(item.id) || Boolean(raw.completed);
+    const inferredTotal = completed ? difficultyConfig().treatTarget : 0;
+    const treatsTotal = Math.max(0, Math.floor(Number(raw.treatsTotal) || inferredTotal));
+    const bestTreats = Math.min(
+      treatsTotal || Number.MAX_SAFE_INTEGER,
+      Math.max(0, Math.floor(Number(raw.bestTreats) || (completed ? treatsTotal : 0))),
+    );
+    return [item.id, {
+      attempts: Math.max(completed ? 1 : 0, Math.floor(Number(raw.attempts) || 0)),
+      bestTreats,
+      treatsTotal,
+      bestScore: Math.max(0, Math.floor(Number(raw.bestScore) || 0)),
+      completed,
+    }];
+  }));
+}
+
+function statsForLevel(id) {
+  if (!levelStats[id]) levelStats[id] = normalizeLevelStats()[id];
+  return levelStats[id];
+}
+
+function updateCurrentLevelStatsSnapshot(forceCompleted = false) {
+  const stats = statsForLevel(selectedLevelId);
+  const remainingTreats = pellets.size + powerPellets.size;
+  const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
+  stats.treatsTotal = Math.max(stats.treatsTotal, levelTreatTotal);
+  stats.bestTreats = Math.max(stats.bestTreats, collectedTreats);
+  stats.bestScore = Math.max(stats.bestScore, levelRunScore);
+  stats.completed = stats.completed || forceCompleted || completedLevelIds.has(selectedLevelId);
+  if (stats.completed && stats.treatsTotal > 0) stats.bestTreats = stats.treatsTotal;
+}
+
+function recordLevelAttempt() {
+  const stats = statsForLevel(selectedLevelId);
+  stats.attempts += 1;
+  stats.treatsTotal = Math.max(stats.treatsTotal, levelTreatTotal);
 }
 
 function applyDifficultyUi() {
@@ -504,6 +560,9 @@ function renderPassauMap() {
     <path class="river river-bank" d="${danube}"></path><path class="river danube" d="${danube}"></path>
     <path class="river river-bank" d="${inn}"></path><path class="river inn" d="${inn}"></path>
     <path class="river river-bank" d="${ilz}"></path><path class="river ilz" d="${ilz}"></path>
+    <path class="river-glint river-glint-danube" d="${danube}"></path>
+    <path class="river-glint river-glint-inn" d="${inn}"></path>
+    <path class="river-glint river-glint-ilz" d="${ilz}"></path>
     <text class="river-label" x="120" y="432">DONAU</text>
     <text class="river-label" x="176" y="617">INN</text>
     <text class="river-label" x="290" y="88">ILZ</text>
@@ -514,7 +573,7 @@ function renderPassauMap() {
   `;
 
   ui.mapMarkers.replaceChildren();
-  for (const item of PASSAU_LEVELS) {
+  PASSAU_LEVELS.forEach((item, index) => {
     const point = projectPoint(item.lat, item.lon);
     const marker = document.createElement('button');
     marker.type = 'button';
@@ -523,11 +582,12 @@ function renderPassauMap() {
     marker.dataset.label = localized(item.name);
     marker.dataset.mapX = point.x;
     marker.dataset.mapY = point.y;
+    marker.style.setProperty('--marker-delay', `${index * -0.32}s`);
     marker.setAttribute('aria-label', localized(item.name));
     marker.innerHTML = `<span aria-hidden="true">${item.icon}</span>`;
     marker.addEventListener('click', () => selectMapLocation(item.id));
     ui.mapMarkers.append(marker);
-  }
+  });
   updateMapSelection();
   requestAnimationFrame(positionMapMarkers);
 }
@@ -552,22 +612,50 @@ function updateMapSelection() {
   const index = PASSAU_LEVELS.indexOf(item) + 1;
   const complete = completedLevelIds.has(item.id);
   const resumable = item.id === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
+  if (item.id === selectedLevelId && runStarted) updateCurrentLevelStatsSnapshot(complete);
+  const stats = statsForLevel(item.id);
+  const treatsTotal = stats.treatsTotal || difficultyConfig().treatTarget;
   ui.mapSelectionKicker.textContent = `${complete ? t('mapCompleted') : t('mapSelected')} · LEVEL ${String(index).padStart(2, '0')}`;
   ui.mapSelectionTitle.textContent = localized(item.name);
   ui.mapSelectionCopy.textContent = localized(item.description);
+  ui.mapStatsTreats.textContent = `${stats.bestTreats} / ${treatsTotal}`;
+  ui.mapStatsAttempts.textContent = stats.attempts.toLocaleString('de-DE');
+  ui.mapStatsScore.textContent = stats.bestScore.toLocaleString('de-DE');
+  ui.mapStatsStatus.textContent = complete ? t('mapStatsDone') : resumable ? t('mapStatsActive') : t('mapStatsOpen');
   ui.mapStartButton.textContent = resumable ? t('mapResume') : t('mapStart');
   ui.mapMarkers.querySelectorAll('[data-level-id]').forEach((marker) => {
-    marker.classList.toggle('selected', marker.dataset.levelId === item.id);
+    marker.classList.toggle('selected', !ui.mapSelection.hidden && marker.dataset.levelId === item.id);
     const markerItem = PASSAU_LEVELS.find((entry) => entry.id === marker.dataset.levelId);
     marker.dataset.label = localized(markerItem.name);
     marker.setAttribute('aria-label', localized(markerItem.name));
   });
 }
 
+function showMapSelection() {
+  ui.mapSelection.hidden = false;
+  ui.mapSelection.setAttribute('aria-hidden', 'false');
+  ui.mapScreen.classList.add('map-details-open');
+  requestAnimationFrame(() => ui.mapSelection.classList.add('open'));
+  updateMapSelection();
+  if (window.matchMedia('(max-width: 680px)').matches) {
+    requestAnimationFrame(() => ui.mapSelectionClose.focus());
+  }
+}
+
+function closeMapSelection(returnFocus = false) {
+  const marker = ui.mapMarkers.querySelector(`[data-level-id="${mapSelectionId}"]`);
+  ui.mapSelection.classList.remove('open');
+  ui.mapSelection.hidden = true;
+  ui.mapSelection.setAttribute('aria-hidden', 'true');
+  ui.mapScreen.classList.remove('map-details-open');
+  marker?.classList.remove('selected');
+  if (returnFocus) marker?.focus();
+}
+
 function selectMapLocation(id) {
   if (!PASSAU_LEVELS.some((item) => item.id === id)) return;
   mapSelectionId = id;
-  updateMapSelection();
+  showMapSelection();
 }
 
 function updateLocationUi() {
@@ -596,6 +684,7 @@ function applyLanguage() {
   ui.saveStatus.textContent = t('saveSuccess');
   ui.settingsButton.setAttribute('aria-label', t('settingsLabel'));
   ui.settingsCloseButton.setAttribute('aria-label', t('settingsCloseLabel'));
+  ui.mapSelectionClose.setAttribute('aria-label', t('mapDetailsClose'));
   ui.mobileGameMenuButton.setAttribute('aria-label', t('menuLabel'));
   applyDifficultyUi();
   updateLocationUi();
@@ -710,6 +799,7 @@ function toggleNativeFullscreen() {
 function openMap() {
   leaveMobileGameMode(true);
   closeSettings(false);
+  closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
   document.body.classList.add('map-active');
@@ -721,6 +811,7 @@ function openMap() {
 }
 
 function startMapSelection() {
+  closeMapSelection(false);
   document.body.classList.remove('map-active');
   enterMobileGameMode(true);
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
@@ -730,6 +821,8 @@ function startMapSelection() {
     lives = difficultyConfig().lives;
     hitTimer = 0;
     buildLevel();
+    levelRunScore = 0;
+    recordLevelAttempt();
   }
   runStarted = true;
   state = 'intro';
@@ -774,9 +867,11 @@ function resetGameProgress() {
   graceTimer = difficultyConfig().grace;
   runStarted = false;
   levelTreatTotal = 0;
+  levelRunScore = 0;
   selectedLevelId = 'home';
   mapSelectionId = 'home';
   completedLevelIds.clear();
+  levelStats = normalizeLevelStats();
   unlockedEggs.clear();
   activeEasterEgg = null;
   directionHistory = [];
@@ -836,6 +931,14 @@ function loadGame() {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (!parsed || typeof parsed !== 'object') return null;
     if (parsed.version === SAVE_VERSION) return parsed;
+    if (parsed.version === 4) {
+      return {
+        ...parsed,
+        version: SAVE_VERSION,
+        levelStats: {},
+        levelRunScore: 0,
+      };
+    }
     if (parsed.version === 3) {
       return {
         ...parsed,
@@ -846,6 +949,8 @@ function loadGame() {
         levelTreatTotal: Array.isArray(parsed.pellets) && Array.isArray(parsed.powerPellets)
           ? parsed.pellets.length + parsed.powerPellets.length
           : 0,
+        levelStats: {},
+        levelRunScore: 0,
       };
     }
     if (parsed.version === 2) {
@@ -861,6 +966,8 @@ function loadGame() {
         levelTreatTotal: Array.isArray(parsed.pellets) && Array.isArray(parsed.powerPellets)
           ? parsed.pellets.length + parsed.powerPellets.length
           : 0,
+        levelStats: {},
+        levelRunScore: 0,
       };
     }
     return null;
@@ -871,6 +978,7 @@ function loadGame() {
 
 function saveGame(quiet = false) {
   best = Math.max(best, score);
+  if (runStarted) updateCurrentLevelStatsSnapshot(state === 'won');
   const payload = {
     version: SAVE_VERSION,
     savedAt: new Date().toISOString(),
@@ -887,6 +995,8 @@ function saveGame(quiet = false) {
     language,
     difficulty,
     levelTreatTotal,
+    levelRunScore,
+    levelStats,
     selectedLevelId,
     completedLevelIds: [...completedLevelIds],
     unlockedEggs: [...unlockedEggs],
@@ -1026,6 +1136,8 @@ function restoreGame(save) {
       ? save.completedLevelIds.filter((id) => PASSAU_LEVELS.some((item) => item.id === id))
       : [],
   );
+  levelStats = normalizeLevelStats(save.levelStats);
+  levelRunScore = Math.max(0, Math.floor(Number(save.levelRunScore) || 0));
   const savedLives = Number(save.lives);
   lives = Number.isFinite(savedLives)
     ? Math.max(0, Math.min(difficultyConfig().lives, Math.floor(savedLives)))
@@ -1045,6 +1157,7 @@ function restoreGame(save) {
   levelTreatTotal = save.rebalanceTreats
     ? remainingTreats
     : Math.max(remainingTreats, Math.floor(Number(save.levelTreatTotal) || remainingTreats));
+  if (runStarted) updateCurrentLevelStatsSnapshot(save.mode === 'won');
 
   const restoreActors = save.mode !== 'hit';
   if (restoreActors && save.player) {
@@ -1146,11 +1259,16 @@ function setDirection(name) {
 
 function startGame(reset = false) {
   enterMobileGameMode(true);
+  const startsNewAttempt = reset || !runStarted;
   if (reset) {
     score = 0;
     level = PASSAU_LEVELS.findIndex((item) => item.id === selectedLevelId) + 1;
     lives = difficultyConfig().lives;
     buildLevel();
+  }
+  if (startsNewAttempt) {
+    levelRunScore = 0;
+    recordLevelAttempt();
   }
   runStarted = true;
   state = 'playing';
@@ -1325,6 +1443,7 @@ function unlockEasterEgg(id, message, bonus) {
   unlockedEggs.add(id);
   activeEasterEgg = { id, message, timer: 4.5 };
   score += bonus;
+  levelRunScore += bonus;
   ui.easterToastCopy.textContent = `${message} +${bonus}`;
   ui.easterToast.hidden = false;
   ui.announcement.textContent = t('secretFound', { message });
@@ -1464,6 +1583,7 @@ function collectTreats() {
 
   if (pellets.delete(key)) {
     score += 10;
+    levelRunScore += 10;
     collected = true;
     beep(520, 0.025, 0.018);
     updateHud();
@@ -1471,6 +1591,7 @@ function collectTreats() {
 
   if (powerPellets.delete(key)) {
     score += 50;
+    levelRunScore += 50;
     collected = true;
     powerTimer = difficultyConfig().powerDuration;
     beep(250, 0.15, 0.05, 'square');
@@ -1489,6 +1610,7 @@ function checkCollisions() {
     if (cat.respawnTimer > 0 || Math.hypot(player.x - cat.x, player.y - cat.y) > 0.72) continue;
     if (powerTimer > 0) {
       score += 200;
+      levelRunScore += 200;
       cat.x = CAT_STARTS[cat.index].x;
       cat.y = CAT_STARTS[cat.index].y;
       cat.respawnTimer = 1.6;
@@ -1513,6 +1635,8 @@ function completeLevel() {
   state = 'won';
   completedLevelIds.add(selectedLevelId);
   score += 500;
+  levelRunScore += 500;
+  updateCurrentLevelStatsSnapshot(true);
   best = Math.max(best, score);
   updateHud();
   beep(660, 0.12, 0.055, 'square');
@@ -2148,6 +2272,11 @@ document.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (state === 'map' && !ui.mapSelection.hidden && event.code === 'Escape') {
+    event.preventDefault();
+    closeMapSelection(true);
+    return;
+  }
   if (import.meta.env.DEV && event.altKey && event.code === 'KeyL' && ['playing', 'paused'].includes(state)) {
     event.preventDefault();
     if (event.shiftKey) {
@@ -2245,6 +2374,10 @@ ui.mapButton.addEventListener('click', openMap);
 ui.mobileGameMenuButton.addEventListener('click', openSettings);
 ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
+ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
+ui.mapCanvas.addEventListener('click', (event) => {
+  if (!event.target.closest('.map-marker') && !ui.mapSelection.hidden) closeMapSelection(false);
+});
 ui.settingsButton.addEventListener('click', openSettings);
 ui.settingsCloseButton.addEventListener('click', () => closeSettings());
 ui.settingsDialog.addEventListener('click', (event) => {
