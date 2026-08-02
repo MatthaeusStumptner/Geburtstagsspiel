@@ -15,6 +15,11 @@ npm run dev
 
 Der Produktions-Build wird mit `npm run build` erzeugt und landet in `dist/`.
 
+Die sichtbare Versionsnummer wird beim Vite-Build automatisch aus den Commits auf dem
+ersten Elternpfad von `main` berechnet. Ausgangspunkt ist die erste Pages-Version
+`V0.6`; jeder nachfolgende Main-Commit erhöht die letzte Stelle um eins. Der
+GitHub-Pages-Workflow checkt dafür die vollständige Historie aus.
+
 ## Steuerung
 
 - Desktop: Pfeiltasten oder WASD, `P`/Leertaste zum Pausieren

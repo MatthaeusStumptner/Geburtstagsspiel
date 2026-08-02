@@ -15,7 +15,8 @@ const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 6;
 const EASTER_EGG_COUNT = 3;
-const SWIPE_ACTIVATION_DISTANCE = 7;
+const SWIPE_ACTIVATION_DISTANCE = 4;
+const PLAYER_TURN_SNAP_DISTANCE = 0.28;
 const CAMERA_ZOOM = 1.12;
 const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
 
@@ -343,6 +344,7 @@ const ui = {
   levelStatusRemaining: document.querySelector('#level-status-remaining'),
   levelStatusLives: document.querySelector('#level-status-lives'),
   catRadar: document.querySelector('#cat-radar'),
+  levelConfetti: document.querySelector('#level-confetti'),
   mapButton: document.querySelector('#map-button'),
   mapScreen: document.querySelector('#map-screen'),
   mapCanvas: document.querySelector('#map-canvas'),
@@ -423,6 +425,7 @@ let swipeStart = null;
 let mobileScrollPosition = 0;
 let settingsReturnState = null;
 let settingsReturnFocus = null;
+let confettiTimer = null;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -528,27 +531,39 @@ function createCat(index) {
   };
 }
 
-function syncCatsForDifficulty() {
-  const desiredCount = difficultyConfig().catCount;
-  cats = cats.slice(0, desiredCount);
-  while (cats.length < desiredCount) cats.push(createCat(cats.length));
+function rebaseLevelStatsForDifficulty() {
+  const treatsTotal = difficultyConfig().treatTarget;
+  PASSAU_LEVELS.forEach((item) => {
+    const stats = statsForLevel(item.id);
+    const complete = completedLevelIds.has(item.id) || stats.completed;
+    stats.treatsTotal = stats.attempts > 0 || complete ? treatsTotal : 0;
+    stats.bestTreats = complete ? treatsTotal : Math.min(treatsTotal, stats.bestTreats);
+    stats.completed = complete;
+  });
 }
 
 function setDifficulty(nextDifficulty) {
   if (!DIFFICULTIES[nextDifficulty] || nextDifficulty === difficulty) return;
-  const restartFinishedLevel = !runStarted || lives <= 0 || pellets.size === 0;
+  const effectiveState = state === 'menu' ? settingsReturnState : state;
+  const activeRound = runStarted && ['playing', 'hit', 'paused'].includes(effectiveState);
+  if (runStarted) updateCurrentLevelStatsSnapshot(state === 'won');
   difficulty = nextDifficulty;
+  rebaseLevelStatsForDifficulty();
   lives = difficultyConfig().lives;
   graceTimer = difficultyConfig().grace;
-  if (restartFinishedLevel) {
-    buildLevel();
-    runStarted = false;
-  } else {
-    syncCatsForDifficulty();
+  levelRunScore = 0;
+  buildLevel();
+  runStarted = activeRound;
+  if (activeRound) {
+    recordLevelAttempt();
+    hitTimer = 0;
+    if (state === 'menu' && settingsReturnState === 'hit') settingsReturnState = 'playing';
+    else if (state === 'hit') state = 'playing';
   }
   applyDifficultyUi();
   updateLocationUi();
   updateHud();
+  renderPassauMap();
   saveGame();
 }
 
@@ -602,18 +617,24 @@ function renderPassauMap() {
   ui.mapMarkers.replaceChildren();
   PASSAU_LEVELS.forEach((item, index) => {
     const point = projectPoint(item.lat, item.lon);
+    const markerWrap = document.createElement('div');
     const marker = document.createElement('button');
+    const label = document.createElement('span');
+    markerWrap.className = 'map-marker-wrap';
+    markerWrap.dataset.levelId = item.id;
+    markerWrap.dataset.mapX = point.x;
+    markerWrap.dataset.mapY = point.y;
+    markerWrap.style.setProperty('--marker-delay', `${index * -0.32}s`);
     marker.type = 'button';
     marker.className = `map-marker${item.home ? ' home' : ''}${item.markerClass ? ` ${item.markerClass}` : ''}${completedLevelIds.has(item.id) ? ' completed' : ''}`;
-    marker.dataset.levelId = item.id;
-    marker.dataset.label = localized(item.name);
-    marker.dataset.mapX = point.x;
-    marker.dataset.mapY = point.y;
-    marker.style.setProperty('--marker-delay', `${index * -0.32}s`);
     marker.setAttribute('aria-label', localized(item.name));
     marker.innerHTML = `<span aria-hidden="true">${item.icon}</span>`;
-    marker.addEventListener('click', () => selectMapLocation(item.id));
-    ui.mapMarkers.append(marker);
+    label.className = 'map-marker-label';
+    label.setAttribute('aria-hidden', 'true');
+    label.textContent = localized(item.name);
+    markerWrap.addEventListener('click', () => selectMapLocation(item.id));
+    markerWrap.append(label, marker);
+    ui.mapMarkers.append(markerWrap);
   });
   updateMapSelection();
   requestAnimationFrame(positionMapMarkers);
@@ -651,10 +672,12 @@ function updateMapSelection() {
   ui.mapStatsStatus.textContent = complete ? t('mapStatsDone') : resumable ? t('mapStatsActive') : t('mapStatsOpen');
   ui.mapStartButton.textContent = resumable ? t('mapResume') : t('mapStart');
   ui.mapMarkers.querySelectorAll('[data-level-id]').forEach((marker) => {
-    marker.classList.toggle('selected', !ui.mapSelection.hidden && marker.dataset.levelId === item.id);
+    const markerButton = marker.querySelector('.map-marker');
+    const markerLabel = marker.querySelector('.map-marker-label');
+    markerButton.classList.toggle('selected', !ui.mapSelection.hidden && marker.dataset.levelId === item.id);
     const markerItem = PASSAU_LEVELS.find((entry) => entry.id === marker.dataset.levelId);
-    marker.dataset.label = localized(markerItem.name);
-    marker.setAttribute('aria-label', localized(markerItem.name));
+    markerLabel.textContent = localized(markerItem.name);
+    markerButton.setAttribute('aria-label', localized(markerItem.name));
   });
 }
 
@@ -675,8 +698,8 @@ function closeMapSelection(returnFocus = false) {
   ui.mapSelection.hidden = true;
   ui.mapSelection.setAttribute('aria-hidden', 'true');
   ui.mapScreen.classList.remove('map-details-open');
-  marker?.classList.remove('selected');
-  if (returnFocus) marker?.focus();
+  marker?.querySelector('.map-marker')?.classList.remove('selected');
+  if (returnFocus) marker?.querySelector('.map-marker')?.focus();
 }
 
 function selectMapLocation(id) {
@@ -1292,9 +1315,35 @@ function canMove(x, y, direction) {
   return !isWall(x + direction.x, y + direction.y);
 }
 
+function applyImmediatePlayerTurn(direction) {
+  if (!['ready', 'playing'].includes(state)) return;
+  const currentDirection = player.dir;
+  const reversing = currentDirection.name !== 'none'
+    && currentDirection.x === -direction.x
+    && currentDirection.y === -direction.y;
+  if (reversing) {
+    player.dir = direction;
+    return;
+  }
+
+  const centerX = Math.round(player.x);
+  const centerY = Math.round(player.y);
+  if (!canMove(centerX, centerY, direction)) return;
+  const distanceToTurn = currentDirection.x !== 0
+    ? Math.abs(player.x - centerX)
+    : Math.abs(player.y - centerY);
+  if (currentDirection.name === 'none' || distanceToTurn <= PLAYER_TURN_SNAP_DISTANCE) {
+    player.x = centerX;
+    player.y = centerY;
+    player.dir = direction;
+  }
+}
+
 function setDirection(name) {
   if (!DIRECTIONS[name]) return;
-  player.nextDir = DIRECTIONS[name];
+  const direction = DIRECTIONS[name];
+  player.nextDir = direction;
+  applyImmediatePlayerTurn(direction);
   directionHistory.push(name);
   directionHistory = directionHistory.slice(-BELL_SEQUENCE.length);
   if (directionHistory.join(',') === BELL_SEQUENCE.join(',')) {
@@ -1699,6 +1748,7 @@ function completeLevel() {
   updateHud();
   beep(660, 0.12, 0.055, 'square');
   setTimeout(() => beep(880, 0.18, 0.05, 'square'), 140);
+  launchLevelConfetti();
   if (globalProgressPercent() === 100) showGrandFinaleOverlay();
   else showLevelCompleteOverlay();
   saveGame();
@@ -1778,6 +1828,33 @@ function render() {
   presentScene();
 }
 
+function launchLevelConfetti() {
+  clearTimeout(confettiTimer);
+  ui.levelConfetti.replaceChildren();
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const colors = ['#4ce0b3', '#f5c451', '#ff6b5f', '#55d9dd', '#f4eee0'];
+  const fragment = document.createDocumentFragment();
+  for (let index = 0; index < 72; index += 1) {
+    const piece = document.createElement('i');
+    piece.style.setProperty('--confetti-x', `${(index * 37) % 101}%`);
+    piece.style.setProperty('--confetti-drift', `${((index * 29) % 170) - 85}px`);
+    piece.style.setProperty('--confetti-delay', `${(index % 12) * 36}ms`);
+    piece.style.setProperty('--confetti-duration', `${1500 + (index % 9) * 95}ms`);
+    piece.style.setProperty('--confetti-color', colors[index % colors.length]);
+    piece.style.setProperty('--confetti-turn', `${360 + (index % 5) * 180}deg`);
+    fragment.append(piece);
+  }
+  ui.levelConfetti.append(fragment);
+  ui.levelConfetti.hidden = false;
+  requestAnimationFrame(() => ui.levelConfetti.classList.add('active'));
+  confettiTimer = setTimeout(() => {
+    ui.levelConfetti.classList.remove('active');
+    ui.levelConfetti.hidden = true;
+    ui.levelConfetti.replaceChildren();
+  }, 2800);
+}
+
 function isCameraGameView() {
   return ui.mapScreen.hidden && state !== 'map';
 }
@@ -1837,6 +1914,10 @@ function presentScene() {
     + ((player.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
   canvas.dataset.playerScreenX = playerScreenX.toFixed(1);
   canvas.dataset.playerScreenY = playerScreenY.toFixed(1);
+  canvas.dataset.playerX = player.x.toFixed(3);
+  canvas.dataset.playerY = player.y.toFixed(3);
+  canvas.dataset.playerDirection = player.dir.name;
+  canvas.dataset.playerNextDirection = player.nextDir.name;
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
   updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport);
@@ -2490,7 +2571,7 @@ ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
 ui.mapCanvas.addEventListener('click', (event) => {
-  if (!event.target.closest('.map-marker') && !ui.mapSelection.hidden) closeMapSelection(false);
+  if (!event.target.closest('.map-marker-wrap') && !ui.mapSelection.hidden) closeMapSelection(false);
 });
 ui.settingsButton.addEventListener('click', openSettings);
 ui.settingsCloseButton.addEventListener('click', () => closeSettings());

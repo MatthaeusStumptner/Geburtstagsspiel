@@ -368,6 +368,10 @@ body.mobile-game-active .level-status,
   gap: 22px;
 }
 
+.map-heading > * {
+  min-width: 0;
+}
+
 .map-heading h2 {
   margin: 7px 0 0;
   color: var(--ink);
@@ -377,6 +381,8 @@ body.mobile-game-active .level-status,
 
 .map-heading-actions {
   display: flex;
+  flex: 0 1 390px;
+  min-width: 0;
   max-width: 390px;
   align-items: center;
   justify-content: flex-end;
@@ -384,6 +390,7 @@ body.mobile-game-active .level-status,
 }
 
 .map-copy {
+  min-width: 0;
   max-width: 280px;
   margin: 0;
   color: #81999d;
@@ -394,8 +401,8 @@ body.mobile-game-active .level-status,
 
 .map-settings-button {
   display: grid;
-  flex: 0 0 66px;
-  width: 66px;
+  flex: 0 0 92px;
+  width: 92px;
   min-height: 58px;
   padding: 7px 5px 5px;
   place-items: center;
@@ -418,8 +425,11 @@ body.mobile-game-active .level-status,
 }
 
 .map-settings-button small {
+  max-width: 100%;
+  overflow: hidden;
   font-size: var(--fluid-micro);
   letter-spacing: 0.06em;
+  text-overflow: ellipsis;
 }
 
 body.map-active {
@@ -555,8 +565,22 @@ body.map-active .passau-map-screen { inset: 0; }
   letter-spacing: 0.16em;
 }
 
-.map-marker {
+.map-marker-wrap {
   position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.map-marker-wrap:hover,
+.map-marker-wrap:has(.selected) {
+  z-index: 4;
+}
+
+.map-marker {
+  position: relative;
   display: grid;
   width: 30px;
   height: 30px;
@@ -568,7 +592,7 @@ body.map-active .passau-map-screen { inset: 0; }
   font-family: 'Silkscreen', 'Courier New', monospace;
   font-size: 9px;
   cursor: pointer;
-  transform: translate(-50%, -50%) rotate(45deg);
+  transform: rotate(45deg);
   transition: transform 120ms ease, border-color 120ms ease;
 }
 
@@ -578,29 +602,30 @@ body.map-active .passau-map-screen { inset: 0; }
   animation-delay: var(--marker-delay);
 }
 
-.map-marker::after {
+.map-marker-label {
   position: absolute;
-  top: 31px;
+  bottom: calc(100% + 9px);
   left: 50%;
   width: max-content;
-  max-width: 130px;
+  max-width: 145px;
+  padding: 2px 4px;
+  background: rgba(6, 16, 24, 0.68);
   color: #9eb1b2;
   font-family: 'DM Mono', 'Courier New', monospace;
   font-size: 8px;
   line-height: 1.2;
   text-align: center;
   text-shadow: 0 1px 2px #061018, 0 0 5px #061018;
-  content: attr(data-label);
-  transform: translateX(-50%) rotate(-45deg);
+  transform: translateX(-50%);
+  white-space: normal;
 }
 
-.map-marker:hover,
+.map-marker-wrap:hover .map-marker,
 .map-marker.selected {
-  z-index: 2;
   border-color: var(--mint);
   background: #16423f;
   color: var(--mint);
-  transform: translate(-50%, -50%) rotate(45deg) scale(1.12);
+  transform: rotate(45deg) scale(1.12);
 }
 
 .map-marker.home {
@@ -793,6 +818,54 @@ body.map-active .passau-map-screen { inset: 0; }
   font-family: 'Silkscreen', 'Courier New', monospace;
   font-size: 8px;
   line-height: 1.45;
+}
+
+.level-confetti {
+  position: absolute;
+  z-index: 35;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.level-confetti[hidden] {
+  display: none;
+}
+
+.level-confetti i {
+  position: absolute;
+  top: -18px;
+  left: var(--confetti-x);
+  width: 7px;
+  height: 11px;
+  background: var(--confetti-color);
+  box-shadow: 2px 2px 0 rgba(2, 8, 12, 0.32);
+  opacity: 0;
+}
+
+.level-confetti i:nth-child(3n) {
+  width: 11px;
+  height: 5px;
+}
+
+.level-confetti i:nth-child(4n) {
+  border-radius: 50%;
+}
+
+.level-confetti.active i {
+  animation: level-confetti-fall var(--confetti-duration) cubic-bezier(0.16, 0.72, 0.3, 1) var(--confetti-delay) forwards;
+}
+
+@keyframes level-confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, -12px, 0) rotate(0deg);
+  }
+  88% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), calc(100dvh + 36px), 0) rotate(var(--confetti-turn));
+  }
 }
 
 .overlay-card {
@@ -2044,9 +2117,10 @@ body.mobile-game-active .easter-toast,
   }
 
   .map-settings-button {
-    flex-basis: 52px;
-    width: 52px;
+    flex-basis: 48px;
+    width: 48px;
     min-height: 48px;
+    padding: 5px;
   }
 
   .map-settings-button > span {
@@ -2054,7 +2128,7 @@ body.mobile-game-active .easter-toast,
   }
 
   .map-settings-button small {
-    font-size: var(--fluid-micro);
+    display: none;
   }
 
   .map-heading h2 {
@@ -2071,10 +2145,10 @@ body.mobile-game-active .easter-toast,
     font-size: 7px;
   }
 
-  .map-marker::after {
+  .map-marker-label {
     display: block;
-    top: 25px;
-    max-width: 76px;
+    bottom: calc(100% + 7px);
+    max-width: 82px;
     font-size: var(--fluid-micro);
   }
 
