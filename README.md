@@ -18,11 +18,13 @@ Der Produktions-Build wird mit `npm run build` erzeugt und landet in `dist/`.
 ## Steuerung
 
 - Desktop: Pfeiltasten oder WASD, `P`/Leertaste zum Pausieren
-- Mobile: Wischen auf dem Spielfeld oder das eingeblendete Steuerkreuz
+- Mobile: Wischen direkt auf dem Spielfeld
 - Karte: Karten-Symbol auf Desktop oder Mobile
 - Die große mintfarbene Pfote aktiviert für acht Sekunden die Schnüffel-Power
 
-Beim Start eines Levels wechselt die mobile Ansicht in einen scrollgesperrten Fokusmodus: Spielfeld, Steuerkreuz und Aktionen bleiben gemeinsam im sichtbaren Bereich. Unterstützte Browser öffnen zusätzlich den nativen Vollbildmodus; eine feste Schaltfläche in der Kopfzeile führt jederzeit zurück zur Passau-Karte. Hoch- und Querformat besitzen dafür eigene Layouts.
+Beim Start eines Levels wechselt die mobile Ansicht in einen scrollgesperrten Fokusmodus: Das quadratische Spielfeld nutzt im Hochformat die komplette Gerätebreite und im Querformat die maximal verfügbare Höhe. Eine kompakte Aktionsleiste für Pause, Ton und Karte ersetzt das frühere Steuerkreuz. Unterstützte Browser öffnen zusätzlich den nativen Vollbildmodus; eine feste Schaltfläche in der Kopfzeile führt jederzeit zurück zur Passau-Karte. Hoch- und Querformat besitzen dafür eigene Layouts.
+
+Das Canvas behält intern eine feste logische Auflösung von 600 × 600 Pixeln. Das mobile Layout skaliert diese Bühne proportional mit CSS, ohne die Spielkoordinaten oder Kollisionen umzubauen. Dadurch bleibt die Anwendung ohne Serverlogik und ohne zusätzliche Laufzeitbibliothek vollständig statisch und weiterhin direkt über GitHub Pages auslieferbar.
 
 Wischrichtungen werden bereits während der Fingerbewegung mit kurzer Aktivierungsdistanz verarbeitet. Dadurch lassen sich auch mehrere Richtungswechsel in einer einzigen durchgehenden Geste vorbereiten.
 

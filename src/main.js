@@ -1925,13 +1925,6 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Enter' && !ui.overlay.classList.contains('hidden')) ui.overlayButton.click();
 });
 
-document.querySelectorAll('[data-direction]').forEach((button) => {
-  button.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    setDirection(button.dataset.direction);
-  });
-});
-
 canvas.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
   event.preventDefault();
