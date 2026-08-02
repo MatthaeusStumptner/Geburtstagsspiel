@@ -49,9 +49,9 @@
       <section class="game-layout">
         <div class="board-column">
           <div class="mobile-game-header" id="mobile-game-header">
-            <button class="mobile-game-map" id="mobile-game-map-button" type="button">
-              <span aria-hidden="true">‹</span>
-              <span data-i18n="mobileBackMap">PASSAU-KARTE</span>
+            <button class="mobile-game-menu" id="mobile-game-menu-button" type="button">
+              <span aria-hidden="true">⚙</span>
+              <span data-i18n="menuLabel">MENÜ</span>
             </button>
             <div class="mobile-game-location">
               <small id="mobile-game-level">LEVEL 01</small>
@@ -102,9 +102,8 @@
                 </div>
               </div>
               <div class="map-canvas" id="map-canvas">
-                <svg id="passau-map" viewBox="0 0 1000 700" aria-label="Schematische, maßstäblich angeordnete Karte von Passau"></svg>
+                <svg id="passau-map" viewBox="0 0 700 700" aria-label="Schematische, maßstäblich angeordnete Karte von Passau"></svg>
                 <div class="map-markers" id="map-markers"></div>
-                <div class="map-scale" aria-hidden="true"><i></i><span>1 KM</span></div>
               </div>
               <div class="map-selection">
                 <div>
@@ -128,6 +127,15 @@
                   Sammel olle Guttis ei, hoid di von de Nochbarskatzn fern und bring d'Lola guad
                   durch'n Hals.
                 </p>
+                <div class="control-intro" id="control-intro" hidden>
+                  <div class="control-demo" aria-hidden="true">
+                    <span class="control-demo-route"></span>
+                    <span class="control-demo-dog">◆</span>
+                    <span class="control-demo-touch"></span>
+                    <span class="control-demo-arrow">→</span>
+                  </div>
+                  <p data-i18n="controlIntroHint">Wische in die gewünschte Richtung. Lola übernimmt den Richtungswechsel sofort.</p>
+                </div>
                 <button class="primary-button" id="overlay-button" type="button">
                   AUF GEHT'S <span aria-hidden="true">→</span>
                 </button>
@@ -139,14 +147,6 @@
             </div>
           </div>
 
-          <div class="mobile-controls" aria-label="Touch-Steuerung">
-            <p data-i18n="mobileHint">WISCHEN LENKT SOFORT</p>
-            <div class="mobile-utilities">
-              <button id="mobile-pause-button" type="button" aria-pressed="false" aria-label="Spiel pausieren">Ⅱ</button>
-              <button id="mobile-sound-button" type="button" aria-pressed="false" aria-label="Ton einschalten">♪</button>
-              <button id="mobile-map-button" type="button" aria-label="Passau-Karte öffnen">⌖</button>
-            </div>
-          </div>
         </div>
 
         <aside class="side-panel">
@@ -250,10 +250,23 @@
             <p class="language-joke" data-i18n="languageJoke">* Keine richtige Sprache – eher eine sehr überzeugte Geräuschkulisse.</p>
           </section>
 
+          <section class="settings-control-card">
+            <p class="section-label" data-i18n="controlsLabel">STEUERUNG</p>
+            <div class="control-demo compact" aria-hidden="true">
+              <span class="control-demo-route"></span>
+              <span class="control-demo-dog">◆</span>
+              <span class="control-demo-touch"></span>
+              <span class="control-demo-arrow">→</span>
+            </div>
+            <p class="settings-control-copy" data-i18n="controlMenuHint">Mobil wischen, am Desktop Pfeiltasten oder WASD verwenden.</p>
+          </section>
+
           <section class="settings-system-card">
             <p class="section-label" data-i18n="settingsSystemLabel">SYSTEM</p>
             <div class="settings-system-actions">
+              <button id="settings-pause-button" type="button" aria-pressed="false">Ⅱ &nbsp; PAUSE</button>
               <button id="settings-sound-button" type="button" aria-pressed="false">♪ &nbsp; TON AUS</button>
+              <button id="settings-map-button" type="button">⌖ &nbsp; <span data-i18n="mapButton">PASSAU-KARTE</span></button>
               <button class="new-game-button" id="new-game-button" type="button" data-i18n="newGameButton">
                 ↺ NEUER SPIELSTAND
               </button>

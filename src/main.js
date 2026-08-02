@@ -28,6 +28,9 @@ const TEXT = {
     mapStart: 'LEVEL STARTEN →', mapResume: 'WEITERGASSI →', mapButton: 'PASSAU-KARTE',
     settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & DARSTELLUNG', settingsTitle: 'Gassi-Zentrale',
     settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen schließen',
+    menuLabel: 'MENÜ', levelIntroKicker: 'KURZ DIE LEINE SORTIEREN', levelIntroTitle: '{place}',
+    levelIntroCopy: '{description}', controlIntroHint: 'Wische in die gewünschte Richtung. Lola übernimmt den Richtungswechsel sofort.',
+    controlMenuHint: 'Mobil wischen, am Desktop Pfeiltasten oder WASD verwenden.',
     difficultyLabel: 'SCHWIERIGKEIT', difficultyEasy: 'Spaziergang', difficultyNormal: 'Gassirunde', difficultyHard: 'Abenteuer',
     easyHint: '2 Katzen · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
     normalHint: '3 Katzen · 3 Leinen · 110 Guttis · ausgewogenes Tempo',
@@ -77,6 +80,9 @@ const TEXT = {
     mapStart: 'LEVEL STARTN →', mapResume: 'WEIDAGASSI →', mapButton: 'PASSAU-KARTN',
     settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & ANSCHAUN', settingsTitle: 'Gassi-Zentraln',
     settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen zumacha',
+    menuLabel: 'MENÜ', levelIntroKicker: 'KURZ D’LEIN SORTIERN', levelIntroTitle: '{place}',
+    levelIntroCopy: '{description}', controlIntroHint: 'Wisch in de Richtung, wo’s hi geh soi. D’Lola draht glei mit.',
+    controlMenuHint: 'Mobil wischn, am Rechner Pfeiltastn oder WASD nehma.',
     difficultyLabel: 'WIA HART?', difficultyEasy: 'Gmiatlich', difficultyNormal: 'Gassirundn', difficultyHard: 'Sakrisch',
     easyHint: '2 Katzn · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
     normalHint: '3 Katzn · 3 Leinen · 110 Guttis · guads Tempo',
@@ -143,14 +149,14 @@ const PASSAU_LEVELS = [
     mission: { standard: 'Rund um das Zuhause', dialect: "Oamoi rund ums Dahoam" },
   },
   {
-    id: 'hals', icon: '≋', lat: 48.589708, lon: 13.461815, layout: 0, river: 'ILZ · HALS',
+    id: 'hals', icon: '≋', lat: 48.588889, lon: 13.463889, layout: 0, river: 'ILZ · HALS',
     palette: { ground: ['#17262c', '#19282f', '#15242b', '#1b2a30'], curb: '#345b61', walls: ['#174150', '#194958', '#293f4b', '#3a3f48'], water: '#0a5368' },
     name: { standard: 'Hals & Ilz', dialect: 'Hals & Ilz' },
     description: { standard: 'Enge Gassen, Ilzschleife und ein Eisvogel, wenn Lola ganz genau hinsieht.', dialect: "Enge Gassn, d'Ilzschleif und a Eisvogl, wenn d'Lola sauber hischaut." },
     mission: { standard: 'Einmal um Hals', dialect: 'Oamoi um an Hals' },
   },
   {
-    id: 'oberhaus', icon: '♜', lat: 48.57797, lon: 13.47057, layout: 3, river: 'DONAU · GEORGEBERG',
+    id: 'oberhaus', icon: '♜', lat: 48.57809, lon: 13.47035, layout: 3, river: 'DONAU · GEORGEBERG',
     palette: { ground: ['#26252a', '#29272d', '#232329', '#2d2930'], curb: '#655a5c', walls: ['#5b403c', '#744b41', '#4e3d42', '#806049'], water: '#28687f' },
     name: { standard: 'Veste Oberhaus', dialect: 'Veste Oberhaus' },
     description: { standard: 'Hoch über den Flüssen warten Burgmauern, steile Wege und besonders flinke Katzen.', dialect: 'Hoch über de Fliass wartn Burgmauern, steile Weg und sakrisch flinke Katzn.' },
@@ -171,7 +177,7 @@ const PASSAU_LEVELS = [
     mission: { standard: 'Runde an drei Flüssen', dialect: 'Rundn an drei Fliass' },
   },
   {
-    id: 'uni', icon: 'U', lat: 48.56755, lon: 13.45211, layout: 5, river: 'INN · INNSTADT',
+    id: 'uni', icon: 'U', lat: 48.5683, lon: 13.4533, layout: 5, river: 'INN · INNSTADT',
     palette: { ground: ['#20262d', '#222a31', '#1d242b', '#252d33'], curb: '#4d606c', walls: ['#3b4855', '#485a68', '#3d4149', '#59636d'], water: '#3cae9d' },
     name: { standard: 'Universität & Inn', dialect: 'Uni & Inn' },
     description: { standard: 'Eine schnelle Runde am Innufer zwischen Campus, Promenade und neugierigen Nachbarskatzen.', dialect: "A flotte Rundn am Innufer zwischen Campus, Promenad und neugierige Nochbarskatzn." },
@@ -201,6 +207,18 @@ const PASSAU_LEVELS = [
 ];
 
 const MAP_BOUNDS = { minLat: 48.5645, maxLat: 48.5945, minLon: 13.447, maxLon: 13.489 };
+const MAP_VIEWBOX_SIZE = 700;
+const MAP_PADDING = 45;
+const KM_PER_LATITUDE_DEGREE = 111.32;
+const KM_PER_LONGITUDE_DEGREE = KM_PER_LATITUDE_DEGREE
+  * Math.cos(((MAP_BOUNDS.minLat + MAP_BOUNDS.maxLat) / 2) * Math.PI / 180);
+const MAP_WIDTH_KM = (MAP_BOUNDS.maxLon - MAP_BOUNDS.minLon) * KM_PER_LONGITUDE_DEGREE;
+const MAP_HEIGHT_KM = (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat) * KM_PER_LATITUDE_DEGREE;
+const MAP_UNITS_PER_KM = (MAP_VIEWBOX_SIZE - MAP_PADDING * 2) / Math.max(MAP_WIDTH_KM, MAP_HEIGHT_KM);
+const MAP_CONTENT_WIDTH = MAP_WIDTH_KM * MAP_UNITS_PER_KM;
+const MAP_CONTENT_HEIGHT = MAP_HEIGHT_KM * MAP_UNITS_PER_KM;
+const MAP_OFFSET_X = (MAP_VIEWBOX_SIZE - MAP_CONTENT_WIDTH) / 2;
+const MAP_OFFSET_Y = (MAP_VIEWBOX_SIZE - MAP_CONTENT_HEIGHT) / 2;
 
 const DIRECTIONS = {
   up: { x: 0, y: -1, name: 'up' },
@@ -298,19 +316,18 @@ const ui = {
   overlayCopy: document.querySelector('#overlay-copy'),
   overlayButton: document.querySelector('#overlay-button'),
   overlaySecondaryButton: document.querySelector('#overlay-secondary-button'),
+  controlIntro: document.querySelector('#control-intro'),
   pauseButton: document.querySelector('#pause-button'),
   soundButton: document.querySelector('#sound-button'),
-  mobilePauseButton: document.querySelector('#mobile-pause-button'),
-  mobileSoundButton: document.querySelector('#mobile-sound-button'),
   mobileGameHeader: document.querySelector('#mobile-game-header'),
-  mobileGameMapButton: document.querySelector('#mobile-game-map-button'),
+  mobileGameMenuButton: document.querySelector('#mobile-game-menu-button'),
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
   mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
   catRadar: document.querySelector('#cat-radar'),
   mapButton: document.querySelector('#map-button'),
-  mobileMapButton: document.querySelector('#mobile-map-button'),
   mapScreen: document.querySelector('#map-screen'),
+  mapCanvas: document.querySelector('#map-canvas'),
   mapSvg: document.querySelector('#passau-map'),
   mapMarkers: document.querySelector('#map-markers'),
   mapSelectionKicker: document.querySelector('#map-selection-kicker'),
@@ -320,7 +337,9 @@ const ui = {
   settingsDialog: document.querySelector('#settings-dialog'),
   settingsButton: document.querySelector('#settings-open-button'),
   settingsCloseButton: document.querySelector('#settings-close-button'),
+  settingsPauseButton: document.querySelector('#settings-pause-button'),
   settingsSoundButton: document.querySelector('#settings-sound-button'),
+  settingsMapButton: document.querySelector('#settings-map-button'),
   locationRiver: document.querySelector('#location-river'),
   locationCoordinates: document.querySelector('#location-coordinates'),
   locationName: document.querySelector('#location-name'),
@@ -376,6 +395,8 @@ let elapsed = 0;
 let autoSaveElapsed = 0;
 let swipeStart = null;
 let mobileScrollPosition = 0;
+let settingsReturnState = null;
+let settingsReturnFocus = null;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -449,8 +470,10 @@ function setDifficulty(nextDifficulty) {
 }
 
 function projectPoint(lat, lon) {
-  const x = 55 + ((lon - MAP_BOUNDS.minLon) / (MAP_BOUNDS.maxLon - MAP_BOUNDS.minLon)) * 890;
-  const y = 45 + ((MAP_BOUNDS.maxLat - lat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat)) * 610;
+  const xKm = (lon - MAP_BOUNDS.minLon) * KM_PER_LONGITUDE_DEGREE;
+  const yKm = (MAP_BOUNDS.maxLat - lat) * KM_PER_LATITUDE_DEGREE;
+  const x = MAP_OFFSET_X + xKm * MAP_UNITS_PER_KM;
+  const y = MAP_OFFSET_Y + yKm * MAP_UNITS_PER_KM;
   return { x, y };
 }
 
@@ -470,17 +493,24 @@ function renderPassauMap() {
     .map((id) => [locationsById[id].lat, locationsById[id].lon]));
   const routeSouth = mapPath(['uni', 'zauberberg', 'dom', 'tabakfabrik', 'dreifluesseeck']
     .map((id) => [locationsById[id].lat, locationsById[id].lon]));
+  const scaleStartX = MAP_VIEWBOX_SIZE - MAP_PADDING - MAP_UNITS_PER_KM;
+  const scaleEndX = MAP_VIEWBOX_SIZE - MAP_PADDING;
+  const scaleY = MAP_VIEWBOX_SIZE - 26;
   ui.mapSvg.innerHTML = `
-    <ellipse class="district" cx="450" cy="212" rx="260" ry="160"></ellipse>
-    <ellipse class="district" cx="520" cy="480" rx="350" ry="145"></ellipse>
+    <ellipse class="district" cx="350" cy="235" rx="225" ry="155"></ellipse>
+    <ellipse class="district" cx="350" cy="480" rx="260" ry="140"></ellipse>
     <path class="road" d="${routeNorth}"></path>
     <path class="road" d="${routeSouth}"></path>
     <path class="river river-bank" d="${danube}"></path><path class="river danube" d="${danube}"></path>
     <path class="river river-bank" d="${inn}"></path><path class="river inn" d="${inn}"></path>
     <path class="river river-bank" d="${ilz}"></path><path class="river ilz" d="${ilz}"></path>
-    <text class="river-label" x="115" y="430">DONAU</text>
-    <text class="river-label" x="205" y="625">INN</text>
-    <text class="river-label" x="335" y="82">ILZ</text>
+    <text class="river-label" x="120" y="432">DONAU</text>
+    <text class="river-label" x="176" y="617">INN</text>
+    <text class="river-label" x="290" y="88">ILZ</text>
+    <g class="map-scale-svg" aria-hidden="true">
+      <path d="M ${scaleStartX.toFixed(1)} ${scaleY} v -7 M ${scaleStartX.toFixed(1)} ${scaleY} H ${scaleEndX.toFixed(1)} M ${scaleEndX.toFixed(1)} ${scaleY} v -7"></path>
+      <text x="${((scaleStartX + scaleEndX) / 2).toFixed(1)}" y="${scaleY - 12}">1 KM</text>
+    </g>
   `;
 
   ui.mapMarkers.replaceChildren();
@@ -491,14 +521,30 @@ function renderPassauMap() {
     marker.className = `map-marker${item.home ? ' home' : ''}${item.markerClass ? ` ${item.markerClass}` : ''}${completedLevelIds.has(item.id) ? ' completed' : ''}`;
     marker.dataset.levelId = item.id;
     marker.dataset.label = localized(item.name);
-    marker.style.left = `${point.x / 10}%`;
-    marker.style.top = `${point.y / 7}%`;
+    marker.dataset.mapX = point.x;
+    marker.dataset.mapY = point.y;
     marker.setAttribute('aria-label', localized(item.name));
     marker.innerHTML = `<span aria-hidden="true">${item.icon}</span>`;
     marker.addEventListener('click', () => selectMapLocation(item.id));
     ui.mapMarkers.append(marker);
   }
   updateMapSelection();
+  requestAnimationFrame(positionMapMarkers);
+}
+
+function positionMapMarkers() {
+  const matrix = ui.mapSvg.getScreenCTM();
+  const canvasRect = ui.mapCanvas.getBoundingClientRect();
+  if (!matrix || canvasRect.width === 0 || canvasRect.height === 0) return;
+
+  ui.mapMarkers.querySelectorAll('[data-level-id]').forEach((marker) => {
+    const point = ui.mapSvg.createSVGPoint();
+    point.x = Number(marker.dataset.mapX);
+    point.y = Number(marker.dataset.mapY);
+    const screenPoint = point.matrixTransform(matrix);
+    marker.style.left = `${screenPoint.x - canvasRect.left}px`;
+    marker.style.top = `${screenPoint.y - canvasRect.top}px`;
+  });
 }
 
 function updateMapSelection() {
@@ -550,9 +596,10 @@ function applyLanguage() {
   ui.saveStatus.textContent = t('saveSuccess');
   ui.settingsButton.setAttribute('aria-label', t('settingsLabel'));
   ui.settingsCloseButton.setAttribute('aria-label', t('settingsCloseLabel'));
+  ui.mobileGameMenuButton.setAttribute('aria-label', t('menuLabel'));
   applyDifficultyUi();
   updateLocationUi();
-  setPauseButtons(state === 'paused');
+  setPauseButtons((state === 'menu' ? settingsReturnState : state) === 'paused');
   syncSoundButtons();
   syncFullscreenUi();
   renderPassauMap();
@@ -685,14 +732,33 @@ function startMapSelection() {
     buildLevel();
   }
   runStarted = true;
-  state = 'playing';
+  state = 'intro';
   ui.mapScreen.hidden = true;
-  hideOverlay();
   setPauseButtons(false);
   updateLocationUi();
   updateHud();
-  ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(currentLocation().name)}`;
+  showLevelIntro(resumable);
   saveGame();
+}
+
+function showLevelIntro(resumable = false) {
+  const item = currentLocation();
+  showOverlay(
+    'levelIntroKicker',
+    'levelIntroTitle',
+    'levelIntroCopy',
+    resumable ? 'resumeButton' : 'startButton',
+    () => {
+      requestNativeFullscreen();
+      state = 'playing';
+      setPauseButtons(false);
+      hideOverlay();
+      ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(item.name)}`;
+      saveGame();
+    },
+    () => ({ place: localized(item.name), description: localized(item.description) }),
+    { variant: 'level-intro', showControls: true },
+  );
 }
 
 function resetGameProgress() {
@@ -808,7 +874,7 @@ function saveGame(quiet = false) {
   const payload = {
     version: SAVE_VERSION,
     savedAt: new Date().toISOString(),
-    mode: state,
+    mode: state === 'menu' ? settingsReturnState : state,
     runStarted,
     score,
     best,
@@ -1010,6 +1076,9 @@ function restoreGame(save) {
 
   if (save.mode === 'map') {
     openMap();
+  } else if (save.mode === 'intro') {
+    state = 'intro';
+    showLevelIntro(true);
   } else if (!runStarted) {
     state = 'ready';
     showStartOverlay();
@@ -1117,21 +1186,34 @@ function togglePause() {
 function setPauseButtons(paused) {
   ui.pauseButton.setAttribute('aria-pressed', String(paused));
   ui.pauseButton.textContent = paused ? t('continue') : t('pause');
-  ui.mobilePauseButton.setAttribute('aria-pressed', String(paused));
-  ui.mobilePauseButton.textContent = paused ? '▶' : 'Ⅱ';
-  ui.mobilePauseButton.setAttribute('aria-label', paused ? 'Spiel fortsetzen' : 'Spiel pausieren');
+  syncSettingsMenu();
 }
 
 function syncSoundButtons() {
   ui.soundButton.setAttribute('aria-pressed', String(soundEnabled));
   ui.soundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
-  ui.mobileSoundButton.setAttribute('aria-pressed', String(soundEnabled));
-  ui.mobileSoundButton.setAttribute('aria-label', soundEnabled ? 'Ton ausschalten' : 'Ton einschalten');
   ui.settingsSoundButton.setAttribute('aria-pressed', String(soundEnabled));
   ui.settingsSoundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
 }
 
+function syncSettingsMenu() {
+  const effectiveState = state === 'menu' ? settingsReturnState : state;
+  const canPause = ['playing', 'hit', 'paused'].includes(effectiveState);
+  const paused = effectiveState === 'paused';
+  ui.settingsPauseButton.disabled = !canPause;
+  ui.settingsPauseButton.setAttribute('aria-pressed', String(paused));
+  ui.settingsPauseButton.textContent = paused ? t('continue') : t('pause');
+  ui.settingsMapButton.disabled = effectiveState === 'map';
+}
+
 function openSettings() {
+  if (!ui.settingsDialog.hidden) return;
+  settingsReturnFocus = document.activeElement;
+  if (state !== 'map') {
+    settingsReturnState = state;
+    state = 'menu';
+  }
+  syncSettingsMenu();
   ui.settingsDialog.hidden = false;
   ui.settingsDialog.inert = false;
   ui.settingsDialog.setAttribute('aria-hidden', 'false');
@@ -1145,7 +1227,21 @@ function closeSettings(returnFocus = true) {
   ui.settingsDialog.inert = true;
   ui.settingsDialog.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('settings-open');
-  if (returnFocus) ui.settingsButton.focus();
+  if (state === 'menu' && settingsReturnState) state = settingsReturnState;
+  settingsReturnState = null;
+  syncSettingsMenu();
+  if (returnFocus) {
+    const focusTarget = settingsReturnFocus?.isConnected ? settingsReturnFocus : ui.settingsButton;
+    focusTarget.focus();
+  }
+  settingsReturnFocus = null;
+}
+
+function toggleSettingsPause() {
+  if (state !== 'menu' || !['playing', 'hit', 'paused'].includes(settingsReturnState)) return;
+  settingsReturnState = settingsReturnState === 'paused' ? 'playing' : 'paused';
+  syncSettingsMenu();
+  saveGame();
 }
 
 function toggleSound() {
@@ -1186,7 +1282,9 @@ function refreshOverlay() {
   ui.overlayButton.onclick = handler;
   ui.overlay.classList.toggle('grand-finale', options.variant === 'grand-finale');
   ui.overlay.classList.toggle('confirmation', options.variant === 'confirmation');
+  ui.overlay.classList.toggle('level-intro', options.variant === 'level-intro');
   ui.overlayCelebration.hidden = options.variant !== 'grand-finale';
+  ui.controlIntro.hidden = !options.showControls;
   ui.overlaySecondaryButton.hidden = !options.secondaryKey;
   ui.overlaySecondaryButton.textContent = options.secondaryKey ? t(options.secondaryKey, resolvedValues) : '';
   ui.overlaySecondaryButton.onclick = options.secondaryHandler ?? null;
@@ -1559,7 +1657,7 @@ function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWid
   const centerY = viewportHeight / 2;
   const horizontalInset = Math.min(28, viewportWidth * 0.08);
   const topInset = Math.min(70, viewportHeight * 0.24);
-  const bottomInset = Math.min(62, viewportHeight * 0.22);
+  const bottomInset = Math.min(26, viewportHeight * 0.1);
   const safeLeft = horizontalInset;
   const safeRight = viewportWidth - horizontalInset;
   const safeTop = topInset;
@@ -2139,13 +2237,12 @@ canvas.addEventListener('lostpointercapture', (event) => {
 });
 
 ui.pauseButton.addEventListener('click', togglePause);
-ui.mobilePauseButton.addEventListener('click', togglePause);
 ui.soundButton.addEventListener('click', toggleSound);
-ui.mobileSoundButton.addEventListener('click', toggleSound);
 ui.settingsSoundButton.addEventListener('click', toggleSound);
+ui.settingsPauseButton.addEventListener('click', toggleSettingsPause);
+ui.settingsMapButton.addEventListener('click', openMap);
 ui.mapButton.addEventListener('click', openMap);
-ui.mobileMapButton.addEventListener('click', openMap);
-ui.mobileGameMapButton.addEventListener('click', openMap);
+ui.mobileGameMenuButton.addEventListener('click', openSettings);
 ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.settingsButton.addEventListener('click', openSettings);
@@ -2182,11 +2279,16 @@ document.addEventListener('touchmove', (event) => {
 window.addEventListener('resize', () => {
   resizeCanvas();
   syncFullscreenUi();
+  positionMapMarkers();
 });
 const canvasResizeObserver = 'ResizeObserver' in window
   ? new ResizeObserver(() => resizeCanvas())
   : null;
 canvasResizeObserver?.observe(canvas);
+const mapResizeObserver = 'ResizeObserver' in window
+  ? new ResizeObserver(() => positionMapMarkers())
+  : null;
+mapResizeObserver?.observe(ui.mapCanvas);
 window.addEventListener('pagehide', () => saveGame(true));
 
 if (storedGame) restoreGame(storedGame);
