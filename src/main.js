@@ -26,6 +26,8 @@ const TEXT = {
     mapKicker: 'DEINE GASSI-KARTE', mapTitle: 'Wo geht es heute hin?',
     mapCopy: 'Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.',
     mapStart: 'LEVEL STARTEN →', mapResume: 'WEITERGASSI →', mapButton: 'PASSAU-KARTE',
+    settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & DARSTELLUNG', settingsTitle: 'Gassi-Zentrale',
+    settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen schließen',
     difficultyLabel: 'SCHWIERIGKEIT', difficultyEasy: 'Spaziergang', difficultyNormal: 'Gassirunde', difficultyHard: 'Abenteuer',
     easyHint: '2 Katzen · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
     normalHint: '3 Katzen · 3 Leinen · 110 Guttis · ausgewogenes Tempo',
@@ -73,6 +75,8 @@ const TEXT = {
     mapKicker: 'DEI GASSI-KARTN', mapTitle: "Wo geh ma heit hi?",
     mapCopy: 'Suach da a Platzerl in Passau aus. De Abständ san geografisch skaliert.',
     mapStart: 'LEVEL STARTN →', mapResume: 'WEIDAGASSI →', mapButton: 'PASSAU-KARTN',
+    settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & ANSCHAUN', settingsTitle: 'Gassi-Zentraln',
+    settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen zumacha',
     difficultyLabel: 'WIA HART?', difficultyEasy: 'Gmiatlich', difficultyNormal: 'Gassirundn', difficultyHard: 'Sakrisch',
     easyHint: '2 Katzn · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
     normalHint: '3 Katzn · 3 Leinen · 110 Guttis · guads Tempo',
@@ -303,6 +307,7 @@ const ui = {
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
   mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
+  catRadar: document.querySelector('#cat-radar'),
   mapButton: document.querySelector('#map-button'),
   mobileMapButton: document.querySelector('#mobile-map-button'),
   mapScreen: document.querySelector('#map-screen'),
@@ -312,6 +317,10 @@ const ui = {
   mapSelectionTitle: document.querySelector('#map-selection-title'),
   mapSelectionCopy: document.querySelector('#map-selection-copy'),
   mapStartButton: document.querySelector('#map-start-button'),
+  settingsDialog: document.querySelector('#settings-dialog'),
+  settingsButton: document.querySelector('#settings-open-button'),
+  settingsCloseButton: document.querySelector('#settings-close-button'),
+  settingsSoundButton: document.querySelector('#settings-sound-button'),
   locationRiver: document.querySelector('#location-river'),
   locationCoordinates: document.querySelector('#location-coordinates'),
   locationName: document.querySelector('#location-name'),
@@ -539,6 +548,8 @@ function applyLanguage() {
     button.setAttribute('aria-pressed', String(active));
   });
   ui.saveStatus.textContent = t('saveSuccess');
+  ui.settingsButton.setAttribute('aria-label', t('settingsLabel'));
+  ui.settingsCloseButton.setAttribute('aria-label', t('settingsCloseLabel'));
   applyDifficultyUi();
   updateLocationUi();
   setPauseButtons(state === 'paused');
@@ -594,6 +605,7 @@ function requestNativeFullscreen() {
 }
 
 function enterMobileGameMode(requestNative = false) {
+  document.body.classList.remove('map-active');
   if (!isMobileGameLayout()) return false;
   const alreadyActive = document.body.classList.contains('mobile-game-active');
   if (!alreadyActive) {
@@ -650,8 +662,10 @@ function toggleNativeFullscreen() {
 
 function openMap() {
   leaveMobileGameMode(true);
+  closeSettings(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
   hideOverlay();
   ui.mapScreen.hidden = false;
@@ -660,6 +674,7 @@ function openMap() {
 }
 
 function startMapSelection() {
+  document.body.classList.remove('map-active');
   enterMobileGameMode(true);
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
   if (!resumable) {
@@ -682,6 +697,7 @@ function startMapSelection() {
 
 function resetGameProgress() {
   leaveMobileGameMode(true);
+  document.body.classList.add('map-active');
   state = 'map';
   score = 0;
   best = 0;
@@ -1111,6 +1127,25 @@ function syncSoundButtons() {
   ui.soundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
   ui.mobileSoundButton.setAttribute('aria-pressed', String(soundEnabled));
   ui.mobileSoundButton.setAttribute('aria-label', soundEnabled ? 'Ton ausschalten' : 'Ton einschalten');
+  ui.settingsSoundButton.setAttribute('aria-pressed', String(soundEnabled));
+  ui.settingsSoundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
+}
+
+function openSettings() {
+  ui.settingsDialog.hidden = false;
+  ui.settingsDialog.inert = false;
+  ui.settingsDialog.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('settings-open');
+  requestAnimationFrame(() => ui.settingsCloseButton.focus());
+}
+
+function closeSettings(returnFocus = true) {
+  if (ui.settingsDialog.hidden) return;
+  ui.settingsDialog.hidden = true;
+  ui.settingsDialog.inert = true;
+  ui.settingsDialog.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('settings-open');
+  if (returnFocus) ui.settingsButton.focus();
 }
 
 function toggleSound() {
@@ -1500,6 +1535,66 @@ function presentScene() {
     canvas.width,
     canvas.height,
   );
+  updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+}
+
+function ensureCatRadarIndicators() {
+  while (ui.catRadar.children.length < cats.length) {
+    const indicator = document.createElement('div');
+    indicator.className = 'cat-indicator';
+    indicator.innerHTML = '<span class="cat-indicator-arrow" aria-hidden="true">▲</span><small></small>';
+    ui.catRadar.append(indicator);
+  }
+  while (ui.catRadar.children.length > cats.length) ui.catRadar.lastElementChild.remove();
+  return [...ui.catRadar.children];
+}
+
+function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWidth, viewportHeight) {
+  const active = isFullscreenGameView() && ['playing', 'hit'].includes(state) && ui.mapScreen.hidden;
+  ui.catRadar.hidden = !active;
+  if (!active) return;
+
+  const indicators = ensureCatRadarIndicators();
+  const centerX = viewportWidth / 2;
+  const centerY = viewportHeight / 2;
+  const horizontalInset = Math.min(28, viewportWidth * 0.08);
+  const topInset = Math.min(70, viewportHeight * 0.24);
+  const bottomInset = Math.min(62, viewportHeight * 0.22);
+  const safeLeft = horizontalInset;
+  const safeRight = viewportWidth - horizontalInset;
+  const safeTop = topInset;
+  const safeBottom = viewportHeight - bottomInset;
+  let visibleIndicators = 0;
+
+  cats.forEach((cat, index) => {
+    const indicator = indicators[index];
+    const catX = ((cat.x * TILE + TILE / 2 - sourceX) / sourceWidth) * viewportWidth;
+    const catY = ((cat.y * TILE + TILE / 2 - sourceY) / sourceHeight) * viewportHeight;
+    const onScreen = catX >= 0 && catX <= viewportWidth && catY >= 0 && catY <= viewportHeight;
+    const hidden = onScreen || cat.respawnTimer > 0;
+    indicator.hidden = hidden;
+    if (hidden) return;
+
+    const dx = catX - centerX;
+    const dy = catY - centerY;
+    const intersections = [];
+    if (dx > 0) intersections.push((safeRight - centerX) / dx);
+    if (dx < 0) intersections.push((safeLeft - centerX) / dx);
+    if (dy > 0) intersections.push((safeBottom - centerY) / dy);
+    if (dy < 0) intersections.push((safeTop - centerY) / dy);
+    const factor = Math.min(...intersections.filter((value) => value >= 0));
+    const distance = Math.max(1, Math.round(Math.hypot(player.x - cat.x, player.y - cat.y)));
+
+    indicator.style.left = `${centerX + dx * factor}px`;
+    indicator.style.top = `${centerY + dy * factor}px`;
+    indicator.style.setProperty('--cat-color', cat.color);
+    indicator.querySelector('.cat-indicator-arrow').style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`;
+    indicator.querySelector('small').textContent = distance;
+    indicator.classList.toggle('danger', distance <= 5);
+    visibleIndicators += 1;
+  });
+
+  ui.catRadar.hidden = visibleIndicators === 0;
 }
 
 function drawGround() {
@@ -1948,6 +2043,13 @@ function resizeCanvas() {
 }
 
 document.addEventListener('keydown', (event) => {
+  if (!ui.settingsDialog.hidden) {
+    if (event.code === 'Escape') {
+      event.preventDefault();
+      closeSettings();
+    }
+    return;
+  }
   if (import.meta.env.DEV && event.altKey && event.code === 'KeyL' && ['playing', 'paused'].includes(state)) {
     event.preventDefault();
     if (event.shiftKey) {
@@ -2040,12 +2142,21 @@ ui.pauseButton.addEventListener('click', togglePause);
 ui.mobilePauseButton.addEventListener('click', togglePause);
 ui.soundButton.addEventListener('click', toggleSound);
 ui.mobileSoundButton.addEventListener('click', toggleSound);
+ui.settingsSoundButton.addEventListener('click', toggleSound);
 ui.mapButton.addEventListener('click', openMap);
 ui.mobileMapButton.addEventListener('click', openMap);
 ui.mobileGameMapButton.addEventListener('click', openMap);
 ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
-ui.newGameButton.addEventListener('click', showNewGameConfirmation);
+ui.settingsButton.addEventListener('click', openSettings);
+ui.settingsCloseButton.addEventListener('click', () => closeSettings());
+ui.settingsDialog.addEventListener('click', (event) => {
+  if (event.target === ui.settingsDialog) closeSettings();
+});
+ui.newGameButton.addEventListener('click', () => {
+  closeSettings(false);
+  showNewGameConfirmation();
+});
 document.querySelectorAll('[data-language]').forEach((button) => {
   button.addEventListener('click', () => setLanguage(button.dataset.language));
 });

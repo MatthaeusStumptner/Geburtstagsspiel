@@ -80,6 +80,7 @@
               role="img"
               aria-label="Spielfeld der Gassi-Runde durch Hals"
             ></canvas>
+            <div class="cat-radar" id="cat-radar" hidden aria-hidden="true"></div>
 
             <div class="easter-toast" id="easter-toast" hidden role="status">
               <span aria-hidden="true">✦</span>
@@ -92,7 +93,13 @@
                   <p class="section-label" data-i18n="mapKicker">DEINE GASSI-KARTE</p>
                   <h2 id="map-title" data-i18n="mapTitle">Wo geht's heute hin?</h2>
                 </div>
-                <p data-i18n="mapCopy">Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.</p>
+                <div class="map-heading-actions">
+                  <p class="map-copy" data-i18n="mapCopy">Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.</p>
+                  <button class="map-settings-button" id="settings-open-button" type="button">
+                    <span aria-hidden="true">⚙</span>
+                    <small data-i18n="settingsLabel">EINSTELLUNGEN</small>
+                  </button>
+                </div>
               </div>
               <div class="map-canvas" id="map-canvas">
                 <svg id="passau-map" viewBox="0 0 1000 700" aria-label="Schematische, maßstäblich angeordnete Karte von Passau"></svg>
@@ -202,6 +209,28 @@
             </div>
           </section>
 
+          <p class="flavour-copy"><span data-i18n="flavourQuote">„Nur noch eine kleine Runde.“</span><br /><small data-i18n="flavourByline">— Franz, seit 45 Minuten</small></p>
+        </aside>
+      </section>
+
+      <footer>
+        <span data-i18n="footerPlace">PASSAU · STADT &amp; FLÜSSE</span>
+        <span data-i18n="footerTagline">PIXEL FÜR PIXEL DURCH DIE NACHT</span>
+        <span>V0.7</span>
+      </footer>
+    </main>
+
+    <div class="settings-dialog" id="settings-dialog" hidden inert aria-hidden="true">
+      <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="settings-header">
+          <div>
+            <p class="section-label" data-i18n="settingsKicker">SPIEL &amp; DARSTELLUNG</p>
+            <h2 id="settings-title" data-i18n="settingsTitle">Gassi-Zentrale</h2>
+          </div>
+          <button class="settings-close-button" id="settings-close-button" type="button" aria-label="Einstellungen schließen">×</button>
+        </header>
+
+        <div class="settings-grid">
           <section class="difficulty-card">
             <p class="section-label" data-i18n="difficultyLabel">SCHWIERIGKEIT</p>
             <div class="difficulty-switch" role="group" aria-label="Schwierigkeit wählen">
@@ -210,9 +239,6 @@
               <button type="button" data-difficulty="hard" data-i18n="difficultyHard">Abenteuer</button>
             </div>
             <p class="difficulty-hint" id="difficulty-hint"></p>
-            <button class="new-game-button" id="new-game-button" type="button" data-i18n="newGameButton">
-              ↺ NEUER SPIELSTAND
-            </button>
           </section>
 
           <section class="language-card">
@@ -224,16 +250,18 @@
             <p class="language-joke" data-i18n="languageJoke">* Keine richtige Sprache – eher eine sehr überzeugte Geräuschkulisse.</p>
           </section>
 
-          <p class="flavour-copy"><span data-i18n="flavourQuote">„Nur noch eine kleine Runde.“</span><br /><small data-i18n="flavourByline">— Franz, seit 45 Minuten</small></p>
-        </aside>
+          <section class="settings-system-card">
+            <p class="section-label" data-i18n="settingsSystemLabel">SYSTEM</p>
+            <div class="settings-system-actions">
+              <button id="settings-sound-button" type="button" aria-pressed="false">♪ &nbsp; TON AUS</button>
+              <button class="new-game-button" id="new-game-button" type="button" data-i18n="newGameButton">
+                ↺ NEUER SPIELSTAND
+              </button>
+            </div>
+          </section>
+        </div>
       </section>
-
-      <footer>
-        <span data-i18n="footerPlace">PASSAU · STADT &amp; FLÜSSE</span>
-        <span data-i18n="footerTagline">PIXEL FÜR PIXEL DURCH DIE NACHT</span>
-        <span>V0.7</span>
-      </footer>
-    </main>
+    </div>
 
     <div class="sr-only" id="announcement" aria-live="polite"></div>
     <script type="module" src="/src/main.js"></script>
