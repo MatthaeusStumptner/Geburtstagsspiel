@@ -16,6 +16,7 @@ const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 6;
 const EASTER_EGG_COUNT = 3;
 const SWIPE_ACTIVATION_DISTANCE = 7;
+const CAMERA_ZOOM = 1.12;
 const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
 
 const TEXT = {
@@ -66,6 +67,8 @@ const TEXT = {
     mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUCHE', mapStatsScore: 'BESTE PUNKTE',
     mapStatsStatus: 'STATUS', mapStatsOpen: 'NOCH OFFEN', mapStatsActive: 'AKTIVE RUNDE',
     mapStatsDone: 'GESCHAFFT', mapDetailsClose: 'Ortsdetails schließen',
+    mapAggregateLevels: 'LEVEL ABGESCHLOSSEN', mapAggregateTreats: 'GUTTIS GEFUNDEN',
+    levelScoreLabel: 'LEVEL-PUNKTE', levelRemainingLabel: 'NOCH OFFEN',
     finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau ist geschafft!',
     finaleCopy: 'Franz und Lola haben alle neun Gassi-Orte erkundet. Jedes Gutti, jeder Umweg und jede Leine haben sich gelohnt.',
     finaleButton: 'ZUR EHRENRUNDE →',
@@ -121,6 +124,8 @@ const TEXT = {
     mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUACH', mapStatsScore: 'BESTE PUNKT',
     mapStatsStatus: 'STATUS', mapStatsOpen: 'NO OFFN', mapStatsActive: 'AKTIVE RUNDN',
     mapStatsDone: 'GSCHAFFT', mapDetailsClose: 'Ortsdetails zumacha',
+    mapAggregateLevels: 'LEVEL GSCHAFFT', mapAggregateTreats: 'GUTTIS GFUNDN',
+    levelScoreLabel: 'LEVEL-PUNKT', levelRemainingLabel: 'NO OFFN',
     finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau is abgassi’d!',
     finaleCopy: "Da Franz und d'Lola ham olle neun Gassi-Platzerl erkundet. Jeds Gutti, jeda Umweg und jede Leine ham se rentiert.",
     finaleButton: 'ZUR EHRENRUNDN →',
@@ -331,12 +336,12 @@ const ui = {
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
   mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
-  viewportScore: document.querySelector('#viewport-score'),
-  viewportBest: document.querySelector('#viewport-best'),
-  viewportLevel: document.querySelector('#viewport-level'),
-  viewportLives: document.querySelector('#viewport-lives'),
-  viewportTreats: document.querySelector('#viewport-treats'),
-  viewportProgress: document.querySelector('#viewport-progress'),
+  mapCompletedLevels: document.querySelector('#map-completed-levels'),
+  mapTotalTreats: document.querySelector('#map-total-treats'),
+  levelStatusScore: document.querySelector('#level-status-score'),
+  levelStatusTreats: document.querySelector('#level-status-treats'),
+  levelStatusRemaining: document.querySelector('#level-status-remaining'),
+  levelStatusLives: document.querySelector('#level-status-lives'),
   catRadar: document.querySelector('#cat-radar'),
   mapButton: document.querySelector('#map-button'),
   mapScreen: document.querySelector('#map-screen'),
@@ -441,6 +446,21 @@ function difficultyConfig() {
 
 function globalProgressPercent() {
   return Math.round((completedLevelIds.size / PASSAU_LEVELS.length) * 100);
+}
+
+function aggregateMapProgress() {
+  const treatsPerLevel = difficultyConfig().treatTarget;
+  const treatsTotal = treatsPerLevel * PASSAU_LEVELS.length;
+  const treatsFound = PASSAU_LEVELS.reduce((sum, item) => {
+    if (completedLevelIds.has(item.id)) return sum + treatsPerLevel;
+    return sum + Math.min(treatsPerLevel, statsForLevel(item.id).bestTreats);
+  }, 0);
+  return {
+    completedLevels: completedLevelIds.size,
+    totalLevels: PASSAU_LEVELS.length,
+    treatsFound,
+    treatsTotal,
+  };
 }
 
 function normalizeLevelStats(rawStats = {}) {
@@ -813,6 +833,7 @@ function openMap() {
   hideOverlay();
   ui.mapScreen.hidden = false;
   renderPassauMap();
+  updateHud();
   saveGame();
 }
 
@@ -1450,6 +1471,8 @@ function updateHud() {
   const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
   const progress = levelTreatTotal > 0 ? collectedTreats / levelTreatTotal : 0;
   const globalProgress = globalProgressPercent();
+  if (runStarted) updateCurrentLevelStatsSnapshot(state === 'won');
+  const mapProgress = aggregateMapProgress();
   ui.score.textContent = String(score).padStart(6, '0');
   ui.best.textContent = String(Math.max(score, best)).padStart(6, '0');
   ui.level.textContent = String(level).padStart(2, '0');
@@ -1465,12 +1488,12 @@ function updateHud() {
     dot.classList.toggle('active', index === 0 || progress >= index / 2);
   });
   ui.eggs.textContent = `${unlockedEggs.size} / ${EASTER_EGG_COUNT}`;
-  ui.viewportScore.textContent = String(score).padStart(6, '0');
-  ui.viewportBest.textContent = String(Math.max(score, best)).padStart(6, '0');
-  ui.viewportLevel.textContent = String(level).padStart(2, '0');
-  ui.viewportLives.textContent = String(lives);
-  ui.viewportTreats.textContent = `${collectedTreats} / ${levelTreatTotal}`;
-  ui.viewportProgress.textContent = `${globalProgress}%`;
+  ui.mapCompletedLevels.textContent = `${mapProgress.completedLevels} VON ${mapProgress.totalLevels}`;
+  ui.mapTotalTreats.textContent = `${mapProgress.treatsFound} VON ${mapProgress.treatsTotal}`;
+  ui.levelStatusScore.textContent = String(levelRunScore).padStart(6, '0');
+  ui.levelStatusTreats.textContent = `${collectedTreats} / ${levelTreatTotal}`;
+  ui.levelStatusRemaining.textContent = String(remainingTreats);
+  ui.levelStatusLives.textContent = String(lives);
 }
 
 function unlockEasterEgg(id, message, bonus) {
@@ -1755,23 +1778,39 @@ function render() {
   presentScene();
 }
 
-function isFullscreenGameView() {
-  return document.body.classList.contains('mobile-game-active')
-    || nativeFullscreenElement() === ui.boardColumn;
+function isCameraGameView() {
+  return ui.mapScreen.hidden && state !== 'map';
+}
+
+function gameplayViewport(viewportWidth, viewportHeight) {
+  if (!isCameraGameView()) return { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
+  const canvasRect = canvas.getBoundingClientRect();
+  const blockers = [ui.mobileGameHeader, document.querySelector('#level-status')];
+  const safeTop = blockers.reduce((bottom, element) => {
+    if (!element || getComputedStyle(element).display === 'none') return bottom;
+    const rect = element.getBoundingClientRect();
+    return Math.max(bottom, rect.bottom - canvasRect.top + 8);
+  }, 0);
+  const y = Math.min(Math.max(0, safeTop), Math.max(0, viewportHeight - 120));
+  return { x: 0, y, width: viewportWidth, height: Math.max(120, viewportHeight - y) };
 }
 
 function presentScene() {
   const viewportWidth = Math.max(1, canvas.clientWidth);
   const viewportHeight = Math.max(1, canvas.clientHeight);
+  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
   let sourceX = 0;
   let sourceY = 0;
   let sourceWidth = BOARD_SIZE;
   let sourceHeight = BOARD_SIZE;
 
-  if (isFullscreenGameView()) {
-    const coverScale = Math.max(viewportWidth / BOARD_SIZE, viewportHeight / BOARD_SIZE);
-    sourceWidth = viewportWidth / coverScale;
-    sourceHeight = viewportHeight / coverScale;
+  if (isCameraGameView()) {
+    const coverScale = Math.max(
+      playViewport.width / BOARD_SIZE,
+      playViewport.height / BOARD_SIZE,
+    ) * CAMERA_ZOOM;
+    sourceWidth = playViewport.width / coverScale;
+    sourceHeight = playViewport.height / coverScale;
     const playerX = player.x * TILE + TILE / 2;
     const playerY = player.y * TILE + TILE / 2;
     sourceX = Math.max(0, Math.min(BOARD_SIZE - sourceWidth, playerX - sourceWidth / 2));
@@ -1787,12 +1826,20 @@ function presentScene() {
     sourceY * SCENE_PIXEL_RATIO,
     sourceWidth * SCENE_PIXEL_RATIO,
     sourceHeight * SCENE_PIXEL_RATIO,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
+    playViewport.x * canvas.width / viewportWidth,
+    playViewport.y * canvas.height / viewportHeight,
+    playViewport.width * canvas.width / viewportWidth,
+    playViewport.height * canvas.height / viewportHeight,
   );
-  updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+  const playerScreenX = playViewport.x
+    + ((player.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
+  const playerScreenY = playViewport.y
+    + ((player.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
+  canvas.dataset.playerScreenX = playerScreenX.toFixed(1);
+  canvas.dataset.playerScreenY = playerScreenY.toFixed(1);
+  canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
+  canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
+  updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport);
 }
 
 function ensureCatRadarIndicators() {
@@ -1806,29 +1853,32 @@ function ensureCatRadarIndicators() {
   return [...ui.catRadar.children];
 }
 
-function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWidth, viewportHeight) {
-  const active = isFullscreenGameView() && ['playing', 'hit'].includes(state) && ui.mapScreen.hidden;
+function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport) {
+  const active = isCameraGameView() && ['playing', 'hit'].includes(state) && ui.mapScreen.hidden;
   ui.catRadar.hidden = !active;
   if (!active) return;
 
   const indicators = ensureCatRadarIndicators();
-  const centerX = viewportWidth / 2;
-  const centerY = viewportHeight / 2;
-  const horizontalInset = Math.min(28, viewportWidth * 0.08);
-  const statsInset = viewportWidth <= 680 ? 145 : 112;
-  const topInset = Math.min(statsInset, viewportHeight * 0.32);
-  const bottomInset = Math.min(26, viewportHeight * 0.1);
-  const safeLeft = horizontalInset;
-  const safeRight = viewportWidth - horizontalInset;
-  const safeTop = topInset;
-  const safeBottom = viewportHeight - bottomInset;
+  const centerX = playViewport.x + playViewport.width / 2;
+  const centerY = playViewport.y + playViewport.height / 2;
+  const horizontalInset = Math.min(28, playViewport.width * 0.08);
+  const verticalInset = Math.min(26, playViewport.height * 0.1);
+  const safeLeft = playViewport.x + horizontalInset;
+  const safeRight = playViewport.x + playViewport.width - horizontalInset;
+  const safeTop = playViewport.y + verticalInset;
+  const safeBottom = playViewport.y + playViewport.height - verticalInset;
   let visibleIndicators = 0;
 
   cats.forEach((cat, index) => {
     const indicator = indicators[index];
-    const catX = ((cat.x * TILE + TILE / 2 - sourceX) / sourceWidth) * viewportWidth;
-    const catY = ((cat.y * TILE + TILE / 2 - sourceY) / sourceHeight) * viewportHeight;
-    const onScreen = catX >= 0 && catX <= viewportWidth && catY >= 0 && catY <= viewportHeight;
+    const catX = playViewport.x
+      + ((cat.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
+    const catY = playViewport.y
+      + ((cat.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
+    const onScreen = catX >= playViewport.x
+      && catX <= playViewport.x + playViewport.width
+      && catY >= playViewport.y
+      && catY <= playViewport.y + playViewport.height;
     const hidden = onScreen || cat.respawnTimer > 0;
     indicator.hidden = hidden;
     if (hidden) return;
@@ -2313,9 +2363,37 @@ document.addEventListener('keydown', (event) => {
     closeMapSelection(true);
     return;
   }
-  if (import.meta.env.DEV && event.altKey && event.code === 'KeyL' && ['playing', 'paused'].includes(state)) {
+  if (import.meta.env.DEV && event.code === 'F7' && ['playing', 'hit', 'paused'].includes(state)) {
     event.preventDefault();
-    if (event.shiftKey) {
+    state = 'paused';
+    setPauseButtons(true);
+    hideOverlay();
+    render();
+    return;
+  }
+  if (import.meta.env.DEV && event.code === 'F6' && ['playing', 'paused'].includes(state)) {
+    event.preventDefault();
+    const cameraTestPositions = [
+      { x: 12, y: 20 }, { x: 1, y: 1 }, { x: 23, y: 1 },
+      { x: 1, y: 23 }, { x: 23, y: 23 }, { x: 12, y: 12 },
+    ];
+    const nextIndex = (Number(canvas.dataset.debugCameraIndex ?? -1) + 1) % cameraTestPositions.length;
+    const position = cameraTestPositions[nextIndex];
+    canvas.dataset.debugCameraIndex = String(nextIndex);
+    player.x = position.x;
+    player.y = position.y;
+    player.dir = DIRECTIONS.none;
+    player.nextDir = DIRECTIONS.none;
+    state = 'paused';
+    setPauseButtons(true);
+    hideOverlay();
+    render();
+    return;
+  }
+  const debugCompleteLevel = ['F8', 'F9'].includes(event.code) || (event.altKey && event.code === 'KeyL');
+  if (import.meta.env.DEV && debugCompleteLevel && ['playing', 'paused'].includes(state)) {
+    event.preventDefault();
+    if (event.shiftKey || event.code === 'F9') {
       completedLevelIds = new Set(PASSAU_LEVELS
         .filter((item) => item.id !== selectedLevelId)
         .map((item) => item.id));
