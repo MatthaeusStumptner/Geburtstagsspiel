@@ -1126,17 +1126,9 @@ body.mobile-game-active .board-column,
   position: fixed;
   z-index: 50;
   inset: 0;
-  display: grid;
   width: 100%;
   height: 100%;
   height: 100dvh;
-  grid-template-rows: auto auto auto;
-  align-content: start;
-  gap: 8px;
-  padding:
-    max(8px, env(safe-area-inset-top))
-    0
-    max(8px, env(safe-area-inset-bottom));
   overflow: hidden;
   overscroll-behavior: none;
   background:
@@ -1160,9 +1152,6 @@ body.mobile-game-active .mobile-game-header,
   gap: 8px;
   align-items: center;
   min-height: 42px;
-  padding-inline:
-    max(8px, env(safe-area-inset-left))
-    max(8px, env(safe-area-inset-right));
 }
 
   .mobile-game-map,
@@ -1230,100 +1219,13 @@ body.mobile-game-active .mobile-game-header,
     font-size: 8px;
   }
 
-body.mobile-game-active .board-frame,
-.board-column:fullscreen .board-frame,
-.board-column:-webkit-full-screen .board-frame {
-  width: min(
-    100vw,
-    calc(100dvh - 116px - env(safe-area-inset-top) - env(safe-area-inset-bottom))
-  );
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  align-self: start;
-  justify-self: center;
-  box-shadow:
-    0 0 0 1px #284a55,
-    0 12px 36px rgba(0, 0, 0, 0.55);
-}
-
 body.mobile-game-active .location-ribbon,
 .board-column:fullscreen .location-ribbon,
 .board-column:-webkit-full-screen .location-ribbon {
   display: none;
 }
 
-body.mobile-game-active .game-overlay,
-.board-column:fullscreen .game-overlay,
-.board-column:-webkit-full-screen .game-overlay {
-  inset: 1px;
-  padding: clamp(8px, 4vw, 20px);
-}
-
-body.mobile-game-active .mobile-controls,
-.board-column:fullscreen .mobile-controls,
-.board-column:-webkit-full-screen .mobile-controls {
-  display: flex;
-  width: 100%;
-  min-height: 42px;
-  align-self: start;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0;
-  padding-inline:
-    max(8px, env(safe-area-inset-left))
-    max(8px, env(safe-area-inset-right));
-}
-
-body.mobile-game-active .mobile-controls > p,
-.board-column:fullscreen .mobile-controls > p,
-.board-column:-webkit-full-screen .mobile-controls > p {
-  display: flex;
-  align-items: center;
-  max-width: none;
-  color: #79a29f;
-  font-size: 7px;
-  white-space: nowrap;
-}
-
-  body.mobile-game-active .mobile-utilities button,
-  .board-column:fullscreen .mobile-utilities button,
-  .board-column:-webkit-full-screen .mobile-utilities button {
-    width: 46px;
-    height: 42px;
-  }
-
 @media (max-height: 600px) and (orientation: landscape) {
-  body.mobile-game-active .board-column,
-  .board-column:fullscreen,
-  .board-column:-webkit-full-screen {
-    grid-template-columns: minmax(0, 1fr) auto 168px minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    align-content: stretch;
-    gap: 6px 10px;
-    padding-inline:
-      max(6px, env(safe-area-inset-left))
-      max(6px, env(safe-area-inset-right));
-  }
-
-  body.mobile-game-active .mobile-game-header,
-  .board-column:fullscreen .mobile-game-header,
-  .board-column:-webkit-full-screen .mobile-game-header {
-    grid-column: 1 / -1;
-  }
-
-  body.mobile-game-active .board-frame,
-  .board-column:fullscreen .board-frame,
-  .board-column:-webkit-full-screen .board-frame {
-    grid-row: 2;
-    grid-column: 2;
-    width: min(
-      calc(100dvh - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom)),
-      calc(100vw - 190px - env(safe-area-inset-left) - env(safe-area-inset-right))
-    );
-  }
-
   body.mobile-game-active .overlay-card,
   .board-column:fullscreen .overlay-card,
   .board-column:-webkit-full-screen .overlay-card {
@@ -1360,29 +1262,132 @@ body.mobile-game-active .mobile-controls > p,
     font-size: 8px;
   }
 
-  body.mobile-game-active .mobile-controls,
-  .board-column:fullscreen .mobile-controls,
-  .board-column:-webkit-full-screen .mobile-controls {
-    grid-row: 2;
-    grid-column: 3;
-    flex-direction: column;
-    align-self: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 0;
-  }
+}
 
-  body.mobile-game-active .mobile-controls > p,
-  .board-column:fullscreen .mobile-controls > p,
-  .board-column:-webkit-full-screen .mobile-controls > p {
-    justify-content: center;
-  }
+/* The mobile game is a true viewport-sized camera over the square game world. */
+body.mobile-game-active .board-column,
+.board-column:fullscreen,
+.board-column:-webkit-full-screen {
+  display: block;
+  padding: 0;
+}
 
-  body.mobile-game-active .mobile-utilities,
-  .board-column:fullscreen .mobile-utilities,
-  .board-column:-webkit-full-screen .mobile-utilities {
-    justify-content: center;
-  }
+body.mobile-game-active .board-frame,
+.board-column:fullscreen .board-frame,
+.board-column:-webkit-full-screen .board-frame {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+body.mobile-game-active #game,
+.board-column:fullscreen #game,
+.board-column:-webkit-full-screen #game {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+}
+
+body.mobile-game-active .mobile-game-header,
+.board-column:fullscreen .mobile-game-header,
+.board-column:-webkit-full-screen .mobile-game-header {
+  position: absolute;
+  z-index: 20;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  left: max(8px, env(safe-area-inset-left));
+  width: auto;
+  padding: 0;
+}
+
+body.mobile-game-active .mobile-game-map,
+body.mobile-game-active .mobile-fullscreen-button,
+body.mobile-game-active .mobile-utilities button,
+.board-column:fullscreen .mobile-game-map,
+.board-column:fullscreen .mobile-fullscreen-button,
+.board-column:fullscreen .mobile-utilities button,
+.board-column:-webkit-full-screen .mobile-game-map,
+.board-column:-webkit-full-screen .mobile-fullscreen-button,
+.board-column:-webkit-full-screen .mobile-utilities button {
+  border-color: rgba(77, 125, 132, 0.78);
+  background: rgba(7, 24, 34, 0.88);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(5px);
+}
+
+body.mobile-game-active .mobile-game-location,
+.board-column:fullscreen .mobile-game-location,
+.board-column:-webkit-full-screen .mobile-game-location {
+  padding: 6px 10px;
+  border: 1px solid rgba(50, 91, 99, 0.56);
+  background: rgba(5, 17, 26, 0.76);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(5px);
+}
+
+body.mobile-game-active .mobile-controls,
+.board-column:fullscreen .mobile-controls,
+.board-column:-webkit-full-screen .mobile-controls {
+  display: flex;
+  position: absolute;
+  z-index: 20;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: max(8px, env(safe-area-inset-left));
+  width: auto;
+  min-height: 42px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+body.mobile-game-active .mobile-controls > p,
+.board-column:fullscreen .mobile-controls > p,
+.board-column:-webkit-full-screen .mobile-controls > p {
+  display: flex;
+  align-items: center;
+  max-width: none;
+  padding: 8px 10px;
+  border: 1px solid rgba(50, 91, 99, 0.5);
+  background: rgba(5, 17, 26, 0.72);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(5px);
+  color: #79a29f;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+body.mobile-game-active .mobile-utilities button,
+.board-column:fullscreen .mobile-utilities button,
+.board-column:-webkit-full-screen .mobile-utilities button {
+  width: 46px;
+  height: 42px;
+}
+
+body.mobile-game-active .game-overlay,
+.board-column:fullscreen .game-overlay,
+.board-column:-webkit-full-screen .game-overlay {
+  inset: 0;
+  padding:
+    calc(62px + env(safe-area-inset-top))
+    12px
+    calc(58px + env(safe-area-inset-bottom));
+}
+
+body.mobile-game-active .easter-toast,
+.board-column:fullscreen .easter-toast,
+.board-column:-webkit-full-screen .easter-toast {
+  top: calc(58px + env(safe-area-inset-top));
 }
 
 @media (max-width: 680px) {

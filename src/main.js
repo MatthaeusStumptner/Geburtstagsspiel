@@ -1,12 +1,15 @@
 import './style.css';
 
 const canvas = document.querySelector('#game');
-const ctx = canvas.getContext('2d');
+const displayCtx = canvas.getContext('2d');
+const sceneCanvas = document.createElement('canvas');
+const ctx = sceneCanvas.getContext('2d');
 
 const COLS = 25;
 const ROWS = 25;
 const TILE = 24;
 const BOARD_SIZE = COLS * TILE;
+const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
@@ -598,6 +601,7 @@ function enterMobileGameMode(requestNative = false) {
     document.body.style.top = `-${mobileScrollPosition}px`;
     document.body.classList.add('mobile-game-active');
   }
+  resizeCanvas();
   syncFullscreenUi();
   if (requestNative) requestNativeFullscreen();
   return !alreadyActive;
@@ -607,6 +611,7 @@ function leaveMobileGameMode(returnToBoard = false) {
   const wasActive = document.body.classList.contains('mobile-game-active');
   document.body.classList.remove('mobile-game-active');
   document.body.style.top = '';
+  resizeCanvas();
 
   const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
   if (nativeFullscreenElement() === ui.boardColumn && exit) {
@@ -1455,6 +1460,46 @@ function render() {
   for (const cat of cats) drawCat(cat);
   drawWalker();
   drawVignette();
+  presentScene();
+}
+
+function isFullscreenGameView() {
+  return document.body.classList.contains('mobile-game-active')
+    || nativeFullscreenElement() === ui.boardColumn;
+}
+
+function presentScene() {
+  const viewportWidth = Math.max(1, canvas.clientWidth);
+  const viewportHeight = Math.max(1, canvas.clientHeight);
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = BOARD_SIZE;
+  let sourceHeight = BOARD_SIZE;
+
+  if (isFullscreenGameView()) {
+    const coverScale = Math.max(viewportWidth / BOARD_SIZE, viewportHeight / BOARD_SIZE);
+    sourceWidth = viewportWidth / coverScale;
+    sourceHeight = viewportHeight / coverScale;
+    const playerX = player.x * TILE + TILE / 2;
+    const playerY = player.y * TILE + TILE / 2;
+    sourceX = Math.max(0, Math.min(BOARD_SIZE - sourceWidth, playerX - sourceWidth / 2));
+    sourceY = Math.max(0, Math.min(BOARD_SIZE - sourceHeight, playerY - sourceHeight / 2));
+  }
+
+  displayCtx.setTransform(1, 0, 0, 1, 0, 0);
+  displayCtx.clearRect(0, 0, canvas.width, canvas.height);
+  displayCtx.imageSmoothingEnabled = false;
+  displayCtx.drawImage(
+    sceneCanvas,
+    sourceX * SCENE_PIXEL_RATIO,
+    sourceY * SCENE_PIXEL_RATIO,
+    sourceWidth * SCENE_PIXEL_RATIO,
+    sourceHeight * SCENE_PIXEL_RATIO,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
 }
 
 function drawGround() {
@@ -1887,10 +1932,19 @@ function frame(now) {
 
 function resizeCanvas() {
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = BOARD_SIZE * ratio;
-  canvas.height = BOARD_SIZE * ratio;
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round((bounds.width || BOARD_SIZE) * ratio));
+  const height = Math.max(1, Math.round((bounds.height || BOARD_SIZE) * ratio));
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+
+  if (sceneCanvas.width !== BOARD_SIZE * SCENE_PIXEL_RATIO) {
+    sceneCanvas.width = BOARD_SIZE * SCENE_PIXEL_RATIO;
+    sceneCanvas.height = BOARD_SIZE * SCENE_PIXEL_RATIO;
+  }
+  ctx.setTransform(SCENE_PIXEL_RATIO, 0, 0, SCENE_PIXEL_RATIO, 0, 0);
   ctx.imageSmoothingEnabled = false;
+  displayCtx.imageSmoothingEnabled = false;
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2003,8 +2057,13 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
 
-document.addEventListener('fullscreenchange', syncFullscreenUi);
-document.addEventListener('webkitfullscreenchange', syncFullscreenUi);
+function handleFullscreenChange() {
+  syncFullscreenUi();
+  resizeCanvas();
+}
+
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 document.addEventListener('touchmove', (event) => {
   if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
 }, { passive: false });
@@ -2013,6 +2072,10 @@ window.addEventListener('resize', () => {
   resizeCanvas();
   syncFullscreenUi();
 });
+const canvasResizeObserver = 'ResizeObserver' in window
+  ? new ResizeObserver(() => resizeCanvas())
+  : null;
+canvasResizeObserver?.observe(canvas);
 window.addEventListener('pagehide', () => saveGame(true));
 
 if (storedGame) restoreGame(storedGame);
