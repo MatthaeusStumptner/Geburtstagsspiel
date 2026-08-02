@@ -13,7 +13,7 @@ const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 5;
+const SAVE_VERSION = 6;
 const EASTER_EGG_COUNT = 3;
 const SWIPE_ACTIVATION_DISTANCE = 7;
 const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
@@ -300,6 +300,7 @@ const LEVEL_BLOCKS = [
 ];
 
 const PLAYER_START = { x: 12, y: 20 };
+const POWER_PELLET_POSITIONS = [[1, 1], [23, 1], [1, 23], [23, 23]];
 const CAT_STARTS = [
   { x: 11, y: 12, color: '#ff6b5f', accent: '#9e302e' },
   { x: 12, y: 12, color: '#f2a65a', accent: '#a6532c' },
@@ -330,6 +331,12 @@ const ui = {
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
   mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
+  viewportScore: document.querySelector('#viewport-score'),
+  viewportBest: document.querySelector('#viewport-best'),
+  viewportLevel: document.querySelector('#viewport-level'),
+  viewportLives: document.querySelector('#viewport-lives'),
+  viewportTreats: document.querySelector('#viewport-treats'),
+  viewportProgress: document.querySelector('#viewport-progress'),
   catRadar: document.querySelector('#cat-radar'),
   mapButton: document.querySelector('#map-button'),
   mapScreen: document.querySelector('#map-screen'),
@@ -463,7 +470,7 @@ function statsForLevel(id) {
 
 function updateCurrentLevelStatsSnapshot(forceCompleted = false) {
   const stats = statsForLevel(selectedLevelId);
-  const remainingTreats = pellets.size + powerPellets.size;
+  const remainingTreats = pellets.size;
   const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
   stats.treatsTotal = Math.max(stats.treatsTotal, levelTreatTotal);
   stats.bestTreats = Math.max(stats.bestTreats, collectedTreats);
@@ -509,7 +516,7 @@ function syncCatsForDifficulty() {
 
 function setDifficulty(nextDifficulty) {
   if (!DIFFICULTIES[nextDifficulty] || nextDifficulty === difficulty) return;
-  const restartFinishedLevel = !runStarted || lives <= 0 || pellets.size + powerPellets.size === 0;
+  const restartFinishedLevel = !runStarted || lives <= 0 || pellets.size === 0;
   difficulty = nextDifficulty;
   lives = difficultyConfig().lives;
   graceTimer = difficultyConfig().grace;
@@ -611,7 +618,7 @@ function updateMapSelection() {
   const item = PASSAU_LEVELS.find((entry) => entry.id === mapSelectionId) ?? PASSAU_LEVELS[0];
   const index = PASSAU_LEVELS.indexOf(item) + 1;
   const complete = completedLevelIds.has(item.id);
-  const resumable = item.id === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
+  const resumable = item.id === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (item.id === selectedLevelId && runStarted) updateCurrentLevelStatsSnapshot(complete);
   const stats = statsForLevel(item.id);
   const treatsTotal = stats.treatsTotal || difficultyConfig().treatTarget;
@@ -742,7 +749,6 @@ function requestNativeFullscreen() {
 
 function enterMobileGameMode(requestNative = false) {
   document.body.classList.remove('map-active');
-  if (!isMobileGameLayout()) return false;
   const alreadyActive = document.body.classList.contains('mobile-game-active');
   if (!alreadyActive) {
     mobileScrollPosition = window.scrollY;
@@ -814,7 +820,7 @@ function startMapSelection() {
   closeMapSelection(false);
   document.body.classList.remove('map-active');
   enterMobileGameMode(true);
-  const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size + powerPellets.size > 0;
+  const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (!resumable) {
     selectedLevelId = mapSelectionId;
     level = PASSAU_LEVELS.findIndex((item) => item.id === selectedLevelId) + 1;
@@ -852,6 +858,9 @@ function showLevelIntro(resumable = false) {
     () => ({ place: localized(item.name), description: localized(item.description) }),
     { variant: 'level-intro', showControls: true },
   );
+  ui.controlIntro.querySelector('p').textContent = isMobileGameLayout()
+    ? t('controlIntroHint')
+    : t('controlMenuHint');
 }
 
 function resetGameProgress() {
@@ -926,50 +935,62 @@ function loadLegacyBest() {
   }
 }
 
+function migrateLegacySave(parsed) {
+  const legacy = { ...parsed };
+  if (parsed.version === 2) {
+    legacy.language = 'dialect';
+    legacy.selectedLevelId = 'hals';
+    legacy.completedLevelIds = [];
+  }
+  if (parsed.version <= 3) {
+    legacy.difficulty = 'normal';
+    legacy.graceTimer = 0;
+  }
+
+  const config = DIFFICULTIES[legacy.difficulty] ?? DIFFICULTIES.normal;
+  const savedPellets = Array.isArray(legacy.pellets) ? legacy.pellets : [];
+  const savedPowerPellets = Array.isArray(legacy.powerPellets) ? legacy.powerPellets : [];
+  const oldRemaining = savedPellets.length + savedPowerPellets.length;
+  const oldTotal = Math.max(oldRemaining, Math.floor(Number(legacy.levelTreatTotal) || oldRemaining));
+  const collectedPowerUps = Math.max(0, POWER_PELLET_POSITIONS.length - savedPowerPellets.length);
+  const collectedGuttis = Math.max(0, oldTotal - oldRemaining - collectedPowerUps);
+  const completedIds = new Set(Array.isArray(legacy.completedLevelIds) ? legacy.completedLevelIds : []);
+  const legacyStats = legacy.levelStats && typeof legacy.levelStats === 'object' ? legacy.levelStats : {};
+  const migratedStats = Object.fromEntries(PASSAU_LEVELS.map((item) => {
+    const stats = legacyStats[item.id] && typeof legacyStats[item.id] === 'object'
+      ? legacyStats[item.id]
+      : {};
+    const completed = completedIds.has(item.id) || Boolean(stats.completed);
+    const currentLevel = item.id === legacy.selectedLevelId;
+    const previousBest = Math.max(0, Math.floor(Number(stats.bestTreats) || 0));
+    const adjustedBest = currentLevel
+      ? Math.max(collectedGuttis, previousBest - collectedPowerUps)
+      : previousBest;
+    return [item.id, {
+      ...stats,
+      treatsTotal: stats.attempts || completed || currentLevel ? config.treatTarget : 0,
+      bestTreats: completed ? config.treatTarget : Math.min(config.treatTarget, adjustedBest),
+      completed,
+    }];
+  }));
+
+  return {
+    ...legacy,
+    version: SAVE_VERSION,
+    rebalanceTreats: true,
+    migratedTreatsCollected: Math.min(config.treatTarget, collectedGuttis),
+    levelTreatTotal: config.treatTarget,
+    levelStats: migratedStats,
+    levelRunScore: Math.max(0, Math.floor(Number(legacy.levelRunScore) || 0)),
+  };
+}
+
 function loadGame() {
   try {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (!parsed || typeof parsed !== 'object') return null;
     if (parsed.version === SAVE_VERSION) return parsed;
-    if (parsed.version === 4) {
-      return {
-        ...parsed,
-        version: SAVE_VERSION,
-        levelStats: {},
-        levelRunScore: 0,
-      };
-    }
-    if (parsed.version === 3) {
-      return {
-        ...parsed,
-        version: SAVE_VERSION,
-        difficulty: 'normal',
-        graceTimer: 0,
-        rebalanceTreats: true,
-        levelTreatTotal: Array.isArray(parsed.pellets) && Array.isArray(parsed.powerPellets)
-          ? parsed.pellets.length + parsed.powerPellets.length
-          : 0,
-        levelStats: {},
-        levelRunScore: 0,
-      };
-    }
-    if (parsed.version === 2) {
-      return {
-        ...parsed,
-        version: SAVE_VERSION,
-        language: 'dialect',
-        selectedLevelId: 'hals',
-        completedLevelIds: [],
-        difficulty: 'normal',
-        graceTimer: 0,
-        rebalanceTreats: true,
-        levelTreatTotal: Array.isArray(parsed.pellets) && Array.isArray(parsed.powerPellets)
-          ? parsed.pellets.length + parsed.powerPellets.length
-          : 0,
-        levelStats: {},
-        levelRunScore: 0,
-      };
-    }
+    if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
     return null;
   } catch {
     return null;
@@ -1048,7 +1069,7 @@ function buildLevel() {
 
   const reachable = reachableOpenKeys();
   powerPellets = new Set();
-  for (const [x, y] of [[1, 1], [23, 1], [1, 23], [23, 23]]) {
+  for (const [x, y] of POWER_PELLET_POSITIONS) {
     const key = toKey(x, y);
     if (reachable.has(key)) powerPellets.add(key);
   }
@@ -1068,9 +1089,9 @@ function buildLevel() {
       return ((ax * 137 + ay * 71 + seed) % 997) - ((bx * 137 + by * 71 + seed) % 997);
     });
 
-  const pelletLimit = Math.max(0, difficultyConfig().treatTarget - powerPellets.size);
+  const pelletLimit = difficultyConfig().treatTarget;
   pellets = new Set(candidates.slice(0, pelletLimit).map(({ key }) => key));
-  levelTreatTotal = pellets.size + powerPellets.size;
+  levelTreatTotal = pellets.size;
 
   resetActors();
 }
@@ -1151,11 +1172,19 @@ function restoreGame(save) {
   );
 
   buildLevel();
+  const generatedTreatTotal = levelTreatTotal;
+  if (save.rebalanceTreats) {
+    const migratedCollected = Math.min(
+      pellets.size,
+      Math.max(0, Math.floor(Number(save.migratedTreatsCollected) || 0)),
+    );
+    pellets = new Set([...pellets].slice(migratedCollected));
+  }
   if (!save.rebalanceTreats && Array.isArray(save.pellets)) pellets = new Set(save.pellets.filter(validOpenKey));
-  if (!save.rebalanceTreats && Array.isArray(save.powerPellets)) powerPellets = new Set(save.powerPellets.filter(validOpenKey));
-  const remainingTreats = pellets.size + powerPellets.size;
+  if (Array.isArray(save.powerPellets)) powerPellets = new Set(save.powerPellets.filter(validOpenKey));
+  const remainingTreats = pellets.size;
   levelTreatTotal = save.rebalanceTreats
-    ? remainingTreats
+    ? Math.max(generatedTreatTotal, Math.floor(Number(save.levelTreatTotal) || generatedTreatTotal))
     : Math.max(remainingTreats, Math.floor(Number(save.levelTreatTotal) || remainingTreats));
   if (runStarted) updateCurrentLevelStatsSnapshot(save.mode === 'won');
 
@@ -1417,7 +1446,7 @@ function hideOverlay() {
 }
 
 function updateHud() {
-  const remainingTreats = pellets.size + powerPellets.size;
+  const remainingTreats = pellets.size;
   const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
   const progress = levelTreatTotal > 0 ? collectedTreats / levelTreatTotal : 0;
   const globalProgress = globalProgressPercent();
@@ -1436,6 +1465,12 @@ function updateHud() {
     dot.classList.toggle('active', index === 0 || progress >= index / 2);
   });
   ui.eggs.textContent = `${unlockedEggs.size} / ${EASTER_EGG_COUNT}`;
+  ui.viewportScore.textContent = String(score).padStart(6, '0');
+  ui.viewportBest.textContent = String(Math.max(score, best)).padStart(6, '0');
+  ui.viewportLevel.textContent = String(level).padStart(2, '0');
+  ui.viewportLives.textContent = String(lives);
+  ui.viewportTreats.textContent = `${collectedTreats} / ${levelTreatTotal}`;
+  ui.viewportProgress.textContent = `${globalProgress}%`;
 }
 
 function unlockEasterEgg(id, message, bonus) {
@@ -1601,7 +1636,7 @@ function collectTreats() {
   }
 
   if (collected) saveGame(true);
-  if (pellets.size === 0 && powerPellets.size === 0) completeLevel();
+  if (pellets.size === 0) completeLevel();
 }
 
 function checkCollisions() {
@@ -1780,7 +1815,8 @@ function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, viewportWid
   const centerX = viewportWidth / 2;
   const centerY = viewportHeight / 2;
   const horizontalInset = Math.min(28, viewportWidth * 0.08);
-  const topInset = Math.min(70, viewportHeight * 0.24);
+  const statsInset = viewportWidth <= 680 ? 145 : 112;
+  const topInset = Math.min(statsInset, viewportHeight * 0.32);
   const bottomInset = Math.min(26, viewportHeight * 0.1);
   const safeLeft = horizontalInset;
   const safeRight = viewportWidth - horizontalInset;
@@ -2438,7 +2474,8 @@ if (import.meta.env.DEV) {
   window.__GASSI_DEBUG__ = () => ({
     state,
     player: { x: player.x, y: player.y, direction: player.dir.name, nextDirection: player.nextDir.name },
-    treats: pellets.size + powerPellets.size,
+    treats: pellets.size,
+    powerUps: powerPellets.size,
     score,
     level,
     language,
@@ -2448,7 +2485,7 @@ if (import.meta.env.DEV) {
     lives,
     difficulty,
     directionHistory: [...directionHistory],
-    treatsCollected: Math.max(0, levelTreatTotal - pellets.size - powerPellets.size),
+    treatsCollected: Math.max(0, levelTreatTotal - pellets.size),
     treatsTotal: levelTreatTotal,
     eggs: [...unlockedEggs],
     saved: loadGame(),
