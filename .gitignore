@@ -3,4 +3,6 @@ dist/
 .vite/
 output/
 .playwright-cli/
+.codex-*/
+Pacman_clone_level_editor/
 *.log

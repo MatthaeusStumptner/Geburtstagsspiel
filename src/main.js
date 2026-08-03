@@ -1,9 +1,25 @@
 import './style.css';
+import {
+  DIRECTIONS,
+  DirectionalSwipeInput,
+  FixedStepLoop,
+  PassauPixelRenderer,
+  chooseCatDirection as chooseSharedCatDirection,
+  compileWallGrid,
+  createLevelDocument,
+  moveCatActor,
+  movePlayerActor,
+  queuePlayerDirection,
+  reachableTileKeys,
+} from '@franz-lola/pixel-renderer';
+import { aggregateProgress } from './game/progress-system.js';
+import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
+import { BrowserSaveStore } from './platform/browser-save-store.js';
 
 const canvas = document.querySelector('#game');
-const displayCtx = canvas.getContext('2d');
-const sceneCanvas = document.createElement('canvas');
-const ctx = sceneCanvas.getContext('2d');
+const pixelRenderer = new PassauPixelRenderer(canvas, { zoom: 1.12 });
+const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
+const saveStore = new BrowserSaveStore();
 
 const COLS = 25;
 const ROWS = 25;
@@ -14,11 +30,10 @@ const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 6;
-const EASTER_EGG_COUNT = 3;
+const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
+const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
-const PLAYER_TURN_SNAP_DISTANCE = 0.28;
 const CAMERA_ZOOM = 1.12;
-const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
 
 const TEXT = {
   standard: {
@@ -245,72 +260,6 @@ const DIFFICULTIES = {
   },
 };
 
-const PASSAU_LEVELS = [
-  {
-    id: 'home', icon: '⌂', lat: 48.58244, lon: 13.48316, layout: 2, river: 'ILZ · GRUBWEG', home: true,
-    palette: { ground: ['#20262a', '#22292d', '#1d2529', '#252b2f'], curb: '#4d5e60', walls: ['#4e4337', '#604d3b', '#454849', '#67583e'], water: '#17657a' },
-    name: { standard: 'Dahoam · Am Bramerhof', dialect: 'Dahoam · Am Bramerhof' },
-    description: { standard: 'Franz und Lola starten an ihrem Zuhause. Das Haus ist Herzstück und Ziel dieser Runde.', dialect: "Da Franz und d'Lola startn dahoam. S'Haus is Herzstück und Ziel von dera Rundn." },
-    mission: { standard: 'Rund um das Zuhause', dialect: "Oamoi rund ums Dahoam" },
-  },
-  {
-    id: 'hals', icon: '≋', lat: 48.588889, lon: 13.463889, layout: 0, river: 'ILZ · HALS',
-    palette: { ground: ['#17262c', '#19282f', '#15242b', '#1b2a30'], curb: '#345b61', walls: ['#174150', '#194958', '#293f4b', '#3a3f48'], water: '#0a5368' },
-    name: { standard: 'Hals & Ilz', dialect: 'Hals & Ilz' },
-    description: { standard: 'Enge Gassen, Ilzschleife und ein Eisvogel, wenn Lola ganz genau hinsieht.', dialect: "Enge Gassn, d'Ilzschleif und a Eisvogl, wenn d'Lola sauber hischaut." },
-    mission: { standard: 'Einmal um Hals', dialect: 'Oamoi um an Hals' },
-  },
-  {
-    id: 'oberhaus', icon: '♜', lat: 48.57809, lon: 13.47035, layout: 3, river: 'DONAU · GEORGEBERG',
-    palette: { ground: ['#26252a', '#29272d', '#232329', '#2d2930'], curb: '#655a5c', walls: ['#5b403c', '#744b41', '#4e3d42', '#806049'], water: '#28687f' },
-    name: { standard: 'Veste Oberhaus', dialect: 'Veste Oberhaus' },
-    description: { standard: 'Hoch über den Flüssen warten Burgmauern, steile Wege und besonders flinke Katzen.', dialect: 'Hoch über de Fliass wartn Burgmauern, steile Weg und sakrisch flinke Katzn.' },
-    mission: { standard: 'Runde um die Veste', dialect: "A Rundn um d'Veste" },
-  },
-  {
-    id: 'dom', icon: '✦', lat: 48.574061, lon: 13.465439, layout: 1, river: 'ALTSTADT · DOM',
-    palette: { ground: ['#26282a', '#292b2c', '#242628', '#2c2c2b'], curb: '#686667', walls: ['#655344', '#7b604a', '#4e5050', '#8a7559'], water: '#287e9b' },
-    name: { standard: 'Dom St. Stephan', dialect: 'Dom St. Stephan' },
-    description: { standard: 'Eine verwinkelte Altstadtrunde zwischen Gassen, Plätzen und einem kleinen Glockengeheimnis.', dialect: 'A verwinkelte Altstadtrundn zwischen Gassn, Platzln und am kloana Glockngeheimnis.' },
-    mission: { standard: 'Durch die Altstadt', dialect: "Durch d'Altstadt" },
-  },
-  {
-    id: 'dreifluesseeck', icon: '≈', lat: 48.57371, lon: 13.47681, layout: 4, river: 'DONAU · INN · ILZ',
-    palette: { ground: ['#14262b', '#17292d', '#122329', '#1a2d30'], curb: '#356269', walls: ['#194651', '#205666', '#29464e', '#385961'], water: '#177f8f' },
-    name: { standard: 'Dreiflüsseeck', dialect: 'Dreiflüsseeck' },
-    description: { standard: 'Wo Donau, Inn und Ilz zusammentreffen, wird die Gassi-Runde besonders wasserreich.', dialect: "Wo Donau, Inn und Ilz zamkemman, werd d'Gassi-Rundn bsonders wasserreich." },
-    mission: { standard: 'Runde an drei Flüssen', dialect: 'Rundn an drei Fliass' },
-  },
-  {
-    id: 'uni', icon: 'U', lat: 48.5683, lon: 13.4533, layout: 5, river: 'INN · INNSTADT',
-    palette: { ground: ['#20262d', '#222a31', '#1d242b', '#252d33'], curb: '#4d606c', walls: ['#3b4855', '#485a68', '#3d4149', '#59636d'], water: '#3cae9d' },
-    name: { standard: 'Universität & Inn', dialect: 'Uni & Inn' },
-    description: { standard: 'Eine schnelle Runde am Innufer zwischen Campus, Promenade und neugierigen Nachbarskatzen.', dialect: "A flotte Rundn am Innufer zwischen Campus, Promenad und neugierige Nochbarskatzn." },
-    mission: { standard: 'Am Inn entlang', dialect: 'Am Inn entlang' },
-  },
-  {
-    id: 'bschuett', icon: 'S', lat: 48.580206, lon: 13.475416, layout: 6, river: 'ILZ · BSCHÜTT', markerClass: 'park', theme: 'bschuett',
-    palette: { ground: ['#173129', '#19372d', '#142c25', '#1d3b30'], curb: '#4c7564', walls: ['#234b3f', '#2e5c49', '#354c43', '#426750'], water: '#14708a' },
-    name: { standard: 'Bschüttpark', dialect: 'Bschüttpark' },
-    description: { standard: 'Eine grüne Runde an der Ilz zwischen Betonpark, Streetball, Beachvolleyball und großen Spielflächen.', dialect: "A grüne Rundn an da Ilz zwischen Betonpark, Streetball, Beachvolleyball und vui Platz zum Austobn." },
-    mission: { standard: 'Spielrunde im Bschüttpark', dialect: 'A Spielrundn im Bschüttpark' },
-  },
-  {
-    id: 'tabakfabrik', icon: 'TF', lat: 48.5688, lon: 13.4719, layout: 7, river: 'MÜHLTAL · INNSTADT', markerClass: 'industrial', theme: 'tabakfabrik',
-    palette: { ground: ['#272322', '#2d2724', '#24201f', '#302825'], curb: '#76564a', walls: ['#704336', '#834a38', '#593b36', '#925945'], water: '#37606d' },
-    name: { standard: 'Tabakfabrik', dialect: 'Tabakfabrik' },
-    description: { standard: 'Backstein, Proberäume und eine kleine Bühne: Passauer Subkultur in einem alten Industriegebäude.', dialect: 'Backstoa, Proberäum und a kloane Bühn: Passauer Subkultur in am oidn Industriegebäude.' },
-    mission: { standard: 'Guttis zwischen Proberäumen', dialect: 'Guttis zwischen de Proberäum' },
-  },
-  {
-    id: 'zauberberg', icon: '⚡', lat: 48.570405, lon: 13.455266, layout: 8, river: 'HAIDENHOF · LIVE-CLUB', markerClass: 'music', theme: 'zauberberg',
-    palette: { ground: ['#211829', '#261b31', '#1d1625', '#2b1d35'], curb: '#704b78', walls: ['#4b285b', '#623166', '#3b2949', '#7a354e'], water: '#2e5375' },
-    name: { standard: 'Zauberberg', dialect: 'Zauberberg' },
-    description: { standard: 'Verstärker auf elf: Franz und Lola geraten in ein Pixelkonzert mit Rock, Punk und Metal.', dialect: "D'Verstärker auf elf: Da Franz und d'Lola landn in am Pixelkonzert mit Rock, Punk und Metal." },
-    mission: { standard: 'Gassi vor der Bühne', dialect: 'Gassi vor da Bühn' },
-  },
-];
-
 const MAP_BOUNDS = { minLat: 48.5645, maxLat: 48.5945, minLon: 13.447, maxLon: 13.489 };
 const MAP_VIEWBOX_SIZE = 700;
 const MAP_PADDING = 45;
@@ -324,79 +273,6 @@ const MAP_CONTENT_WIDTH = MAP_WIDTH_KM * MAP_UNITS_PER_KM;
 const MAP_CONTENT_HEIGHT = MAP_HEIGHT_KM * MAP_UNITS_PER_KM;
 const MAP_OFFSET_X = (MAP_VIEWBOX_SIZE - MAP_CONTENT_WIDTH) / 2;
 const MAP_OFFSET_Y = (MAP_VIEWBOX_SIZE - MAP_CONTENT_HEIGHT) / 2;
-
-const DIRECTIONS = {
-  up: { x: 0, y: -1, name: 'up' },
-  down: { x: 0, y: 1, name: 'down' },
-  left: { x: -1, y: 0, name: 'left' },
-  right: { x: 1, y: 0, name: 'right' },
-  none: { x: 0, y: 0, name: 'none' },
-};
-
-const LEVEL_BLOCKS = [
-  [
-    [2, 2, 5, 3], [9, 2, 3, 3], [14, 2, 4, 3], [20, 2, 3, 3],
-    [2, 7, 3, 4], [7, 7, 5, 2], [14, 7, 4, 2], [20, 7, 3, 4],
-    [7, 11, 3, 4], [15, 11, 3, 4], [2, 13, 3, 4], [20, 13, 3, 4],
-    [7, 17, 4, 2], [14, 17, 4, 2], [2, 19, 4, 4], [8, 21, 4, 2],
-    [14, 21, 3, 2], [19, 19, 4, 4],
-  ],
-  [
-    [2, 2, 3, 3], [7, 2, 4, 2], [13, 2, 4, 3], [19, 2, 4, 3],
-    [2, 7, 4, 2], [8, 6, 3, 4], [14, 7, 5, 2], [21, 7, 2, 4],
-    [2, 11, 3, 4], [6, 12, 3, 2], [16, 12, 3, 2], [20, 13, 3, 4],
-    [6, 16, 4, 3], [12, 16, 2, 4], [16, 17, 3, 2], [2, 19, 4, 4],
-    [8, 21, 3, 2], [15, 21, 3, 2], [20, 19, 3, 4],
-  ],
-  [
-    [2, 2, 5, 3], [9, 2, 7, 3], [18, 2, 5, 3],
-    [2, 7, 4, 4], [9, 6, 7, 4], [19, 7, 4, 4],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 3], [8, 16, 3, 3], [14, 16, 3, 3], [19, 15, 4, 3],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 6, 3], [10, 2, 5, 2], [18, 2, 5, 4],
-    [2, 7, 3, 5], [7, 7, 5, 2], [14, 6, 3, 4], [20, 8, 3, 3],
-    [6, 13, 4, 2], [15, 12, 4, 2], [2, 15, 3, 4], [21, 14, 2, 5],
-    [7, 17, 5, 3], [15, 17, 4, 2], [2, 21, 4, 2], [14, 21, 3, 2], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 4, 4], [8, 2, 3, 2], [14, 2, 3, 2], [19, 2, 4, 4],
-    [2, 8, 5, 2], [9, 6, 3, 4], [14, 6, 3, 4], [19, 8, 4, 2],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 2], [8, 16, 4, 3], [14, 16, 4, 3], [20, 15, 3, 2],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 3, 5], [7, 2, 5, 2], [14, 2, 4, 3], [20, 2, 3, 5],
-    [7, 6, 3, 4], [15, 7, 3, 3], [2, 9, 3, 3], [20, 9, 3, 3],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 3, 4], [7, 16, 4, 2], [14, 16, 4, 2], [20, 15, 3, 4],
-    [2, 21, 5, 2], [9, 20, 3, 3], [14, 20, 3, 3], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 5, 2], [9, 2, 3, 3], [14, 2, 3, 3], [19, 2, 4, 2],
-    [2, 6, 3, 5], [7, 7, 4, 2], [15, 7, 4, 2], [21, 6, 2, 5],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 2], [8, 16, 3, 3], [15, 16, 3, 3], [20, 15, 3, 2],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 4, 4], [8, 2, 3, 2], [14, 2, 3, 2], [19, 2, 4, 4],
-    [2, 8, 4, 2], [9, 6, 7, 4], [19, 8, 4, 2],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 3, 4], [7, 16, 4, 2], [14, 16, 4, 2], [20, 15, 3, 4],
-    [2, 21, 5, 2], [9, 20, 3, 3], [14, 20, 3, 3], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 5, 3], [9, 2, 7, 2], [18, 2, 5, 3],
-    [2, 7, 4, 4], [8, 5, 9, 5], [19, 7, 4, 4],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 3], [8, 16, 3, 3], [15, 16, 3, 3], [19, 15, 4, 3],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-];
 
 const PLAYER_START = { x: 12, y: 20 };
 const POWER_PELLET_POSITIONS = [[1, 1], [23, 1], [1, 23], [23, 23]];
@@ -430,7 +306,6 @@ const ui = {
   mobileGameMenuButton: document.querySelector('#mobile-game-menu-button'),
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
-  mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
   mapCompletedLevels: document.querySelector('#map-completed-levels'),
   mapTotalTreats: document.querySelector('#map-total-treats'),
   levelStatusScore: document.querySelector('#level-status-score'),
@@ -534,10 +409,10 @@ let currentOverlay = null;
 let directionHistory = [];
 let savePulseTimer;
 let audioContext;
-let lastFrame = performance.now();
 let elapsed = 0;
+let levelEventElapsed = 0;
 let autoSaveElapsed = 0;
-let swipeStart = null;
+const swipeInput = new DirectionalSwipeInput({ activationDistance: SWIPE_ACTIVATION_DISTANCE, dominanceRatio: 1.08 });
 let mobileScrollPosition = 0;
 let settingsReturnState = null;
 let settingsReturnFocus = null;
@@ -547,6 +422,7 @@ let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
+let activeLevelDocument = null;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -730,12 +606,22 @@ function currentLocation() {
   return PASSAU_LEVELS.find((item) => item.id === selectedLevelId) ?? PASSAU_LEVELS[0];
 }
 
+function currentPublishedLevel() {
+  return publishedLevel(selectedLevelId);
+}
+
 function localized(field) {
   return field[language] ?? field.standard;
 }
 
-function difficultyConfig() {
-  return DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
+function difficultyConfig(levelDocument = activeLevelDocument ?? currentPublishedLevel()) {
+  const defaults = DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
+  const profile = levelDocument?.gameplay?.difficulties?.[difficulty] ?? {};
+  return {
+    ...defaults,
+    ...profile,
+    treatTarget: levelDocument?.gameplay?.treatTargets?.[difficulty] ?? defaults.treatTarget,
+  };
 }
 
 function globalProgressPercent() {
@@ -743,29 +629,22 @@ function globalProgressPercent() {
 }
 
 function aggregateMapProgress() {
-  const treatsPerLevel = difficultyConfig().treatTarget;
-  const treatsTotal = treatsPerLevel * PASSAU_LEVELS.length;
-  const treatsFound = PASSAU_LEVELS.reduce((sum, item) => {
-    if (completedLevelIds.has(item.id)) return sum + treatsPerLevel;
-    return sum + Math.min(treatsPerLevel, statsForLevel(item.id).bestTreats);
-  }, 0);
-  return {
-    completedLevels: completedLevelIds.size,
-    totalLevels: PASSAU_LEVELS.length,
-    treatsFound,
-    treatsTotal,
-  };
+  return aggregateProgress(
+    PASSAU_LEVELS.map((item) => item.id),
+    completedLevelIds,
+    levelStats,
+  );
 }
 
 function normalizeLevelStats(rawStats = {}) {
   return Object.fromEntries(PASSAU_LEVELS.map((item) => {
     const raw = rawStats && typeof rawStats[item.id] === 'object' ? rawStats[item.id] : {};
     const completed = completedLevelIds.has(item.id) || Boolean(raw.completed);
-    const inferredTotal = completed ? difficultyConfig().treatTarget : 0;
-    const treatsTotal = Math.max(0, Math.floor(Number(raw.treatsTotal) || inferredTotal));
-    const bestTreats = Math.min(
+    const inferredTotal = completed ? difficultyConfig(publishedLevel(item.id)).treatTarget : 0;
+    const treatsTotal = Math.max(inferredTotal, Math.max(0, Math.floor(Number(raw.treatsTotal) || 0)));
+    const bestTreats = completed ? treatsTotal : Math.min(
       treatsTotal || Number.MAX_SAFE_INTEGER,
-      Math.max(0, Math.floor(Number(raw.bestTreats) || (completed ? treatsTotal : 0))),
+      Math.max(0, Math.floor(Number(raw.bestTreats) || 0)),
     );
     return [item.id, {
       attempts: Math.max(completed ? 1 : 0, Math.floor(Number(raw.attempts) || 0)),
@@ -810,7 +689,7 @@ function applyDifficultyUi() {
 }
 
 function createCat(index) {
-  const cat = CAT_STARTS[index];
+  const cat = activeLevelDocument?.actors.cats[index] ?? CAT_STARTS[index];
   return {
     ...cat,
     index,
@@ -818,13 +697,13 @@ function createCat(index) {
     y: cat.y,
     dir: index === 0 ? DIRECTIONS.left : index === 1 ? DIRECTIONS.up : DIRECTIONS.right,
     lastDecision: '',
-    respawnTimer: index * 0.9,
+    respawnTimer: cat.behavior?.respawnDelay ?? index * 0.9,
   };
 }
 
 function rebaseLevelStatsForDifficulty() {
-  const treatsTotal = difficultyConfig().treatTarget;
   PASSAU_LEVELS.forEach((item) => {
+    const treatsTotal = difficultyConfig(publishedLevel(item.id)).treatTarget;
     const stats = statsForLevel(item.id);
     const complete = completedLevelIds.has(item.id) || stats.completed;
     stats.treatsTotal = stats.attempts > 0 || complete ? treatsTotal : 0;
@@ -919,7 +798,10 @@ function renderPassauMap() {
     marker.type = 'button';
     marker.className = `map-marker${item.home ? ' home' : ''}${item.markerClass ? ` ${item.markerClass}` : ''}${completedLevelIds.has(item.id) ? ' completed' : ''}`;
     marker.setAttribute('aria-label', localized(item.name));
-    marker.innerHTML = `<span aria-hidden="true">${item.icon}</span>`;
+    const markerIcon = document.createElement('span');
+    markerIcon.setAttribute('aria-hidden', 'true');
+    markerIcon.textContent = item.icon;
+    marker.append(markerIcon);
     label.className = 'map-marker-label';
     label.setAttribute('aria-hidden', 'true');
     label.textContent = localized(item.name);
@@ -953,7 +835,7 @@ function updateMapSelection() {
   const resumable = item.id === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (item.id === selectedLevelId && runStarted) updateCurrentLevelStatsSnapshot(complete);
   const stats = statsForLevel(item.id);
-  const treatsTotal = stats.treatsTotal || difficultyConfig().treatTarget;
+  const treatsTotal = stats.treatsTotal || difficultyConfig(publishedLevel(item.id)).treatTarget;
   ui.mapSelectionKicker.textContent = `${complete ? t('mapCompleted') : t('mapSelected')} · LEVEL ${String(index).padStart(2, '0')}`;
   ui.mapSelectionTitle.textContent = localized(item.name);
   ui.mapSelectionCopy.textContent = localized(item.description);
@@ -1031,7 +913,6 @@ function applyLanguage() {
   updateLocationUi();
   setPauseButtons((state === 'menu' ? settingsReturnState : state) === 'paused');
   syncSoundButtons();
-  syncFullscreenUi();
   renderPassauMap();
   if (currentOverlay) refreshOverlay();
 }
@@ -1049,39 +930,7 @@ function isMobileGameLayout() {
   ).matches;
 }
 
-function nativeFullscreenElement() {
-  return document.fullscreenElement ?? document.webkitFullscreenElement ?? null;
-}
-
-function syncFullscreenUi() {
-  const nativeActive = nativeFullscreenElement() === ui.boardColumn;
-  ui.mobileFullscreenButton.setAttribute('aria-pressed', String(nativeActive));
-  ui.mobileFullscreenButton.setAttribute(
-    'aria-label',
-    nativeActive ? t('exitFullscreenLabel') : t('enterFullscreenLabel'),
-  );
-  ui.mobileFullscreenButton.textContent = nativeActive ? '×' : '⛶';
-}
-
-function requestNativeFullscreen() {
-  if (!isMobileGameLayout() || nativeFullscreenElement()) {
-    syncFullscreenUi();
-    return;
-  }
-  const request = ui.boardColumn.requestFullscreen ?? ui.boardColumn.webkitRequestFullscreen;
-  if (!request) {
-    syncFullscreenUi();
-    return;
-  }
-  try {
-    const pending = request.call(ui.boardColumn);
-    pending?.catch(() => syncFullscreenUi());
-  } catch {
-    syncFullscreenUi();
-  }
-}
-
-function enterMobileGameMode(requestNative = false) {
+function enterMobileGameMode() {
   document.body.classList.remove('map-active');
   const alreadyActive = document.body.classList.contains('mobile-game-active');
   if (!alreadyActive) {
@@ -1090,8 +939,6 @@ function enterMobileGameMode(requestNative = false) {
     document.body.classList.add('mobile-game-active');
   }
   resizeCanvas();
-  syncFullscreenUi();
-  if (requestNative) requestNativeFullscreen();
   return !alreadyActive;
 }
 
@@ -1101,39 +948,13 @@ function leaveMobileGameMode(returnToBoard = false) {
   document.body.style.top = '';
   resizeCanvas();
 
-  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
-  if (nativeFullscreenElement() === ui.boardColumn && exit) {
-    try {
-      const pending = exit.call(document);
-      pending?.catch(() => syncFullscreenUi());
-    } catch {
-      syncFullscreenUi();
-    }
-  }
-
   if (wasActive) {
     requestAnimationFrame(() => {
       window.scrollTo(0, mobileScrollPosition);
       if (returnToBoard) ui.boardColumn.scrollIntoView({ block: 'start' });
     });
   }
-  syncFullscreenUi();
   return wasActive;
-}
-
-function toggleNativeFullscreen() {
-  enterMobileGameMode(false);
-  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
-  if (nativeFullscreenElement() === ui.boardColumn && exit) {
-    try {
-      const pending = exit.call(document);
-      pending?.catch(() => syncFullscreenUi());
-    } catch {
-      syncFullscreenUi();
-    }
-  } else {
-    requestNativeFullscreen();
-  }
 }
 
 function openMap() {
@@ -1154,7 +975,7 @@ function openMap() {
 function startMapSelection() {
   closeMapSelection(false);
   document.body.classList.remove('map-active');
-  enterMobileGameMode(true);
+  enterMobileGameMode();
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (!resumable) {
     selectedLevelId = mapSelectionId;
@@ -1183,7 +1004,6 @@ function showLevelIntro(resumable = false) {
     'levelIntroCopy',
     resumable ? 'resumeButton' : 'startButton',
     () => {
-      requestNativeFullscreen();
       state = 'playing';
       setPauseButtons(false);
       hideOverlay();
@@ -1264,8 +1084,7 @@ function showNewGameConfirmation() {
 
 function deleteStoredBrowserData() {
   try {
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(LEGACY_BEST_KEY);
+    saveStore.remove(SAVE_KEY, LEGACY_BEST_KEY);
   } catch {
     showOverlay(
       'deleteDataErrorKicker',
@@ -1316,11 +1135,7 @@ function showDeleteBrowserDataConfirmation() {
 }
 
 function loadLegacyBest() {
-  try {
-    return Number(localStorage.getItem(LEGACY_BEST_KEY)) || 0;
-  } catch {
-    return 0;
-  }
+  return saveStore.readNumber(LEGACY_BEST_KEY, 0);
 }
 
 function migrateLegacySave(parsed) {
@@ -1374,15 +1189,11 @@ function migrateLegacySave(parsed) {
 }
 
 function loadGame() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.version === SAVE_VERSION) return parsed;
-    if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
-    return null;
-  } catch {
-    return null;
-  }
+  const parsed = saveStore.readJson(SAVE_KEY);
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed.version === SAVE_VERSION) return parsed;
+  if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
+  return null;
 }
 
 function saveGame(quiet = false) {
@@ -1406,6 +1217,7 @@ function saveGame(quiet = false) {
     difficulty,
     levelTreatTotal,
     levelRunScore,
+    levelEventElapsed,
     levelStats,
     selectedLevelId,
     completedLevelIds: [...completedLevelIds],
@@ -1428,8 +1240,8 @@ function saveGame(quiet = false) {
   };
 
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
-    localStorage.removeItem(LEGACY_BEST_KEY);
+    saveStore.writeJson(SAVE_KEY, payload);
+    saveStore.remove(LEGACY_BEST_KEY);
     ui.saveStatus.textContent = t('saveSuccess');
     if (!quiet) {
       ui.saveNote.classList.add('saved');
@@ -1442,60 +1254,56 @@ function saveGame(quiet = false) {
 }
 
 function buildLevel() {
-  grid = Array.from({ length: ROWS }, (_, y) =>
-    Array.from({ length: COLS }, (_, x) => x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1),
-  );
-
-  grid[TUNNEL_ROW][0] = false;
-  grid[TUNNEL_ROW][COLS - 1] = false;
-
-  const blocks = LEVEL_BLOCKS[currentLocation().layout];
-  for (const [left, top, width, height] of blocks) {
-    for (let y = top; y < top + height; y += 1) {
-      for (let x = left; x < left + width; x += 1) grid[y][x] = true;
-    }
-  }
-
-  const reachable = reachableOpenKeys();
+  activeLevelDocument = createLevelDocument(currentPublishedLevel());
+  grid = compileWallGrid(activeLevelDocument);
+  pixelRenderer.setLevel(activeLevelDocument);
+  const reachable = reachableTileKeys(activeLevelDocument);
   powerPellets = new Set();
-  for (const [x, y] of POWER_PELLET_POSITIONS) {
+  for (const { x, y } of activeLevelDocument.collectibles.powerUps) {
     const key = toKey(x, y);
     if (reachable.has(key)) powerPellets.add(key);
   }
 
+  const playerStart = activeLevelDocument.actors.player;
+  const catStarts = activeLevelDocument.actors.cats;
+  const { columns, rows } = activeLevelDocument.board;
   const candidates = [...reachable]
     .map((key) => ({ key, coordinates: key.split(',').map(Number) }))
     .filter(({ key, coordinates: [x, y] }) => {
-      const inStartArea = x >= 10 && x <= 14 && y >= 11 && y <= 13;
-      const atPlayerStart = x === PLAYER_START.x && y === PLAYER_START.y;
-      const insideBoard = x > 0 && x < COLS - 1 && y > 0 && y < ROWS - 1;
-      return insideBoard && !inStartArea && !atPlayerStart && !powerPellets.has(key);
+      const nearCatStart = catStarts.some((cat) => Math.abs(x - cat.x) <= 2 && Math.abs(y - cat.y) <= 1);
+      const atPlayerStart = x === playerStart.x && y === playerStart.y;
+      const insideBoard = x > 0 && x < columns - 1 && y > 0 && y < rows - 1;
+      return insideBoard && !nearCatStart && !atPlayerStart && !powerPellets.has(key);
     })
     .sort((a, b) => {
       const [ax, ay] = a.coordinates;
       const [bx, by] = b.coordinates;
-      const seed = currentLocation().layout * 97;
+      const seed = activeLevelDocument.gameplay.pelletSeed;
       return ((ax * 137 + ay * 71 + seed) % 997) - ((bx * 137 + by * 71 + seed) % 997);
     });
 
   const pelletLimit = difficultyConfig().treatTarget;
   pellets = new Set(candidates.slice(0, pelletLimit).map(({ key }) => key));
   levelTreatTotal = pellets.size;
+  levelEventElapsed = 0;
 
   resetActors();
 }
 
 function reachableOpenKeys() {
-  const visited = new Set([toKey(PLAYER_START.x, PLAYER_START.y)]);
-  const queue = [{ ...PLAYER_START }];
+  const start = activeLevelDocument?.actors.player ?? PLAYER_START;
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  const rows = activeLevelDocument?.board.rows ?? ROWS;
+  const visited = new Set([toKey(start.x, start.y)]);
+  const queue = [{ x: start.x, y: start.y }];
   for (let index = 0; index < queue.length; index += 1) {
     const current = queue[index];
     for (const direction of [DIRECTIONS.up, DIRECTIONS.down, DIRECTIONS.left, DIRECTIONS.right]) {
       let x = current.x + direction.x;
       const y = current.y + direction.y;
-      if (y < 0 || y >= ROWS) continue;
-      if (x < 0) x = COLS - 1;
-      if (x >= COLS) x = 0;
+      if (y < 0 || y >= rows) continue;
+      if (x < 0) x = columns - 1;
+      if (x >= columns) x = 0;
       const key = toKey(x, y);
       if (visited.has(key) || isWall(x, y)) continue;
       visited.add(key);
@@ -1506,14 +1314,17 @@ function reachableOpenKeys() {
 }
 
 function resetActors() {
+  const playerSource = activeLevelDocument?.actors.player ?? PLAYER_START;
   player = {
-    x: PLAYER_START.x,
-    y: PLAYER_START.y,
+    ...playerSource,
+    x: playerSource.x,
+    y: playerSource.y,
     dir: DIRECTIONS.left,
     nextDir: DIRECTIONS.left,
   };
 
-  cats = Array.from({ length: difficultyConfig().catCount }, (_, index) => createCat(index));
+  const catCount = Math.min(difficultyConfig().catCount, activeLevelDocument.actors.cats.length);
+  cats = Array.from({ length: catCount }, (_, index) => createCat(index));
   powerTimer = 0;
   graceTimer = difficultyConfig().grace;
 }
@@ -1528,9 +1339,11 @@ function restoreDirection(name, fallback = DIRECTIONS.none) {
 }
 
 function validOpenKey(key) {
-  if (typeof key !== 'string' || !/^\d{1,2},\d{1,2}$/.test(key)) return false;
+  if (typeof key !== 'string' || !/^\d+,\d+$/.test(key)) return false;
   const [x, y] = key.split(',').map(Number);
-  return x >= 0 && x < COLS && y >= 0 && y < ROWS && !grid[y][x];
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  const rows = activeLevelDocument?.board.rows ?? ROWS;
+  return x >= 0 && x < columns && y >= 0 && y < rows && !grid[y][x];
 }
 
 function restoreGame(save) {
@@ -1556,7 +1369,7 @@ function restoreGame(save) {
   runStarted = Boolean(save.runStarted);
   unlockedEggs = new Set(
     Array.isArray(save.unlockedEggs)
-      ? save.unlockedEggs.filter((id) => ['ilzvogel', 'hundewiese', 'kirchenglockn'].includes(id))
+      ? save.unlockedEggs.filter((id) => PUBLISHED_EVENT_KEYS.includes(id))
       : [],
   );
 
@@ -1579,8 +1392,9 @@ function restoreGame(save) {
 
   const restoreActors = save.mode !== 'hit';
   if (restoreActors && save.player) {
-    player.x = clampNumber(save.player.x, -0.55, COLS - 0.45, PLAYER_START.x);
-    player.y = clampNumber(save.player.y, 0, ROWS - 1, PLAYER_START.y);
+    const start = activeLevelDocument.actors.player;
+    player.x = clampNumber(save.player.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
+    player.y = clampNumber(save.player.y, 0, activeLevelDocument.board.rows - 1, start.y);
     player.dir = restoreDirection(save.player.direction, DIRECTIONS.left);
     player.nextDir = restoreDirection(save.player.nextDirection, player.dir);
   }
@@ -1589,8 +1403,9 @@ function restoreGame(save) {
     cats.forEach((cat, index) => {
       const savedCat = save.cats[index];
       if (!savedCat) return;
-      cat.x = clampNumber(savedCat.x, -0.55, COLS - 0.45, CAT_STARTS[index].x);
-      cat.y = clampNumber(savedCat.y, 0, ROWS - 1, CAT_STARTS[index].y);
+      const start = activeLevelDocument.actors.cats[index] ?? CAT_STARTS[index % CAT_STARTS.length];
+      cat.x = clampNumber(savedCat.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
+      cat.y = clampNumber(savedCat.y, 0, activeLevelDocument.board.rows - 1, start.y);
       cat.dir = restoreDirection(savedCat.direction, cat.dir);
       cat.lastDecision = typeof savedCat.lastDecision === 'string' ? savedCat.lastDecision : '';
       cat.respawnTimer = clampNumber(savedCat.respawnTimer, 0, 3, 0);
@@ -1599,11 +1414,12 @@ function restoreGame(save) {
 
   powerTimer = clampNumber(save.powerTimer, 0, difficultyConfig().powerDuration, 0);
   graceTimer = clampNumber(save.graceTimer, 0, difficultyConfig().grace, 0);
+  levelEventElapsed = clampNumber(save.levelEventElapsed, 0, 3600, 0);
   hitTimer = 0;
   applyLanguage();
   updateHud();
 
-  if (save.mode !== 'map') enterMobileGameMode(false);
+  if (save.mode !== 'map') enterMobileGameMode();
 
   if (save.mode === 'map') {
     openMap();
@@ -1629,7 +1445,6 @@ function restoreGame(save) {
       'resumeCopy',
       'resumeButton',
       () => {
-        requestNativeFullscreen();
         state = 'playing';
         setPauseButtons(false);
         hideOverlay();
@@ -1650,8 +1465,11 @@ function toKey(x, y) {
 }
 
 function isWall(x, y) {
-  if (y < 0 || y >= ROWS) return true;
-  if (x < 0 || x >= COLS) return y !== TUNNEL_ROW;
+  const board = activeLevelDocument?.board;
+  const columns = board?.columns ?? COLS;
+  const rows = board?.rows ?? ROWS;
+  if (y < 0 || y >= rows) return true;
+  if (x < 0 || x >= columns) return !board?.tunnelRows.includes(y);
   return grid[y][x];
 }
 
@@ -1660,49 +1478,23 @@ function canMove(x, y, direction) {
   return !isWall(x + direction.x, y + direction.y);
 }
 
-function applyImmediatePlayerTurn(direction) {
-  if (!['ready', 'playing'].includes(state)) return;
-  const currentDirection = player.dir;
-  const reversing = currentDirection.name !== 'none'
-    && currentDirection.x === -direction.x
-    && currentDirection.y === -direction.y;
-  if (reversing) {
-    player.dir = direction;
-    return;
-  }
-
-  const centerX = Math.round(player.x);
-  const centerY = Math.round(player.y);
-  if (!canMove(centerX, centerY, direction)) return;
-  const distanceToTurn = currentDirection.x !== 0
-    ? Math.abs(player.x - centerX)
-    : Math.abs(player.y - centerY);
-  if (currentDirection.name === 'none' || distanceToTurn <= PLAYER_TURN_SNAP_DISTANCE) {
-    player.x = centerX;
-    player.y = centerY;
-    player.dir = direction;
-  }
-}
-
 function setDirection(name) {
   if (!DIRECTIONS[name]) return;
   const direction = DIRECTIONS[name];
-  player.nextDir = direction;
-  applyImmediatePlayerTurn(direction);
+  queuePlayerDirection(player, direction);
   directionHistory.push(name);
-  directionHistory = directionHistory.slice(-BELL_SEQUENCE.length);
-  if (directionHistory.join(',') === BELL_SEQUENCE.join(',')) {
-    unlockEasterEgg(
-      'kirchenglockn',
-      t('eggBell'),
-      250,
-    );
-  }
+  const sequenceEvents = activeLevelDocument?.events.filter((event) => event.trigger.type === 'direction-sequence') ?? [];
+  const maximumSequence = Math.max(1, ...sequenceEvents.map((event) => event.trigger.sequence.length));
+  directionHistory = directionHistory.slice(-maximumSequence);
+  sequenceEvents.forEach((event) => {
+    const sequence = event.trigger.sequence;
+    if (directionHistory.slice(-sequence.length).join(',') === sequence.join(',')) unlockLevelEvent(event);
+  });
   if (state === 'ready') startGame();
 }
 
 function startGame(reset = false) {
-  enterMobileGameMode(true);
+  enterMobileGameMode();
   const startsNewAttempt = reset || !runStarted;
   if (reset) {
     score = 0;
@@ -1729,7 +1521,6 @@ function togglePause() {
     state = 'paused';
     setPauseButtons(true);
     showOverlay('pauseKicker', 'pauseTitle', 'pauseCopy', 'pauseButton', () => {
-      requestNativeFullscreen();
       state = 'playing';
       setPauseButtons(false);
       hideOverlay();
@@ -1737,7 +1528,6 @@ function togglePause() {
     });
     saveGame();
   } else if (state === 'paused') {
-    requestNativeFullscreen();
     state = 'playing';
     setPauseButtons(false);
     hideOverlay();
@@ -1890,13 +1680,25 @@ function updateHud() {
   ui.levelStatusLives.textContent = String(lives);
 }
 
-function unlockEasterEgg(id, message, bonus) {
-  if (unlockedEggs.has(id)) return;
-  unlockedEggs.add(id);
-  activeEasterEgg = { id, message, timer: 4.5 };
-  score += bonus;
-  levelRunScore += bonus;
-  ui.easterToastCopy.textContent = `${message} +${bonus}`;
+function eventStorageKey(event) {
+  return event.scope === 'level' ? `${selectedLevelId}:${event.id}` : event.id;
+}
+
+function activeUnlockedEventIds() {
+  return new Set((activeLevelDocument?.events ?? [])
+    .filter((event) => unlockedEggs.has(eventStorageKey(event)))
+    .map((event) => event.id));
+}
+
+function unlockLevelEvent(event) {
+  const storageKey = eventStorageKey(event);
+  if (unlockedEggs.has(storageKey)) return;
+  const message = localized(event.message);
+  unlockedEggs.add(storageKey);
+  activeEasterEgg = { id: event.id, message, timer: 4.5 };
+  score += event.reward;
+  levelRunScore += event.reward;
+  ui.easterToastCopy.textContent = `${message} +${event.reward}`;
   ui.easterToast.hidden = false;
   ui.announcement.textContent = t('secretFound', { message });
   beep(820, 0.12, 0.045, 'square');
@@ -1909,17 +1711,17 @@ function unlockEasterEgg(id, message, bonus) {
 function checkLocationEasterEggs() {
   const x = Math.round(player.x);
   const y = Math.round(player.y);
-  const location = currentLocation();
-  if (location.river.includes('ILZ') && y === TUNNEL_ROW && (x <= 1 || x >= COLS - 2)) {
-    unlockEasterEgg('ilzvogel', t('eggIlz'), 150);
-  }
-  if ((location.home || location.theme === 'bschuett') && x >= 10 && x <= 14 && y >= 10 && y <= 14) {
-    unlockEasterEgg('hundewiese', t('eggPark'), 100);
-  }
+  (activeLevelDocument?.events ?? []).forEach((event) => {
+    if (event.trigger.type === 'zone' && event.trigger.zones.some((zone) => (
+      x >= zone.x && x < zone.x + zone.width && y >= zone.y && y < zone.y + zone.height
+    ))) unlockLevelEvent(event);
+    if (event.trigger.type === 'timer' && levelEventElapsed >= event.trigger.seconds) unlockLevelEvent(event);
+  });
 }
 
 function update(dt) {
   elapsed += dt;
+  levelEventElapsed += dt;
   if (graceTimer > 0) graceTimer = Math.max(0, graceTimer - dt);
   if (activeEasterEgg) {
     activeEasterEgg.timer -= dt;
@@ -1943,29 +1745,44 @@ function update(dt) {
   movePlayer(dt);
   for (const cat of cats) moveCat(cat, dt);
   collectTreats();
+  if (state !== 'playing') return;
   checkLocationEasterEggs();
 
   if (powerTimer > 0) powerTimer = Math.max(0, powerTimer - dt);
   checkCollisions();
 }
 
-function movePlayer(dt) {
-  const speed = difficultyConfig().playerSpeed;
-  const centerX = Math.round(player.x);
-  const centerY = Math.round(player.y);
-  const threshold = speed * dt * 0.65 + 0.004;
-  const atCenter = Math.abs(player.x - centerX) < threshold && Math.abs(player.y - centerY) < threshold;
+function nearestPlayerDirection() {
+  if (!pellets.size) return DIRECTIONS.none;
+  const points = [...pellets].map((key) => key.split(',').map(Number));
+  return Object.values(DIRECTIONS)
+    .filter((direction) => direction.name !== 'none' && canMove(player.x, player.y, direction))
+    .map((direction) => {
+      const x = Math.round(player.x) + direction.x;
+      const y = Math.round(player.y) + direction.y;
+      return { direction, distance: Math.min(...points.map(([targetX, targetY]) => Math.abs(targetX - x) + Math.abs(targetY - y))) };
+    })
+    .sort((left, right) => left.distance - right.distance)[0]?.direction ?? DIRECTIONS.none;
+}
 
-  if (atCenter) {
-    player.x = centerX;
-    player.y = centerY;
-    if (canMove(centerX, centerY, player.nextDir)) player.dir = player.nextDir;
-    if (!canMove(centerX, centerY, player.dir)) player.dir = DIRECTIONS.none;
+function updatePlayerController() {
+  const controller = player.behavior?.controller ?? 'user';
+  if (controller === 'autopilot') player.nextDir = nearestPlayerDirection();
+  if (controller === 'patrol' && !canMove(player.x, player.y, player.dir)) {
+    const order = ['left', 'up', 'right', 'down'];
+    const startIndex = Math.max(0, order.indexOf(player.dir.name));
+    for (let step = 1; step <= order.length; step += 1) {
+      const direction = DIRECTIONS[order[(startIndex + step) % order.length]];
+      if (canMove(player.x, player.y, direction)) { player.nextDir = direction; break; }
+    }
   }
+}
 
-  player.x += player.dir.x * speed * dt;
-  player.y += player.dir.y * speed * dt;
-  wrapActor(player);
+function movePlayer(dt) {
+  if (player.behavior?.controller === 'stationary') return;
+  updatePlayerController();
+  const speed = difficultyConfig().playerSpeed;
+  movePlayerActor(player, speed * dt, { canMove, wrap: wrapActor });
 }
 
 function moveCat(cat, dt) {
@@ -1976,53 +1793,17 @@ function moveCat(cat, dt) {
 
   const config = difficultyConfig();
   const speed = powerTimer > 0 ? config.frightenedSpeed : config.catSpeed;
-  const centerX = Math.round(cat.x);
-  const centerY = Math.round(cat.y);
-  const threshold = speed * dt * 0.65 + 0.004;
-  const atCenter = Math.abs(cat.x - centerX) < threshold && Math.abs(cat.y - centerY) < threshold;
-  const tileKey = toKey(centerX, centerY);
-
-  if (atCenter) {
-    cat.x = centerX;
-    cat.y = centerY;
-    if (cat.lastDecision !== tileKey || !canMove(centerX, centerY, cat.dir)) {
-      cat.dir = chooseCatDirection(cat, centerX, centerY);
-      cat.lastDecision = tileKey;
-    }
-  }
-
-  cat.x += cat.dir.x * speed * dt;
-  cat.y += cat.dir.y * speed * dt;
-  wrapActor(cat);
+  moveCatActor(cat, speed * dt, { canMove, wrap: wrapActor, chooseDirection: (actor, x, y) => chooseCatDirection(actor, x, y) });
 }
 
 function chooseCatDirection(cat, x, y) {
-  const reverse = { x: -cat.dir.x, y: -cat.dir.y };
-  let options = Object.values(DIRECTIONS).filter(
-    (direction) => direction.name !== 'none' && canMove(x, y, direction),
-  );
-  const withoutReverse = options.filter((direction) => direction.x !== reverse.x || direction.y !== reverse.y);
-  if (withoutReverse.length) options = withoutReverse;
-
-  const ahead = cat.index === 1 ? 3 : 0;
-  const target = cat.index === 2 && Math.sin(elapsed * 0.7) > 0.35
-    ? { x: 22, y: 22 }
-    : { x: player.x + player.dir.x * ahead, y: player.y + player.dir.y * ahead };
-
-  return options
-    .map((direction) => {
-      const dx = x + direction.x - target.x;
-      const dy = y + direction.y - target.y;
-      const distance = dx * dx + dy * dy;
-      const personality = Math.random() * (cat.index + 1) * difficultyConfig().wander;
-      return { direction, score: powerTimer > 0 ? -distance + personality : distance + personality };
-    })
-    .sort((a, b) => a.score - b.score)[0]?.direction ?? DIRECTIONS.none;
+  return chooseSharedCatDirection({ cat, x, y, player, elapsed, powerActive: powerTimer > 0, canMove, wander: difficultyConfig().wander });
 }
 
 function wrapActor(actor) {
-  if (actor.x < -0.55) actor.x = COLS - 0.45;
-  if (actor.x > COLS - 0.45) actor.x = -0.55;
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  if (actor.x < -0.5) actor.x = columns - 0.5;
+  if (actor.x > columns - 0.5) actor.x = -0.5;
 }
 
 function collectTreats() {
@@ -2053,7 +1834,7 @@ function collectTreats() {
   }
 
   if (collected) saveGame(true);
-  if (pellets.size === 0) completeLevel();
+  if (pellets.size === 0 && state === 'playing') completeLevel();
 }
 
 function checkCollisions() {
@@ -2063,8 +1844,9 @@ function checkCollisions() {
     if (powerTimer > 0) {
       score += 200;
       levelRunScore += 200;
-      cat.x = CAT_STARTS[cat.index].x;
-      cat.y = CAT_STARTS[cat.index].y;
+      const start = activeLevelDocument.actors.cats[cat.index] ?? CAT_STARTS[cat.index % CAT_STARTS.length];
+      cat.x = start.x;
+      cat.y = start.y;
       cat.respawnTimer = 1.6;
       cat.lastDecision = '';
       beep(740, 0.1, 0.045, 'square');
@@ -2163,14 +1945,41 @@ function vibrate(pattern) {
 }
 
 function render() {
-  ctx.clearRect(0, 0, BOARD_SIZE, BOARD_SIZE);
-  drawGround();
-  drawEasterEggs();
-  drawTreats();
-  for (const cat of cats) drawCat(cat);
-  drawWalker();
-  drawVignette();
-  presentScene();
+  if (!activeLevelDocument || !player) return;
+  const viewportWidth = Math.max(1, canvas.clientWidth);
+  const viewportHeight = Math.max(1, canvas.clientHeight);
+  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
+  const renderState = pixelRenderer.render({
+    level: activeLevelDocument,
+    player,
+    cats,
+    pellets,
+    powerUps: powerPellets,
+    elapsed,
+    powerTimer,
+    hitTimer: state === 'hit' ? hitTimer : 0,
+    unlockedEvents: activeUnlockedEventIds(),
+    activeEventId: activeEasterEgg?.id,
+  }, {
+    alpha: simulationLoop.interpolationAlpha,
+    viewport: playViewport,
+    cameraEnabled: isCameraGameView(),
+  });
+  canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
+  canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
+  canvas.dataset.playerX = player.x.toFixed(3);
+  canvas.dataset.playerY = player.y.toFixed(3);
+  canvas.dataset.playerDirection = player.dir.name;
+  canvas.dataset.playerNextDirection = player.nextDir.name;
+  canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
+  canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
+  updateCatRadar(
+    renderState.camera.source.x,
+    renderState.camera.source.y,
+    renderState.camera.source.width,
+    renderState.camera.source.height,
+    playViewport,
+  );
 }
 
 function launchLevelConfetti() {
@@ -2745,35 +2554,18 @@ function drawVignette() {
 }
 
 function frame(now) {
-  const dt = Math.min((now - lastFrame) / 1000, 0.033);
-  lastFrame = now;
-  if (state === 'playing' || state === 'hit') {
+  simulationLoop.advance(now, (dt) => {
+    if (state !== 'playing' && state !== 'hit') return;
     update(dt);
     autoSaveElapsed += dt;
-    if (autoSaveElapsed >= 2) {
-      autoSaveElapsed = 0;
-      saveGame(true);
-    }
-  }
+    if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
+  });
   render();
   requestAnimationFrame(frame);
 }
 
 function resizeCanvas() {
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const bounds = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round((bounds.width || BOARD_SIZE) * ratio));
-  const height = Math.max(1, Math.round((bounds.height || BOARD_SIZE) * ratio));
-  if (canvas.width !== width) canvas.width = width;
-  if (canvas.height !== height) canvas.height = height;
-
-  if (sceneCanvas.width !== BOARD_SIZE * SCENE_PIXEL_RATIO) {
-    sceneCanvas.width = BOARD_SIZE * SCENE_PIXEL_RATIO;
-    sceneCanvas.height = BOARD_SIZE * SCENE_PIXEL_RATIO;
-  }
-  ctx.setTransform(SCENE_PIXEL_RATIO, 0, 0, SCENE_PIXEL_RATIO, 0, 0);
-  ctx.imageSmoothingEnabled = false;
-  displayCtx.imageSmoothingEnabled = false;
+  pixelRenderer.resize();
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2852,58 +2644,37 @@ document.addEventListener('keydown', (event) => {
 canvas.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
   event.preventDefault();
-  swipeStart = {
-    x: event.clientX,
-    y: event.clientY,
-    pointerId: event.pointerId,
-    lastDirection: null,
-  };
-  canvas.setPointerCapture?.(event.pointerId);
+  swipeInput.begin({ x: event.clientX, y: event.clientY, pointerId: event.pointerId });
+  try { canvas.setPointerCapture?.(event.pointerId); } catch { /* Synthetic or already-ended pointers need no capture. */ }
 });
 
 function processSwipePointer(event) {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return false;
-  const samples = event.getCoalescedEvents?.() ?? [];
-  const point = samples.at(-1) ?? event;
-  const dx = point.clientX - swipeStart.x;
-  const dy = point.clientY - swipeStart.y;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_ACTIVATION_DISTANCE) return false;
-
-  const direction = Math.abs(dx) > Math.abs(dy)
-    ? (dx > 0 ? 'right' : 'left')
-    : (dy > 0 ? 'down' : 'up');
-  const changedDirection = direction !== swipeStart.lastDirection;
-  swipeStart.x = point.clientX;
-  swipeStart.y = point.clientY;
-  swipeStart.lastDirection = direction;
-
-  if (changedDirection) {
-    setDirection(direction);
-    if (state === 'playing') vibrate(4);
-  }
+  const coalesced = event.getCoalescedEvents?.() ?? []; const samples = coalesced.length ? coalesced : [event]; let changedDirection = false;
+  samples.forEach((point) => { const direction = swipeInput.update({ x: point.clientX, y: point.clientY, pointerId: event.pointerId }); if (!direction) return; setDirection(direction); changedDirection = true; if (state === 'playing') vibrate(4); });
   return changedDirection;
 }
 
 canvas.addEventListener('pointermove', (event) => {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  if (swipeInput.pointerId !== event.pointerId) return;
   event.preventDefault();
   processSwipePointer(event);
 });
 
 canvas.addEventListener('pointerup', (event) => {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  if (swipeInput.pointerId !== event.pointerId) return;
   event.preventDefault();
   processSwipePointer(event);
+  const finalDirection = swipeInput.end({ x: event.clientX, y: event.clientY, pointerId: event.pointerId });
+  if (finalDirection) setDirection(finalDirection);
   if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-  swipeStart = null;
 });
 
 canvas.addEventListener('pointercancel', (event) => {
-  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+  if (swipeInput.pointerId === event.pointerId) swipeInput.cancel();
 });
 
 canvas.addEventListener('lostpointercapture', (event) => {
-  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+  if (swipeInput.pointerId === event.pointerId) swipeInput.cancel();
 });
 
 ui.pauseButton.addEventListener('click', togglePause);
@@ -2913,7 +2684,6 @@ ui.settingsPauseButton.addEventListener('click', toggleSettingsPause);
 ui.settingsMapButton.addEventListener('click', openMap);
 ui.mapButton.addEventListener('click', openMap);
 ui.mobileGameMenuButton.addEventListener('click', openSettings);
-ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
 ui.mapCanvas.addEventListener('click', (event) => {
@@ -2963,20 +2733,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
 
-function handleFullscreenChange() {
-  syncFullscreenUi();
-  resizeCanvas();
-}
-
-document.addEventListener('fullscreenchange', handleFullscreenChange);
-document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 document.addEventListener('touchmove', (event) => {
   if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
 }, { passive: false });
 
 window.addEventListener('resize', () => {
   resizeCanvas();
-  syncFullscreenUi();
   positionMapMarkers();
 });
 const canvasResizeObserver = 'ResizeObserver' in window

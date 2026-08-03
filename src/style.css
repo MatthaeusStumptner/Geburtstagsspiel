@@ -604,6 +604,7 @@ body.map-active .passau-map-screen { inset: 0; }
 
 .map-marker-label {
   position: absolute;
+  pointer-events: none;
   bottom: calc(100% + 9px);
   left: 50%;
   width: max-content;

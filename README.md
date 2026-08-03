@@ -43,7 +43,11 @@ GitHub-Pages-Workflow checkt dafür die vollständige Historie aus.
 
 Beim Start eines Levels erscheint zunächst eine Ortskarte mit animierter Wisch-Erklärung. Danach wechselt die mobile Ansicht in einen scrollgesperrten Fokusmodus: Das Canvas belegt den kompletten Bildschirm, während eine Kamera Franz und Lola durch die quadratische Spielwelt begleitet. Im Hochformat bleiben seitliche, im Querformat obere und untere Weltbereiche außerhalb des aktuellen Kamerafensters. Dadurch wird das Level weder verzerrt noch von schwarzen Balken eingerahmt. Farbige Katzen-Radarindikatoren erscheinen an den Rändern, sobald eine Katze außerhalb des Kameraausschnitts liegt; Pfeilrichtung und Distanzzahl zeigen ihre vermutete Position. Die frühere untere Aktionsleiste entfällt zugunsten des Zahnrad-Menüs. Unterstützte Browser öffnen zusätzlich den nativen Vollbildmodus.
 
-Die Spielwelt behält intern eine feste logische Auflösung von 600 × 600 Pixeln und wird zunächst in einen unsichtbaren Pixelpuffer gezeichnet. Das sichtbare Canvas besitzt dagegen immer die Größe des aktuellen Viewports und zeigt daraus einen proportional skalierten Kameraausschnitt. Spielkoordinaten und Kollisionen müssen dadurch nicht umgebaut werden. Die Anwendung bleibt ohne Serverlogik und ohne zusätzliche Laufzeitbibliothek vollständig statisch und weiterhin direkt über GitHub Pages auslieferbar.
+Die Spielwelt behält intern eine feste logische Auflösung von 600 × 600 Pixeln und wird zunächst in einen unsichtbaren Pixelpuffer gezeichnet. Das sichtbare Canvas besitzt dagegen immer die Größe des aktuellen Viewports und zeigt daraus einen proportional skalierten Kameraausschnitt. Spielkoordinaten und Kollisionen müssen dadurch nicht umgebaut werden. Die Anwendung bleibt ohne Serverlogik vollständig statisch und weiterhin direkt über GitHub Pages auslieferbar.
+
+Renderer, Kamera, Figurenbewegung, Katzen-KI, Ereignissymbole und der feste 120-Tick-Simulationsschritt stammen aus dem gemeinsamen Paket `@franz-lola/pixel-renderer`. Derselbe Kern läuft im Level-Editor. Bei 60-Hz-Displays werden meist zwei Simulationsschritte pro Bild verarbeitet, bei 120 Hz einer und bei höheren Frequenzen entsprechend verteilt; das Spieltempo folgt immer der real verstrichenen Zeit.
+
+Die ursprünglichen Passau-Geheimnisse sind zugleich Teil des gemeinsamen Level-Formats: Eisvogel, Lolas Lieblingsplatz und Kirchenglocken besitzen dort ihre Trigger, Bonuspunkte, Standard-/Dialekttexte und Pixel-Darstellung. Damit lassen sie sich in der Levelwerkstatt vollständig anzeigen, testen und verändern.
 
 Wischrichtungen werden bereits während der Fingerbewegung mit kurzer Aktivierungsdistanz verarbeitet. Dadurch lassen sich auch mehrere Richtungswechsel in einer einzigen durchgehenden Geste vorbereiten.
 
@@ -75,5 +79,5 @@ Alle URLs sind relativ und funktionieren deshalb auch unter einer Projekt-URL wi
 
 - Vanilla JavaScript und Canvas
 - Vite als kleiner Build-Schritt
-- Keine Laufzeit-Abhängigkeiten, keine externen Bildassets
+- Gemeinsamer Renderer- und Simulationskern, keine externen Bildassets
 - HiDPI-Canvas, Touch-/Swipe-Steuerung, Tastatursteuerung und lokaler Highscore
