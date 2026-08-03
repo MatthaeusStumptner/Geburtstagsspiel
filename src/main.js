@@ -1,6 +1,7 @@
 import './style.css';
 import {
   DIRECTIONS,
+  DirectionalSwipeInput,
   FixedStepLoop,
   PassauPixelRenderer,
   chooseCatDirection as chooseSharedCatDirection,
@@ -8,6 +9,7 @@ import {
   createLevelDocument,
   moveCatActor,
   movePlayerActor,
+  queuePlayerDirection,
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
@@ -30,7 +32,6 @@ const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 6;
 const EASTER_EGG_COUNT = 3;
 const SWIPE_ACTIVATION_DISTANCE = 4;
-const PLAYER_TURN_SNAP_DISTANCE = 0.28;
 const CAMERA_ZOOM = 1.12;
 
 const TEXT = {
@@ -540,7 +541,7 @@ let savePulseTimer;
 let audioContext;
 let elapsed = 0;
 let autoSaveElapsed = 0;
-let swipeStart = null;
+const swipeInput = new DirectionalSwipeInput({ activationDistance: SWIPE_ACTIVATION_DISTANCE, dominanceRatio: 1.08 });
 let mobileScrollPosition = 0;
 let settingsReturnState = null;
 let settingsReturnFocus = null;
@@ -1612,35 +1613,10 @@ function canMove(x, y, direction) {
   return !isWall(x + direction.x, y + direction.y);
 }
 
-function applyImmediatePlayerTurn(direction) {
-  if (!['ready', 'playing'].includes(state)) return;
-  const currentDirection = player.dir;
-  const reversing = currentDirection.name !== 'none'
-    && currentDirection.x === -direction.x
-    && currentDirection.y === -direction.y;
-  if (reversing) {
-    player.dir = direction;
-    return;
-  }
-
-  const centerX = Math.round(player.x);
-  const centerY = Math.round(player.y);
-  if (!canMove(centerX, centerY, direction)) return;
-  const distanceToTurn = currentDirection.x !== 0
-    ? Math.abs(player.x - centerX)
-    : Math.abs(player.y - centerY);
-  if (currentDirection.name === 'none' || distanceToTurn <= PLAYER_TURN_SNAP_DISTANCE) {
-    player.x = centerX;
-    player.y = centerY;
-    player.dir = direction;
-  }
-}
-
 function setDirection(name) {
   if (!DIRECTIONS[name]) return;
   const direction = DIRECTIONS[name];
-  player.nextDir = direction;
-  applyImmediatePlayerTurn(direction);
+  queuePlayerDirection(player, direction);
   directionHistory.push(name);
   directionHistory = directionHistory.slice(-BELL_SEQUENCE.length);
   if (directionHistory.join(',') === BELL_SEQUENCE.join(',')) {
@@ -2762,58 +2738,37 @@ document.addEventListener('keydown', (event) => {
 canvas.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
   event.preventDefault();
-  swipeStart = {
-    x: event.clientX,
-    y: event.clientY,
-    pointerId: event.pointerId,
-    lastDirection: null,
-  };
-  canvas.setPointerCapture?.(event.pointerId);
+  swipeInput.begin({ x: event.clientX, y: event.clientY, pointerId: event.pointerId });
+  try { canvas.setPointerCapture?.(event.pointerId); } catch { /* Synthetic or already-ended pointers need no capture. */ }
 });
 
 function processSwipePointer(event) {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return false;
-  const samples = event.getCoalescedEvents?.() ?? [];
-  const point = samples.at(-1) ?? event;
-  const dx = point.clientX - swipeStart.x;
-  const dy = point.clientY - swipeStart.y;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_ACTIVATION_DISTANCE) return false;
-
-  const direction = Math.abs(dx) > Math.abs(dy)
-    ? (dx > 0 ? 'right' : 'left')
-    : (dy > 0 ? 'down' : 'up');
-  const changedDirection = direction !== swipeStart.lastDirection;
-  swipeStart.x = point.clientX;
-  swipeStart.y = point.clientY;
-  swipeStart.lastDirection = direction;
-
-  if (changedDirection) {
-    setDirection(direction);
-    if (state === 'playing') vibrate(4);
-  }
+  const coalesced = event.getCoalescedEvents?.() ?? []; const samples = coalesced.length ? coalesced : [event]; let changedDirection = false;
+  samples.forEach((point) => { const direction = swipeInput.update({ x: point.clientX, y: point.clientY, pointerId: event.pointerId }); if (!direction) return; setDirection(direction); changedDirection = true; if (state === 'playing') vibrate(4); });
   return changedDirection;
 }
 
 canvas.addEventListener('pointermove', (event) => {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  if (swipeInput.pointerId !== event.pointerId) return;
   event.preventDefault();
   processSwipePointer(event);
 });
 
 canvas.addEventListener('pointerup', (event) => {
-  if (!swipeStart || event.pointerId !== swipeStart.pointerId) return;
+  if (swipeInput.pointerId !== event.pointerId) return;
   event.preventDefault();
   processSwipePointer(event);
+  const finalDirection = swipeInput.end({ x: event.clientX, y: event.clientY, pointerId: event.pointerId });
+  if (finalDirection) setDirection(finalDirection);
   if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-  swipeStart = null;
 });
 
 canvas.addEventListener('pointercancel', (event) => {
-  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+  if (swipeInput.pointerId === event.pointerId) swipeInput.cancel();
 });
 
 canvas.addEventListener('lostpointercapture', (event) => {
-  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+  if (swipeInput.pointerId === event.pointerId) swipeInput.cancel();
 });
 
 ui.pauseButton.addEventListener('click', togglePause);
