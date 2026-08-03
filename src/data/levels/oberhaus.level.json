@@ -1,0 +1,342 @@
+{
+  "kind": "franz-lola-level",
+  "schemaVersion": 1,
+  "id": "oberhaus",
+  "icon": "♜",
+  "name": {
+    "standard": "Veste Oberhaus",
+    "dialect": "Veste Oberhaus"
+  },
+  "description": {
+    "standard": "Hoch über den Flüssen warten Burgmauern, steile Wege und besonders flinke Katzen.",
+    "dialect": "Hoch über de Fliass wartn Burgmauern, steile Weg und sakrisch flinke Katzn."
+  },
+  "mission": {
+    "standard": "Runde um die Veste",
+    "dialect": "A Rundn um d'Veste"
+  },
+  "location": {
+    "latitude": 48.57809,
+    "longitude": 13.47035,
+    "area": "DONAU · GEORGEBERG"
+  },
+  "board": {
+    "columns": 25,
+    "rows": 25,
+    "tileSize": 24,
+    "tunnelRows": [
+      12
+    ],
+    "walls": [
+      {
+        "x": 2,
+        "y": 2,
+        "width": 6,
+        "height": 3
+      },
+      {
+        "x": 10,
+        "y": 2,
+        "width": 5,
+        "height": 2
+      },
+      {
+        "x": 18,
+        "y": 2,
+        "width": 5,
+        "height": 4
+      },
+      {
+        "x": 2,
+        "y": 7,
+        "width": 3,
+        "height": 5
+      },
+      {
+        "x": 7,
+        "y": 7,
+        "width": 5,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 6,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 20,
+        "y": 8,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 6,
+        "y": 13,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 15,
+        "y": 12,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 2,
+        "y": 15,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 21,
+        "y": 14,
+        "width": 2,
+        "height": 5
+      },
+      {
+        "x": 7,
+        "y": 17,
+        "width": 5,
+        "height": 3
+      },
+      {
+        "x": 15,
+        "y": 17,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 2,
+        "y": 21,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 21,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 19,
+        "y": 21,
+        "width": 4,
+        "height": 2
+      }
+    ]
+  },
+  "theme": {
+    "id": "neighborhood",
+    "landmark": "dog-park",
+    "palette": {
+      "ground": [
+        "#26252a",
+        "#29272d",
+        "#232329",
+        "#2d2930"
+      ],
+      "curb": "#655a5c",
+      "walls": [
+        "#5b403c",
+        "#744b41",
+        "#4e3d42",
+        "#806049"
+      ],
+      "water": "#28687f"
+    }
+  },
+  "actors": {
+    "player": {
+      "x": 12,
+      "y": 20,
+      "renderer": "franz-lola",
+      "animation": "",
+      "appearance": null,
+      "behavior": {
+        "controller": "user",
+        "speedMultiplier": 1
+      }
+    },
+    "cats": [
+      {
+        "x": 11,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#ff6b5f",
+        "accent": "#9e302e",
+        "appearance": null,
+        "behavior": {
+          "strategy": "chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 1,
+          "wander": 0,
+          "respawnDelay": 0,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 12,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#f2a65a",
+        "accent": "#a6532c",
+        "appearance": null,
+        "behavior": {
+          "strategy": "ambush",
+          "speedMultiplier": 1,
+          "lookAhead": 3,
+          "wanderMultiplier": 2,
+          "wander": 0,
+          "respawnDelay": 0.9,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 13,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#b792e8",
+        "accent": "#66509d",
+        "appearance": null,
+        "behavior": {
+          "strategy": "scatter-chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 3,
+          "wander": 0,
+          "respawnDelay": 1.8,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      }
+    ]
+  },
+  "collectibles": {
+    "powerUps": [
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 23,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 23
+      },
+      {
+        "x": 23,
+        "y": 23
+      }
+    ]
+  },
+  "gameplay": {
+    "pelletSeed": 291,
+    "treatTargets": {
+      "easy": 70,
+      "normal": 110,
+      "hard": 160
+    },
+    "difficulties": {
+      "easy": {
+        "playerSpeed": 5.8,
+        "catSpeed": 2.55,
+        "frightenedSpeed": 1.85,
+        "catCount": 2,
+        "lives": 5,
+        "powerDuration": 12,
+        "wander": 7.2,
+        "grace": 2.2
+      },
+      "normal": {
+        "playerSpeed": 5.55,
+        "catSpeed": 3.35,
+        "frightenedSpeed": 2.55,
+        "catCount": 3,
+        "lives": 3,
+        "powerDuration": 9,
+        "wander": 4.2,
+        "grace": 1.6
+      },
+      "hard": {
+        "playerSpeed": 5.35,
+        "catSpeed": 4.05,
+        "frightenedSpeed": 3.25,
+        "catCount": 3,
+        "lives": 2,
+        "powerDuration": 7,
+        "wander": 2.1,
+        "grace": 1.1
+      }
+    }
+  },
+  "source": {
+    "catalog": "Geburtstagsspiel",
+    "gameLayout": 3,
+    "markerClass": "",
+    "home": false,
+    "mapOrder": 2
+  },
+  "decorations": [],
+  "events": [
+    {
+      "id": "kirchenglockn",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Passauer Kirchenglocken",
+        "dialect": "Passauer Kirchenglockn"
+      },
+      "message": {
+        "standard": "Bim bam! Die Passauer Glocken läuten nur für euch.",
+        "dialect": "Bim bam! D'Passauer Glockn läutn bloß für eich."
+      },
+      "reward": 250,
+      "scope": "global",
+      "trigger": {
+        "type": "direction-sequence",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [
+          "up",
+          "up",
+          "down",
+          "down",
+          "left",
+          "right",
+          "left",
+          "right"
+        ],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "bell",
+        "x": 12.5,
+        "y": 0.5,
+        "color": "#8f6c2e",
+        "accent": "#f5c451",
+        "label": "◆",
+        "visibility": "after-trigger"
+      }
+    }
+  ]
+}

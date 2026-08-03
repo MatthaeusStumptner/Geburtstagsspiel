@@ -13,7 +13,7 @@ import {
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
-import { BELL_SEQUENCE, eventsForLocation } from './game/level-events.js';
+import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 
 const canvas = document.querySelector('#game');
@@ -30,7 +30,8 @@ const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
 const SAVE_VERSION = 6;
-const EASTER_EGG_COUNT = 3;
+const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
+const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
 const CAMERA_ZOOM = 1.12;
 
@@ -259,72 +260,6 @@ const DIFFICULTIES = {
   },
 };
 
-const PASSAU_LEVELS = [
-  {
-    id: 'home', icon: '⌂', lat: 48.58244, lon: 13.48316, layout: 2, river: 'ILZ · GRUBWEG', home: true,
-    palette: { ground: ['#20262a', '#22292d', '#1d2529', '#252b2f'], curb: '#4d5e60', walls: ['#4e4337', '#604d3b', '#454849', '#67583e'], water: '#17657a' },
-    name: { standard: 'Dahoam · Am Bramerhof', dialect: 'Dahoam · Am Bramerhof' },
-    description: { standard: 'Franz und Lola starten an ihrem Zuhause. Das Haus ist Herzstück und Ziel dieser Runde.', dialect: "Da Franz und d'Lola startn dahoam. S'Haus is Herzstück und Ziel von dera Rundn." },
-    mission: { standard: 'Rund um das Zuhause', dialect: "Oamoi rund ums Dahoam" },
-  },
-  {
-    id: 'hals', icon: '≋', lat: 48.588889, lon: 13.463889, layout: 0, river: 'ILZ · HALS',
-    palette: { ground: ['#17262c', '#19282f', '#15242b', '#1b2a30'], curb: '#345b61', walls: ['#174150', '#194958', '#293f4b', '#3a3f48'], water: '#0a5368' },
-    name: { standard: 'Hals & Ilz', dialect: 'Hals & Ilz' },
-    description: { standard: 'Enge Gassen, Ilzschleife und ein Eisvogel, wenn Lola ganz genau hinsieht.', dialect: "Enge Gassn, d'Ilzschleif und a Eisvogl, wenn d'Lola sauber hischaut." },
-    mission: { standard: 'Einmal um Hals', dialect: 'Oamoi um an Hals' },
-  },
-  {
-    id: 'oberhaus', icon: '♜', lat: 48.57809, lon: 13.47035, layout: 3, river: 'DONAU · GEORGEBERG',
-    palette: { ground: ['#26252a', '#29272d', '#232329', '#2d2930'], curb: '#655a5c', walls: ['#5b403c', '#744b41', '#4e3d42', '#806049'], water: '#28687f' },
-    name: { standard: 'Veste Oberhaus', dialect: 'Veste Oberhaus' },
-    description: { standard: 'Hoch über den Flüssen warten Burgmauern, steile Wege und besonders flinke Katzen.', dialect: 'Hoch über de Fliass wartn Burgmauern, steile Weg und sakrisch flinke Katzn.' },
-    mission: { standard: 'Runde um die Veste', dialect: "A Rundn um d'Veste" },
-  },
-  {
-    id: 'dom', icon: '✦', lat: 48.574061, lon: 13.465439, layout: 1, river: 'ALTSTADT · DOM',
-    palette: { ground: ['#26282a', '#292b2c', '#242628', '#2c2c2b'], curb: '#686667', walls: ['#655344', '#7b604a', '#4e5050', '#8a7559'], water: '#287e9b' },
-    name: { standard: 'Dom St. Stephan', dialect: 'Dom St. Stephan' },
-    description: { standard: 'Eine verwinkelte Altstadtrunde zwischen Gassen, Plätzen und einem kleinen Glockengeheimnis.', dialect: 'A verwinkelte Altstadtrundn zwischen Gassn, Platzln und am kloana Glockngeheimnis.' },
-    mission: { standard: 'Durch die Altstadt', dialect: "Durch d'Altstadt" },
-  },
-  {
-    id: 'dreifluesseeck', icon: '≈', lat: 48.57371, lon: 13.47681, layout: 4, river: 'DONAU · INN · ILZ',
-    palette: { ground: ['#14262b', '#17292d', '#122329', '#1a2d30'], curb: '#356269', walls: ['#194651', '#205666', '#29464e', '#385961'], water: '#177f8f' },
-    name: { standard: 'Dreiflüsseeck', dialect: 'Dreiflüsseeck' },
-    description: { standard: 'Wo Donau, Inn und Ilz zusammentreffen, wird die Gassi-Runde besonders wasserreich.', dialect: "Wo Donau, Inn und Ilz zamkemman, werd d'Gassi-Rundn bsonders wasserreich." },
-    mission: { standard: 'Runde an drei Flüssen', dialect: 'Rundn an drei Fliass' },
-  },
-  {
-    id: 'uni', icon: 'U', lat: 48.5683, lon: 13.4533, layout: 5, river: 'INN · INNSTADT',
-    palette: { ground: ['#20262d', '#222a31', '#1d242b', '#252d33'], curb: '#4d606c', walls: ['#3b4855', '#485a68', '#3d4149', '#59636d'], water: '#3cae9d' },
-    name: { standard: 'Universität & Inn', dialect: 'Uni & Inn' },
-    description: { standard: 'Eine schnelle Runde am Innufer zwischen Campus, Promenade und neugierigen Nachbarskatzen.', dialect: "A flotte Rundn am Innufer zwischen Campus, Promenad und neugierige Nochbarskatzn." },
-    mission: { standard: 'Am Inn entlang', dialect: 'Am Inn entlang' },
-  },
-  {
-    id: 'bschuett', icon: 'S', lat: 48.580206, lon: 13.475416, layout: 6, river: 'ILZ · BSCHÜTT', markerClass: 'park', theme: 'bschuett',
-    palette: { ground: ['#173129', '#19372d', '#142c25', '#1d3b30'], curb: '#4c7564', walls: ['#234b3f', '#2e5c49', '#354c43', '#426750'], water: '#14708a' },
-    name: { standard: 'Bschüttpark', dialect: 'Bschüttpark' },
-    description: { standard: 'Eine grüne Runde an der Ilz zwischen Betonpark, Streetball, Beachvolleyball und großen Spielflächen.', dialect: "A grüne Rundn an da Ilz zwischen Betonpark, Streetball, Beachvolleyball und vui Platz zum Austobn." },
-    mission: { standard: 'Spielrunde im Bschüttpark', dialect: 'A Spielrundn im Bschüttpark' },
-  },
-  {
-    id: 'tabakfabrik', icon: 'TF', lat: 48.5688, lon: 13.4719, layout: 7, river: 'MÜHLTAL · INNSTADT', markerClass: 'industrial', theme: 'tabakfabrik',
-    palette: { ground: ['#272322', '#2d2724', '#24201f', '#302825'], curb: '#76564a', walls: ['#704336', '#834a38', '#593b36', '#925945'], water: '#37606d' },
-    name: { standard: 'Tabakfabrik', dialect: 'Tabakfabrik' },
-    description: { standard: 'Backstein, Proberäume und eine kleine Bühne: Passauer Subkultur in einem alten Industriegebäude.', dialect: 'Backstoa, Proberäum und a kloane Bühn: Passauer Subkultur in am oidn Industriegebäude.' },
-    mission: { standard: 'Guttis zwischen Proberäumen', dialect: 'Guttis zwischen de Proberäum' },
-  },
-  {
-    id: 'zauberberg', icon: '⚡', lat: 48.570405, lon: 13.455266, layout: 8, river: 'HAIDENHOF · LIVE-CLUB', markerClass: 'music', theme: 'zauberberg',
-    palette: { ground: ['#211829', '#261b31', '#1d1625', '#2b1d35'], curb: '#704b78', walls: ['#4b285b', '#623166', '#3b2949', '#7a354e'], water: '#2e5375' },
-    name: { standard: 'Zauberberg', dialect: 'Zauberberg' },
-    description: { standard: 'Verstärker auf elf: Franz und Lola geraten in ein Pixelkonzert mit Rock, Punk und Metal.', dialect: "D'Verstärker auf elf: Da Franz und d'Lola landn in am Pixelkonzert mit Rock, Punk und Metal." },
-    mission: { standard: 'Gassi vor der Bühne', dialect: 'Gassi vor da Bühn' },
-  },
-];
-
 const MAP_BOUNDS = { minLat: 48.5645, maxLat: 48.5945, minLon: 13.447, maxLon: 13.489 };
 const MAP_VIEWBOX_SIZE = 700;
 const MAP_PADDING = 45;
@@ -338,71 +273,6 @@ const MAP_CONTENT_WIDTH = MAP_WIDTH_KM * MAP_UNITS_PER_KM;
 const MAP_CONTENT_HEIGHT = MAP_HEIGHT_KM * MAP_UNITS_PER_KM;
 const MAP_OFFSET_X = (MAP_VIEWBOX_SIZE - MAP_CONTENT_WIDTH) / 2;
 const MAP_OFFSET_Y = (MAP_VIEWBOX_SIZE - MAP_CONTENT_HEIGHT) / 2;
-
-const LEVEL_BLOCKS = [
-  [
-    [2, 2, 5, 3], [9, 2, 3, 3], [14, 2, 4, 3], [20, 2, 3, 3],
-    [2, 7, 3, 4], [7, 7, 5, 2], [14, 7, 4, 2], [20, 7, 3, 4],
-    [7, 11, 3, 4], [15, 11, 3, 4], [2, 13, 3, 4], [20, 13, 3, 4],
-    [7, 17, 4, 2], [14, 17, 4, 2], [2, 19, 4, 4], [8, 21, 4, 2],
-    [14, 21, 3, 2], [19, 19, 4, 4],
-  ],
-  [
-    [2, 2, 3, 3], [7, 2, 4, 2], [13, 2, 4, 3], [19, 2, 4, 3],
-    [2, 7, 4, 2], [8, 6, 3, 4], [14, 7, 5, 2], [21, 7, 2, 4],
-    [2, 11, 3, 4], [6, 12, 3, 2], [16, 12, 3, 2], [20, 13, 3, 4],
-    [6, 16, 4, 3], [12, 16, 2, 4], [16, 17, 3, 2], [2, 19, 4, 4],
-    [8, 21, 3, 2], [15, 21, 3, 2], [20, 19, 3, 4],
-  ],
-  [
-    [2, 2, 5, 3], [9, 2, 7, 3], [18, 2, 5, 3],
-    [2, 7, 4, 4], [9, 6, 7, 4], [19, 7, 4, 4],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 3], [8, 16, 3, 3], [14, 16, 3, 3], [19, 15, 4, 3],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 6, 3], [10, 2, 5, 2], [18, 2, 5, 4],
-    [2, 7, 3, 5], [7, 7, 5, 2], [14, 6, 3, 4], [20, 8, 3, 3],
-    [6, 13, 4, 2], [15, 12, 4, 2], [2, 15, 3, 4], [21, 14, 2, 5],
-    [7, 17, 5, 3], [15, 17, 4, 2], [2, 21, 4, 2], [14, 21, 3, 2], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 4, 4], [8, 2, 3, 2], [14, 2, 3, 2], [19, 2, 4, 4],
-    [2, 8, 5, 2], [9, 6, 3, 4], [14, 6, 3, 4], [19, 8, 4, 2],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 2], [8, 16, 4, 3], [14, 16, 4, 3], [20, 15, 3, 2],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 3, 5], [7, 2, 5, 2], [14, 2, 4, 3], [20, 2, 3, 5],
-    [7, 6, 3, 4], [15, 7, 3, 3], [2, 9, 3, 3], [20, 9, 3, 3],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 3, 4], [7, 16, 4, 2], [14, 16, 4, 2], [20, 15, 3, 4],
-    [2, 21, 5, 2], [9, 20, 3, 3], [14, 20, 3, 3], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 5, 2], [9, 2, 3, 3], [14, 2, 3, 3], [19, 2, 4, 2],
-    [2, 6, 3, 5], [7, 7, 4, 2], [15, 7, 4, 2], [21, 6, 2, 5],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 2], [8, 16, 3, 3], [15, 16, 3, 3], [20, 15, 3, 2],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-  [
-    [2, 2, 4, 4], [8, 2, 3, 2], [14, 2, 3, 2], [19, 2, 4, 4],
-    [2, 8, 4, 2], [9, 6, 7, 4], [19, 8, 4, 2],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 3, 4], [7, 16, 4, 2], [14, 16, 4, 2], [20, 15, 3, 4],
-    [2, 21, 5, 2], [9, 20, 3, 3], [14, 20, 3, 3], [19, 21, 4, 2],
-  ],
-  [
-    [2, 2, 5, 3], [9, 2, 7, 2], [18, 2, 5, 3],
-    [2, 7, 4, 4], [8, 5, 9, 5], [19, 7, 4, 4],
-    [6, 12, 3, 2], [16, 12, 3, 2],
-    [2, 15, 4, 3], [8, 16, 3, 3], [15, 16, 3, 3], [19, 15, 4, 3],
-    [2, 20, 5, 3], [9, 21, 3, 2], [14, 21, 3, 2], [19, 20, 4, 3],
-  ],
-];
 
 const PLAYER_START = { x: 12, y: 20 };
 const POWER_PELLET_POSITIONS = [[1, 1], [23, 1], [1, 23], [23, 23]];
@@ -540,6 +410,7 @@ let directionHistory = [];
 let savePulseTimer;
 let audioContext;
 let elapsed = 0;
+let levelEventElapsed = 0;
 let autoSaveElapsed = 0;
 const swipeInput = new DirectionalSwipeInput({ activationDistance: SWIPE_ACTIVATION_DISTANCE, dominanceRatio: 1.08 });
 let mobileScrollPosition = 0;
@@ -735,12 +606,22 @@ function currentLocation() {
   return PASSAU_LEVELS.find((item) => item.id === selectedLevelId) ?? PASSAU_LEVELS[0];
 }
 
+function currentPublishedLevel() {
+  return publishedLevel(selectedLevelId);
+}
+
 function localized(field) {
   return field[language] ?? field.standard;
 }
 
-function difficultyConfig() {
-  return DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
+function difficultyConfig(levelDocument = activeLevelDocument ?? currentPublishedLevel()) {
+  const defaults = DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
+  const profile = levelDocument?.gameplay?.difficulties?.[difficulty] ?? {};
+  return {
+    ...defaults,
+    ...profile,
+    treatTarget: levelDocument?.gameplay?.treatTargets?.[difficulty] ?? defaults.treatTarget,
+  };
 }
 
 function globalProgressPercent() {
@@ -759,7 +640,7 @@ function normalizeLevelStats(rawStats = {}) {
   return Object.fromEntries(PASSAU_LEVELS.map((item) => {
     const raw = rawStats && typeof rawStats[item.id] === 'object' ? rawStats[item.id] : {};
     const completed = completedLevelIds.has(item.id) || Boolean(raw.completed);
-    const inferredTotal = completed ? difficultyConfig().treatTarget : 0;
+    const inferredTotal = completed ? difficultyConfig(publishedLevel(item.id)).treatTarget : 0;
     const treatsTotal = Math.max(inferredTotal, Math.max(0, Math.floor(Number(raw.treatsTotal) || 0)));
     const bestTreats = completed ? treatsTotal : Math.min(
       treatsTotal || Number.MAX_SAFE_INTEGER,
@@ -821,8 +702,8 @@ function createCat(index) {
 }
 
 function rebaseLevelStatsForDifficulty() {
-  const treatsTotal = difficultyConfig().treatTarget;
   PASSAU_LEVELS.forEach((item) => {
+    const treatsTotal = difficultyConfig(publishedLevel(item.id)).treatTarget;
     const stats = statsForLevel(item.id);
     const complete = completedLevelIds.has(item.id) || stats.completed;
     stats.treatsTotal = stats.attempts > 0 || complete ? treatsTotal : 0;
@@ -917,7 +798,10 @@ function renderPassauMap() {
     marker.type = 'button';
     marker.className = `map-marker${item.home ? ' home' : ''}${item.markerClass ? ` ${item.markerClass}` : ''}${completedLevelIds.has(item.id) ? ' completed' : ''}`;
     marker.setAttribute('aria-label', localized(item.name));
-    marker.innerHTML = `<span aria-hidden="true">${item.icon}</span>`;
+    const markerIcon = document.createElement('span');
+    markerIcon.setAttribute('aria-hidden', 'true');
+    markerIcon.textContent = item.icon;
+    marker.append(markerIcon);
     label.className = 'map-marker-label';
     label.setAttribute('aria-hidden', 'true');
     label.textContent = localized(item.name);
@@ -951,7 +835,7 @@ function updateMapSelection() {
   const resumable = item.id === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (item.id === selectedLevelId && runStarted) updateCurrentLevelStatsSnapshot(complete);
   const stats = statsForLevel(item.id);
-  const treatsTotal = stats.treatsTotal || difficultyConfig().treatTarget;
+  const treatsTotal = stats.treatsTotal || difficultyConfig(publishedLevel(item.id)).treatTarget;
   ui.mapSelectionKicker.textContent = `${complete ? t('mapCompleted') : t('mapSelected')} · LEVEL ${String(index).padStart(2, '0')}`;
   ui.mapSelectionTitle.textContent = localized(item.name);
   ui.mapSelectionCopy.textContent = localized(item.description);
@@ -1333,6 +1217,7 @@ function saveGame(quiet = false) {
     difficulty,
     levelTreatTotal,
     levelRunScore,
+    levelEventElapsed,
     levelStats,
     selectedLevelId,
     completedLevelIds: [...completedLevelIds],
@@ -1369,85 +1254,56 @@ function saveGame(quiet = false) {
 }
 
 function buildLevel() {
-  const location = currentLocation();
-  activeLevelDocument = createLevelDocument({
-    id: location.id,
-    icon: location.icon,
-    name: location.name,
-    description: location.description,
-    mission: location.mission,
-    location: { latitude: location.lat, longitude: location.lon, area: location.river },
-    board: {
-      columns: COLS,
-      rows: ROWS,
-      tileSize: TILE,
-      tunnelRows: [TUNNEL_ROW],
-      walls: LEVEL_BLOCKS[location.layout].map(([x, y, width, height]) => ({ x, y, width, height })),
-    },
-    theme: {
-      id: location.theme ?? 'neighborhood',
-      landmark: location.home ? 'brahmahof-home' : (location.theme ?? 'dog-park'),
-      palette: location.palette,
-    },
-    actors: {
-      player: { ...PLAYER_START, behavior: { controller: 'user', speedMultiplier: 1 } },
-      cats: CAT_STARTS.map((cat, index) => ({ ...cat, behavior: {
-        strategy: index === 1 ? 'ambush' : index === 2 ? 'scatter-chase' : 'chase', speedMultiplier: 1,
-        lookAhead: index === 1 ? 3 : 0, wanderMultiplier: index + 1, respawnDelay: index * 0.9, target: { x: 22, y: 22 },
-      } })),
-    },
-    collectibles: { powerUps: POWER_PELLET_POSITIONS.map(([x, y]) => ({ x, y })) },
-    events: eventsForLocation(location),
-    gameplay: {
-      treatTargets: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, config.treatTarget])),
-      difficulties: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, {
-        playerSpeed: config.playerSpeed, catSpeed: config.catSpeed, frightenedSpeed: config.frightenedSpeed,
-        catCount: config.catCount, lives: config.lives, powerDuration: config.powerDuration, wander: config.wander, grace: config.grace,
-      }])),
-    },
-  });
+  activeLevelDocument = createLevelDocument(currentPublishedLevel());
   grid = compileWallGrid(activeLevelDocument);
   pixelRenderer.setLevel(activeLevelDocument);
   const reachable = reachableTileKeys(activeLevelDocument);
   powerPellets = new Set();
-  for (const [x, y] of POWER_PELLET_POSITIONS) {
+  for (const { x, y } of activeLevelDocument.collectibles.powerUps) {
     const key = toKey(x, y);
     if (reachable.has(key)) powerPellets.add(key);
   }
 
+  const playerStart = activeLevelDocument.actors.player;
+  const catStarts = activeLevelDocument.actors.cats;
+  const { columns, rows } = activeLevelDocument.board;
   const candidates = [...reachable]
     .map((key) => ({ key, coordinates: key.split(',').map(Number) }))
     .filter(({ key, coordinates: [x, y] }) => {
-      const inStartArea = x >= 10 && x <= 14 && y >= 11 && y <= 13;
-      const atPlayerStart = x === PLAYER_START.x && y === PLAYER_START.y;
-      const insideBoard = x > 0 && x < COLS - 1 && y > 0 && y < ROWS - 1;
-      return insideBoard && !inStartArea && !atPlayerStart && !powerPellets.has(key);
+      const nearCatStart = catStarts.some((cat) => Math.abs(x - cat.x) <= 2 && Math.abs(y - cat.y) <= 1);
+      const atPlayerStart = x === playerStart.x && y === playerStart.y;
+      const insideBoard = x > 0 && x < columns - 1 && y > 0 && y < rows - 1;
+      return insideBoard && !nearCatStart && !atPlayerStart && !powerPellets.has(key);
     })
     .sort((a, b) => {
       const [ax, ay] = a.coordinates;
       const [bx, by] = b.coordinates;
-      const seed = currentLocation().layout * 97;
+      const seed = activeLevelDocument.gameplay.pelletSeed;
       return ((ax * 137 + ay * 71 + seed) % 997) - ((bx * 137 + by * 71 + seed) % 997);
     });
 
   const pelletLimit = difficultyConfig().treatTarget;
   pellets = new Set(candidates.slice(0, pelletLimit).map(({ key }) => key));
   levelTreatTotal = pellets.size;
+  levelEventElapsed = 0;
 
   resetActors();
 }
 
 function reachableOpenKeys() {
-  const visited = new Set([toKey(PLAYER_START.x, PLAYER_START.y)]);
-  const queue = [{ ...PLAYER_START }];
+  const start = activeLevelDocument?.actors.player ?? PLAYER_START;
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  const rows = activeLevelDocument?.board.rows ?? ROWS;
+  const visited = new Set([toKey(start.x, start.y)]);
+  const queue = [{ x: start.x, y: start.y }];
   for (let index = 0; index < queue.length; index += 1) {
     const current = queue[index];
     for (const direction of [DIRECTIONS.up, DIRECTIONS.down, DIRECTIONS.left, DIRECTIONS.right]) {
       let x = current.x + direction.x;
       const y = current.y + direction.y;
-      if (y < 0 || y >= ROWS) continue;
-      if (x < 0) x = COLS - 1;
-      if (x >= COLS) x = 0;
+      if (y < 0 || y >= rows) continue;
+      if (x < 0) x = columns - 1;
+      if (x >= columns) x = 0;
       const key = toKey(x, y);
       if (visited.has(key) || isWall(x, y)) continue;
       visited.add(key);
@@ -1467,7 +1323,8 @@ function resetActors() {
     nextDir: DIRECTIONS.left,
   };
 
-  cats = Array.from({ length: difficultyConfig().catCount }, (_, index) => createCat(index));
+  const catCount = Math.min(difficultyConfig().catCount, activeLevelDocument.actors.cats.length);
+  cats = Array.from({ length: catCount }, (_, index) => createCat(index));
   powerTimer = 0;
   graceTimer = difficultyConfig().grace;
 }
@@ -1482,9 +1339,11 @@ function restoreDirection(name, fallback = DIRECTIONS.none) {
 }
 
 function validOpenKey(key) {
-  if (typeof key !== 'string' || !/^\d{1,2},\d{1,2}$/.test(key)) return false;
+  if (typeof key !== 'string' || !/^\d+,\d+$/.test(key)) return false;
   const [x, y] = key.split(',').map(Number);
-  return x >= 0 && x < COLS && y >= 0 && y < ROWS && !grid[y][x];
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  const rows = activeLevelDocument?.board.rows ?? ROWS;
+  return x >= 0 && x < columns && y >= 0 && y < rows && !grid[y][x];
 }
 
 function restoreGame(save) {
@@ -1510,7 +1369,7 @@ function restoreGame(save) {
   runStarted = Boolean(save.runStarted);
   unlockedEggs = new Set(
     Array.isArray(save.unlockedEggs)
-      ? save.unlockedEggs.filter((id) => ['ilzvogel', 'hundewiese', 'kirchenglockn'].includes(id))
+      ? save.unlockedEggs.filter((id) => PUBLISHED_EVENT_KEYS.includes(id))
       : [],
   );
 
@@ -1533,8 +1392,9 @@ function restoreGame(save) {
 
   const restoreActors = save.mode !== 'hit';
   if (restoreActors && save.player) {
-    player.x = clampNumber(save.player.x, -0.55, COLS - 0.45, PLAYER_START.x);
-    player.y = clampNumber(save.player.y, 0, ROWS - 1, PLAYER_START.y);
+    const start = activeLevelDocument.actors.player;
+    player.x = clampNumber(save.player.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
+    player.y = clampNumber(save.player.y, 0, activeLevelDocument.board.rows - 1, start.y);
     player.dir = restoreDirection(save.player.direction, DIRECTIONS.left);
     player.nextDir = restoreDirection(save.player.nextDirection, player.dir);
   }
@@ -1543,8 +1403,9 @@ function restoreGame(save) {
     cats.forEach((cat, index) => {
       const savedCat = save.cats[index];
       if (!savedCat) return;
-      cat.x = clampNumber(savedCat.x, -0.55, COLS - 0.45, CAT_STARTS[index].x);
-      cat.y = clampNumber(savedCat.y, 0, ROWS - 1, CAT_STARTS[index].y);
+      const start = activeLevelDocument.actors.cats[index] ?? CAT_STARTS[index % CAT_STARTS.length];
+      cat.x = clampNumber(savedCat.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
+      cat.y = clampNumber(savedCat.y, 0, activeLevelDocument.board.rows - 1, start.y);
       cat.dir = restoreDirection(savedCat.direction, cat.dir);
       cat.lastDecision = typeof savedCat.lastDecision === 'string' ? savedCat.lastDecision : '';
       cat.respawnTimer = clampNumber(savedCat.respawnTimer, 0, 3, 0);
@@ -1553,6 +1414,7 @@ function restoreGame(save) {
 
   powerTimer = clampNumber(save.powerTimer, 0, difficultyConfig().powerDuration, 0);
   graceTimer = clampNumber(save.graceTimer, 0, difficultyConfig().grace, 0);
+  levelEventElapsed = clampNumber(save.levelEventElapsed, 0, 3600, 0);
   hitTimer = 0;
   applyLanguage();
   updateHud();
@@ -1603,8 +1465,11 @@ function toKey(x, y) {
 }
 
 function isWall(x, y) {
-  if (y < 0 || y >= ROWS) return true;
-  if (x < 0 || x >= COLS) return y !== TUNNEL_ROW;
+  const board = activeLevelDocument?.board;
+  const columns = board?.columns ?? COLS;
+  const rows = board?.rows ?? ROWS;
+  if (y < 0 || y >= rows) return true;
+  if (x < 0 || x >= columns) return !board?.tunnelRows.includes(y);
   return grid[y][x];
 }
 
@@ -1618,14 +1483,13 @@ function setDirection(name) {
   const direction = DIRECTIONS[name];
   queuePlayerDirection(player, direction);
   directionHistory.push(name);
-  directionHistory = directionHistory.slice(-BELL_SEQUENCE.length);
-  if (directionHistory.join(',') === BELL_SEQUENCE.join(',')) {
-    unlockEasterEgg(
-      'kirchenglockn',
-      t('eggBell'),
-      250,
-    );
-  }
+  const sequenceEvents = activeLevelDocument?.events.filter((event) => event.trigger.type === 'direction-sequence') ?? [];
+  const maximumSequence = Math.max(1, ...sequenceEvents.map((event) => event.trigger.sequence.length));
+  directionHistory = directionHistory.slice(-maximumSequence);
+  sequenceEvents.forEach((event) => {
+    const sequence = event.trigger.sequence;
+    if (directionHistory.slice(-sequence.length).join(',') === sequence.join(',')) unlockLevelEvent(event);
+  });
   if (state === 'ready') startGame();
 }
 
@@ -1816,13 +1680,25 @@ function updateHud() {
   ui.levelStatusLives.textContent = String(lives);
 }
 
-function unlockEasterEgg(id, message, bonus) {
-  if (unlockedEggs.has(id)) return;
-  unlockedEggs.add(id);
-  activeEasterEgg = { id, message, timer: 4.5 };
-  score += bonus;
-  levelRunScore += bonus;
-  ui.easterToastCopy.textContent = `${message} +${bonus}`;
+function eventStorageKey(event) {
+  return event.scope === 'level' ? `${selectedLevelId}:${event.id}` : event.id;
+}
+
+function activeUnlockedEventIds() {
+  return new Set((activeLevelDocument?.events ?? [])
+    .filter((event) => unlockedEggs.has(eventStorageKey(event)))
+    .map((event) => event.id));
+}
+
+function unlockLevelEvent(event) {
+  const storageKey = eventStorageKey(event);
+  if (unlockedEggs.has(storageKey)) return;
+  const message = localized(event.message);
+  unlockedEggs.add(storageKey);
+  activeEasterEgg = { id: event.id, message, timer: 4.5 };
+  score += event.reward;
+  levelRunScore += event.reward;
+  ui.easterToastCopy.textContent = `${message} +${event.reward}`;
   ui.easterToast.hidden = false;
   ui.announcement.textContent = t('secretFound', { message });
   beep(820, 0.12, 0.045, 'square');
@@ -1835,17 +1711,17 @@ function unlockEasterEgg(id, message, bonus) {
 function checkLocationEasterEggs() {
   const x = Math.round(player.x);
   const y = Math.round(player.y);
-  const location = currentLocation();
-  if (location.river.includes('ILZ') && y === TUNNEL_ROW && (x <= 1 || x >= COLS - 2)) {
-    unlockEasterEgg('ilzvogel', t('eggIlz'), 150);
-  }
-  if ((location.home || location.theme === 'bschuett') && x >= 10 && x <= 14 && y >= 10 && y <= 14) {
-    unlockEasterEgg('hundewiese', t('eggPark'), 100);
-  }
+  (activeLevelDocument?.events ?? []).forEach((event) => {
+    if (event.trigger.type === 'zone' && event.trigger.zones.some((zone) => (
+      x >= zone.x && x < zone.x + zone.width && y >= zone.y && y < zone.y + zone.height
+    ))) unlockLevelEvent(event);
+    if (event.trigger.type === 'timer' && levelEventElapsed >= event.trigger.seconds) unlockLevelEvent(event);
+  });
 }
 
 function update(dt) {
   elapsed += dt;
+  levelEventElapsed += dt;
   if (graceTimer > 0) graceTimer = Math.max(0, graceTimer - dt);
   if (activeEasterEgg) {
     activeEasterEgg.timer -= dt;
@@ -1876,7 +1752,35 @@ function update(dt) {
   checkCollisions();
 }
 
+function nearestPlayerDirection() {
+  if (!pellets.size) return DIRECTIONS.none;
+  const points = [...pellets].map((key) => key.split(',').map(Number));
+  return Object.values(DIRECTIONS)
+    .filter((direction) => direction.name !== 'none' && canMove(player.x, player.y, direction))
+    .map((direction) => {
+      const x = Math.round(player.x) + direction.x;
+      const y = Math.round(player.y) + direction.y;
+      return { direction, distance: Math.min(...points.map(([targetX, targetY]) => Math.abs(targetX - x) + Math.abs(targetY - y))) };
+    })
+    .sort((left, right) => left.distance - right.distance)[0]?.direction ?? DIRECTIONS.none;
+}
+
+function updatePlayerController() {
+  const controller = player.behavior?.controller ?? 'user';
+  if (controller === 'autopilot') player.nextDir = nearestPlayerDirection();
+  if (controller === 'patrol' && !canMove(player.x, player.y, player.dir)) {
+    const order = ['left', 'up', 'right', 'down'];
+    const startIndex = Math.max(0, order.indexOf(player.dir.name));
+    for (let step = 1; step <= order.length; step += 1) {
+      const direction = DIRECTIONS[order[(startIndex + step) % order.length]];
+      if (canMove(player.x, player.y, direction)) { player.nextDir = direction; break; }
+    }
+  }
+}
+
 function movePlayer(dt) {
+  if (player.behavior?.controller === 'stationary') return;
+  updatePlayerController();
   const speed = difficultyConfig().playerSpeed;
   movePlayerActor(player, speed * dt, { canMove, wrap: wrapActor });
 }
@@ -1897,8 +1801,9 @@ function chooseCatDirection(cat, x, y) {
 }
 
 function wrapActor(actor) {
-  if (actor.x < -0.5) actor.x = COLS - 0.5;
-  if (actor.x > COLS - 0.5) actor.x = -0.5;
+  const columns = activeLevelDocument?.board.columns ?? COLS;
+  if (actor.x < -0.5) actor.x = columns - 0.5;
+  if (actor.x > columns - 0.5) actor.x = -0.5;
 }
 
 function collectTreats() {
@@ -1939,8 +1844,9 @@ function checkCollisions() {
     if (powerTimer > 0) {
       score += 200;
       levelRunScore += 200;
-      cat.x = CAT_STARTS[cat.index].x;
-      cat.y = CAT_STARTS[cat.index].y;
+      const start = activeLevelDocument.actors.cats[cat.index] ?? CAT_STARTS[cat.index % CAT_STARTS.length];
+      cat.x = start.x;
+      cat.y = start.y;
       cat.respawnTimer = 1.6;
       cat.lastDecision = '';
       beep(740, 0.1, 0.045, 'square');
@@ -2052,7 +1958,7 @@ function render() {
     elapsed,
     powerTimer,
     hitTimer: state === 'hit' ? hitTimer : 0,
-    unlockedEvents: unlockedEggs,
+    unlockedEvents: activeUnlockedEventIds(),
     activeEventId: activeEasterEgg?.id,
   }, {
     alpha: simulationLoop.interpolationAlpha,

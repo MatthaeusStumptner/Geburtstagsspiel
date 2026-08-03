@@ -1,0 +1,351 @@
+{
+  "kind": "franz-lola-level",
+  "schemaVersion": 1,
+  "id": "hals",
+  "icon": "≋",
+  "name": {
+    "standard": "Hals & Ilz",
+    "dialect": "Hals & Ilz"
+  },
+  "description": {
+    "standard": "Enge Gassen, Ilzschleife und ein Eisvogel, wenn Lola ganz genau hinsieht.",
+    "dialect": "Enge Gassn, d'Ilzschleif und a Eisvogl, wenn d'Lola sauber hischaut."
+  },
+  "mission": {
+    "standard": "Einmal um Hals",
+    "dialect": "Oamoi um an Hals"
+  },
+  "location": {
+    "latitude": 48.588889,
+    "longitude": 13.463889,
+    "area": "ILZ · HALS"
+  },
+  "board": {
+    "columns": 25,
+    "rows": 25,
+    "tileSize": 24,
+    "tunnelRows": [
+      12
+    ],
+    "walls": [
+      {
+        "x": 2,
+        "y": 2,
+        "width": 5,
+        "height": 3
+      },
+      {
+        "x": 9,
+        "y": 2,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 14,
+        "y": 2,
+        "width": 4,
+        "height": 3
+      },
+      {
+        "x": 20,
+        "y": 2,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 2,
+        "y": 7,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 7,
+        "y": 7,
+        "width": 5,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 7,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 20,
+        "y": 7,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 7,
+        "y": 11,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 15,
+        "y": 11,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 2,
+        "y": 13,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 20,
+        "y": 13,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 7,
+        "y": 17,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 17,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 2,
+        "y": 19,
+        "width": 4,
+        "height": 4
+      },
+      {
+        "x": 8,
+        "y": 21,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 21,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 19,
+        "y": 19,
+        "width": 4,
+        "height": 4
+      }
+    ]
+  },
+  "theme": {
+    "id": "neighborhood",
+    "landmark": "dog-park",
+    "palette": {
+      "ground": [
+        "#17262c",
+        "#19282f",
+        "#15242b",
+        "#1b2a30"
+      ],
+      "curb": "#345b61",
+      "walls": [
+        "#174150",
+        "#194958",
+        "#293f4b",
+        "#3a3f48"
+      ],
+      "water": "#0a5368"
+    }
+  },
+  "actors": {
+    "player": {
+      "x": 12,
+      "y": 20,
+      "renderer": "franz-lola",
+      "animation": "",
+      "appearance": null,
+      "behavior": {
+        "controller": "user",
+        "speedMultiplier": 1
+      }
+    },
+    "cats": [
+      {
+        "x": 11,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#ff6b5f",
+        "accent": "#9e302e",
+        "appearance": null,
+        "behavior": {
+          "strategy": "chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 1,
+          "wander": 0,
+          "respawnDelay": 0,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 12,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#f2a65a",
+        "accent": "#a6532c",
+        "appearance": null,
+        "behavior": {
+          "strategy": "ambush",
+          "speedMultiplier": 1,
+          "lookAhead": 3,
+          "wanderMultiplier": 2,
+          "wander": 0,
+          "respawnDelay": 0.9,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 13,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#b792e8",
+        "accent": "#66509d",
+        "appearance": null,
+        "behavior": {
+          "strategy": "scatter-chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 3,
+          "wander": 0,
+          "respawnDelay": 1.8,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      }
+    ]
+  },
+  "collectibles": {
+    "powerUps": [
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 23,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 23
+      },
+      {
+        "x": 23,
+        "y": 23
+      }
+    ]
+  },
+  "gameplay": {
+    "pelletSeed": 0,
+    "treatTargets": {
+      "easy": 70,
+      "normal": 110,
+      "hard": 160
+    },
+    "difficulties": {
+      "easy": {
+        "playerSpeed": 5.8,
+        "catSpeed": 2.55,
+        "frightenedSpeed": 1.85,
+        "catCount": 2,
+        "lives": 5,
+        "powerDuration": 12,
+        "wander": 7.2,
+        "grace": 2.2
+      },
+      "normal": {
+        "playerSpeed": 5.55,
+        "catSpeed": 3.35,
+        "frightenedSpeed": 2.55,
+        "catCount": 3,
+        "lives": 3,
+        "powerDuration": 9,
+        "wander": 4.2,
+        "grace": 1.6
+      },
+      "hard": {
+        "playerSpeed": 5.35,
+        "catSpeed": 4.05,
+        "frightenedSpeed": 3.25,
+        "catCount": 3,
+        "lives": 2,
+        "powerDuration": 7,
+        "wander": 2.1,
+        "grace": 1.1
+      }
+    }
+  },
+  "source": {
+    "catalog": "Geburtstagsspiel",
+    "gameLayout": 0,
+    "markerClass": "",
+    "home": false,
+    "mapOrder": 1
+  },
+  "decorations": [],
+  "events": [
+    {
+      "id": "ilzvogel",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Eisvogel an der Ilz",
+        "dialect": "Eisvogl an da Ilz"
+      },
+      "message": {
+        "standard": "Donnerwetter, ein Eisvogel an der Ilz!",
+        "dialect": "Sakradi, a Eisvogl an da Ilz!"
+      },
+      "reward": 150,
+      "scope": "global",
+      "trigger": {
+        "type": "zone",
+        "zones": [
+          {
+            "x": 0,
+            "y": 12,
+            "width": 2,
+            "height": 1
+          },
+          {
+            "x": 23,
+            "y": 12,
+            "width": 2,
+            "height": 1
+          }
+        ],
+        "sequence": [],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "kingfisher",
+        "x": 0.375,
+        "y": 6,
+        "color": "#31b7cf",
+        "accent": "#f1d05c",
+        "label": "◆",
+        "visibility": "after-trigger"
+      }
+    }
+  ]
+}

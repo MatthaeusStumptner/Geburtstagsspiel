@@ -1,0 +1,360 @@
+{
+  "kind": "franz-lola-level",
+  "schemaVersion": 1,
+  "id": "dom",
+  "icon": "✦",
+  "name": {
+    "standard": "Dom St. Stephan",
+    "dialect": "Dom St. Stephan"
+  },
+  "description": {
+    "standard": "Eine verwinkelte Altstadtrunde zwischen Gassen, Plätzen und einem kleinen Glockengeheimnis.",
+    "dialect": "A verwinkelte Altstadtrundn zwischen Gassn, Platzln und am kloana Glockngeheimnis."
+  },
+  "mission": {
+    "standard": "Durch die Altstadt",
+    "dialect": "Durch d'Altstadt"
+  },
+  "location": {
+    "latitude": 48.574061,
+    "longitude": 13.465439,
+    "area": "ALTSTADT · DOM"
+  },
+  "board": {
+    "columns": 25,
+    "rows": 25,
+    "tileSize": 24,
+    "tunnelRows": [
+      12
+    ],
+    "walls": [
+      {
+        "x": 2,
+        "y": 2,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 7,
+        "y": 2,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 13,
+        "y": 2,
+        "width": 4,
+        "height": 3
+      },
+      {
+        "x": 19,
+        "y": 2,
+        "width": 4,
+        "height": 3
+      },
+      {
+        "x": 2,
+        "y": 7,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 8,
+        "y": 6,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 14,
+        "y": 7,
+        "width": 5,
+        "height": 2
+      },
+      {
+        "x": 21,
+        "y": 7,
+        "width": 2,
+        "height": 4
+      },
+      {
+        "x": 2,
+        "y": 11,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 6,
+        "y": 12,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 16,
+        "y": 12,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 20,
+        "y": 13,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 6,
+        "y": 16,
+        "width": 4,
+        "height": 3
+      },
+      {
+        "x": 12,
+        "y": 16,
+        "width": 2,
+        "height": 4
+      },
+      {
+        "x": 16,
+        "y": 17,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 2,
+        "y": 19,
+        "width": 4,
+        "height": 4
+      },
+      {
+        "x": 8,
+        "y": 21,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 15,
+        "y": 21,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 20,
+        "y": 19,
+        "width": 3,
+        "height": 4
+      }
+    ]
+  },
+  "theme": {
+    "id": "neighborhood",
+    "landmark": "dog-park",
+    "palette": {
+      "ground": [
+        "#26282a",
+        "#292b2c",
+        "#242628",
+        "#2c2c2b"
+      ],
+      "curb": "#686667",
+      "walls": [
+        "#655344",
+        "#7b604a",
+        "#4e5050",
+        "#8a7559"
+      ],
+      "water": "#287e9b"
+    }
+  },
+  "actors": {
+    "player": {
+      "x": 12,
+      "y": 20,
+      "renderer": "franz-lola",
+      "animation": "",
+      "appearance": null,
+      "behavior": {
+        "controller": "user",
+        "speedMultiplier": 1
+      }
+    },
+    "cats": [
+      {
+        "x": 11,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#ff6b5f",
+        "accent": "#9e302e",
+        "appearance": null,
+        "behavior": {
+          "strategy": "chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 1,
+          "wander": 0,
+          "respawnDelay": 0,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 12,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#f2a65a",
+        "accent": "#a6532c",
+        "appearance": null,
+        "behavior": {
+          "strategy": "ambush",
+          "speedMultiplier": 1,
+          "lookAhead": 3,
+          "wanderMultiplier": 2,
+          "wander": 0,
+          "respawnDelay": 0.9,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 13,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#b792e8",
+        "accent": "#66509d",
+        "appearance": null,
+        "behavior": {
+          "strategy": "scatter-chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 3,
+          "wander": 0,
+          "respawnDelay": 1.8,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      }
+    ]
+  },
+  "collectibles": {
+    "powerUps": [
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 23,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 23
+      },
+      {
+        "x": 23,
+        "y": 23
+      }
+    ]
+  },
+  "gameplay": {
+    "pelletSeed": 97,
+    "treatTargets": {
+      "easy": 70,
+      "normal": 110,
+      "hard": 160
+    },
+    "difficulties": {
+      "easy": {
+        "playerSpeed": 5.8,
+        "catSpeed": 2.55,
+        "frightenedSpeed": 1.85,
+        "catCount": 2,
+        "lives": 5,
+        "powerDuration": 12,
+        "wander": 7.2,
+        "grace": 2.2
+      },
+      "normal": {
+        "playerSpeed": 5.55,
+        "catSpeed": 3.35,
+        "frightenedSpeed": 2.55,
+        "catCount": 3,
+        "lives": 3,
+        "powerDuration": 9,
+        "wander": 4.2,
+        "grace": 1.6
+      },
+      "hard": {
+        "playerSpeed": 5.35,
+        "catSpeed": 4.05,
+        "frightenedSpeed": 3.25,
+        "catCount": 3,
+        "lives": 2,
+        "powerDuration": 7,
+        "wander": 2.1,
+        "grace": 1.1
+      }
+    }
+  },
+  "source": {
+    "catalog": "Geburtstagsspiel",
+    "gameLayout": 1,
+    "markerClass": "",
+    "home": false,
+    "mapOrder": 3
+  },
+  "decorations": [],
+  "events": [
+    {
+      "id": "kirchenglockn",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Passauer Kirchenglocken",
+        "dialect": "Passauer Kirchenglockn"
+      },
+      "message": {
+        "standard": "Bim bam! Die Passauer Glocken läuten nur für euch.",
+        "dialect": "Bim bam! D'Passauer Glockn läutn bloß für eich."
+      },
+      "reward": 250,
+      "scope": "global",
+      "trigger": {
+        "type": "direction-sequence",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [
+          "up",
+          "up",
+          "down",
+          "down",
+          "left",
+          "right",
+          "left",
+          "right"
+        ],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "bell",
+        "x": 12.5,
+        "y": 0.5,
+        "color": "#8f6c2e",
+        "accent": "#f5c451",
+        "label": "◆",
+        "visibility": "after-trigger"
+      }
+    }
+  ]
+}

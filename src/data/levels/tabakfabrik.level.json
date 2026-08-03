@@ -1,0 +1,302 @@
+{
+  "kind": "franz-lola-level",
+  "schemaVersion": 1,
+  "id": "tabakfabrik",
+  "icon": "TF",
+  "name": {
+    "standard": "Tabakfabrik",
+    "dialect": "Tabakfabrik"
+  },
+  "description": {
+    "standard": "Backstein, Proberäume und eine kleine Bühne: Passauer Subkultur in einem alten Industriegebäude.",
+    "dialect": "Backstoa, Proberäum und a kloane Bühn: Passauer Subkultur in am oidn Industriegebäude."
+  },
+  "mission": {
+    "standard": "Guttis zwischen Proberäumen",
+    "dialect": "Guttis zwischen de Proberäum"
+  },
+  "location": {
+    "latitude": 48.5688,
+    "longitude": 13.4719,
+    "area": "MÜHLTAL · INNSTADT"
+  },
+  "board": {
+    "columns": 25,
+    "rows": 25,
+    "tileSize": 24,
+    "tunnelRows": [
+      12
+    ],
+    "walls": [
+      {
+        "x": 2,
+        "y": 2,
+        "width": 4,
+        "height": 4
+      },
+      {
+        "x": 8,
+        "y": 2,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 2,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 19,
+        "y": 2,
+        "width": 4,
+        "height": 4
+      },
+      {
+        "x": 2,
+        "y": 8,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 9,
+        "y": 6,
+        "width": 7,
+        "height": 4
+      },
+      {
+        "x": 19,
+        "y": 8,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 6,
+        "y": 12,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 16,
+        "y": 12,
+        "width": 3,
+        "height": 2
+      },
+      {
+        "x": 2,
+        "y": 15,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 7,
+        "y": 16,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 14,
+        "y": 16,
+        "width": 4,
+        "height": 2
+      },
+      {
+        "x": 20,
+        "y": 15,
+        "width": 3,
+        "height": 4
+      },
+      {
+        "x": 2,
+        "y": 21,
+        "width": 5,
+        "height": 2
+      },
+      {
+        "x": 9,
+        "y": 20,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 14,
+        "y": 20,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "x": 19,
+        "y": 21,
+        "width": 4,
+        "height": 2
+      }
+    ]
+  },
+  "theme": {
+    "id": "tabakfabrik",
+    "landmark": "tabakfabrik",
+    "palette": {
+      "ground": [
+        "#272322",
+        "#2d2724",
+        "#24201f",
+        "#302825"
+      ],
+      "curb": "#76564a",
+      "walls": [
+        "#704336",
+        "#834a38",
+        "#593b36",
+        "#925945"
+      ],
+      "water": "#37606d"
+    }
+  },
+  "actors": {
+    "player": {
+      "x": 12,
+      "y": 20,
+      "renderer": "franz-lola",
+      "animation": "",
+      "appearance": null,
+      "behavior": {
+        "controller": "user",
+        "speedMultiplier": 1
+      }
+    },
+    "cats": [
+      {
+        "x": 11,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#ff6b5f",
+        "accent": "#9e302e",
+        "appearance": null,
+        "behavior": {
+          "strategy": "chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 1,
+          "wander": 0,
+          "respawnDelay": 0,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 12,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#f2a65a",
+        "accent": "#a6532c",
+        "appearance": null,
+        "behavior": {
+          "strategy": "ambush",
+          "speedMultiplier": 1,
+          "lookAhead": 3,
+          "wanderMultiplier": 2,
+          "wander": 0,
+          "respawnDelay": 0.9,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      },
+      {
+        "x": 13,
+        "y": 12,
+        "renderer": "cat",
+        "animation": "",
+        "color": "#b792e8",
+        "accent": "#66509d",
+        "appearance": null,
+        "behavior": {
+          "strategy": "scatter-chase",
+          "speedMultiplier": 1,
+          "lookAhead": 0,
+          "wanderMultiplier": 3,
+          "wander": 0,
+          "respawnDelay": 1.8,
+          "target": {
+            "x": 22,
+            "y": 22
+          }
+        }
+      }
+    ]
+  },
+  "collectibles": {
+    "powerUps": [
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 23,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 23
+      },
+      {
+        "x": 23,
+        "y": 23
+      }
+    ]
+  },
+  "gameplay": {
+    "pelletSeed": 679,
+    "treatTargets": {
+      "easy": 70,
+      "normal": 110,
+      "hard": 160
+    },
+    "difficulties": {
+      "easy": {
+        "playerSpeed": 5.8,
+        "catSpeed": 2.55,
+        "frightenedSpeed": 1.85,
+        "catCount": 2,
+        "lives": 5,
+        "powerDuration": 12,
+        "wander": 7.2,
+        "grace": 2.2
+      },
+      "normal": {
+        "playerSpeed": 5.55,
+        "catSpeed": 3.35,
+        "frightenedSpeed": 2.55,
+        "catCount": 3,
+        "lives": 3,
+        "powerDuration": 9,
+        "wander": 4.2,
+        "grace": 1.6
+      },
+      "hard": {
+        "playerSpeed": 5.35,
+        "catSpeed": 4.05,
+        "frightenedSpeed": 3.25,
+        "catCount": 3,
+        "lives": 2,
+        "powerDuration": 7,
+        "wander": 2.1,
+        "grace": 1.1
+      }
+    }
+  },
+  "source": {
+    "catalog": "Geburtstagsspiel",
+    "gameLayout": 7,
+    "markerClass": "industrial",
+    "home": false,
+    "mapOrder": 7
+  },
+  "decorations": [],
+  "events": []
+}
