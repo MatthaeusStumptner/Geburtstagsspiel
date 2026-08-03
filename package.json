@@ -10,7 +10,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "file:../Pacman_clone_renderer"
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#v1.0.0"
   },
   "devDependencies": {
     "vite": "^6.1.0"
