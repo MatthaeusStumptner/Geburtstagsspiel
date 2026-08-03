@@ -11,6 +11,7 @@ import {
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
+import { BELL_SEQUENCE, eventsForLocation } from './game/level-events.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 
 const canvas = document.querySelector('#game');
@@ -31,7 +32,6 @@ const EASTER_EGG_COUNT = 3;
 const SWIPE_ACTIVATION_DISTANCE = 4;
 const PLAYER_TURN_SNAP_DISTANCE = 0.28;
 const CAMERA_ZOOM = 1.12;
-const BELL_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'];
 
 const TEXT = {
   standard: {
@@ -1396,6 +1396,7 @@ function buildLevel() {
       } })),
     },
     collectibles: { powerUps: POWER_PELLET_POSITIONS.map(([x, y]) => ({ x, y })) },
+    events: eventsForLocation(location),
     gameplay: {
       treatTargets: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, config.treatTarget])),
       difficulties: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, {
@@ -2075,11 +2076,8 @@ function render() {
     elapsed,
     powerTimer,
     hitTimer: state === 'hit' ? hitTimer : 0,
-    easterEggs: {
-      ilzvogel: currentLocation().river.includes('ILZ') && unlockedEggs.has('ilzvogel'),
-      hundewiese: (currentLocation().home || currentLocation().theme === 'bschuett') && unlockedEggs.has('hundewiese'),
-      active: activeEasterEgg?.id,
-    },
+    unlockedEvents: unlockedEggs,
+    activeEventId: activeEasterEgg?.id,
   }, {
     alpha: simulationLoop.interpolationAlpha,
     viewport: playViewport,
