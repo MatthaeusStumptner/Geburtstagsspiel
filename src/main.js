@@ -1,9 +1,19 @@
 import './style.css';
+import {
+  PassauPixelRenderer,
+  compileWallGrid,
+  createLevelDocument,
+  reachableTileKeys,
+} from '@franz-lola/pixel-renderer';
+import { FixedStepLoop } from './core/fixed-step-loop.js';
+import { moveGridActor } from './game/grid-motion.js';
+import { aggregateProgress } from './game/progress-system.js';
+import { BrowserSaveStore } from './platform/browser-save-store.js';
 
 const canvas = document.querySelector('#game');
-const displayCtx = canvas.getContext('2d');
-const sceneCanvas = document.createElement('canvas');
-const ctx = sceneCanvas.getContext('2d');
+const pixelRenderer = new PassauPixelRenderer(canvas, { zoom: 1.12 });
+const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
+const saveStore = new BrowserSaveStore();
 
 const COLS = 25;
 const ROWS = 25;
@@ -430,7 +440,6 @@ const ui = {
   mobileGameMenuButton: document.querySelector('#mobile-game-menu-button'),
   mobileGameLevel: document.querySelector('#mobile-game-level'),
   mobileGameLocation: document.querySelector('#mobile-game-location'),
-  mobileFullscreenButton: document.querySelector('#mobile-fullscreen-button'),
   mapCompletedLevels: document.querySelector('#map-completed-levels'),
   mapTotalTreats: document.querySelector('#map-total-treats'),
   levelStatusScore: document.querySelector('#level-status-score'),
@@ -534,7 +543,6 @@ let currentOverlay = null;
 let directionHistory = [];
 let savePulseTimer;
 let audioContext;
-let lastFrame = performance.now();
 let elapsed = 0;
 let autoSaveElapsed = 0;
 let swipeStart = null;
@@ -547,6 +555,7 @@ let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
+let activeLevelDocument = null;
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -743,18 +752,11 @@ function globalProgressPercent() {
 }
 
 function aggregateMapProgress() {
-  const treatsPerLevel = difficultyConfig().treatTarget;
-  const treatsTotal = treatsPerLevel * PASSAU_LEVELS.length;
-  const treatsFound = PASSAU_LEVELS.reduce((sum, item) => {
-    if (completedLevelIds.has(item.id)) return sum + treatsPerLevel;
-    return sum + Math.min(treatsPerLevel, statsForLevel(item.id).bestTreats);
-  }, 0);
-  return {
-    completedLevels: completedLevelIds.size,
-    totalLevels: PASSAU_LEVELS.length,
-    treatsFound,
-    treatsTotal,
-  };
+  return aggregateProgress(
+    PASSAU_LEVELS.map((item) => item.id),
+    completedLevelIds,
+    levelStats,
+  );
 }
 
 function normalizeLevelStats(rawStats = {}) {
@@ -762,10 +764,10 @@ function normalizeLevelStats(rawStats = {}) {
     const raw = rawStats && typeof rawStats[item.id] === 'object' ? rawStats[item.id] : {};
     const completed = completedLevelIds.has(item.id) || Boolean(raw.completed);
     const inferredTotal = completed ? difficultyConfig().treatTarget : 0;
-    const treatsTotal = Math.max(0, Math.floor(Number(raw.treatsTotal) || inferredTotal));
-    const bestTreats = Math.min(
+    const treatsTotal = Math.max(inferredTotal, Math.max(0, Math.floor(Number(raw.treatsTotal) || 0)));
+    const bestTreats = completed ? treatsTotal : Math.min(
       treatsTotal || Number.MAX_SAFE_INTEGER,
-      Math.max(0, Math.floor(Number(raw.bestTreats) || (completed ? treatsTotal : 0))),
+      Math.max(0, Math.floor(Number(raw.bestTreats) || 0)),
     );
     return [item.id, {
       attempts: Math.max(completed ? 1 : 0, Math.floor(Number(raw.attempts) || 0)),
@@ -1031,7 +1033,6 @@ function applyLanguage() {
   updateLocationUi();
   setPauseButtons((state === 'menu' ? settingsReturnState : state) === 'paused');
   syncSoundButtons();
-  syncFullscreenUi();
   renderPassauMap();
   if (currentOverlay) refreshOverlay();
 }
@@ -1049,39 +1050,7 @@ function isMobileGameLayout() {
   ).matches;
 }
 
-function nativeFullscreenElement() {
-  return document.fullscreenElement ?? document.webkitFullscreenElement ?? null;
-}
-
-function syncFullscreenUi() {
-  const nativeActive = nativeFullscreenElement() === ui.boardColumn;
-  ui.mobileFullscreenButton.setAttribute('aria-pressed', String(nativeActive));
-  ui.mobileFullscreenButton.setAttribute(
-    'aria-label',
-    nativeActive ? t('exitFullscreenLabel') : t('enterFullscreenLabel'),
-  );
-  ui.mobileFullscreenButton.textContent = nativeActive ? '×' : '⛶';
-}
-
-function requestNativeFullscreen() {
-  if (!isMobileGameLayout() || nativeFullscreenElement()) {
-    syncFullscreenUi();
-    return;
-  }
-  const request = ui.boardColumn.requestFullscreen ?? ui.boardColumn.webkitRequestFullscreen;
-  if (!request) {
-    syncFullscreenUi();
-    return;
-  }
-  try {
-    const pending = request.call(ui.boardColumn);
-    pending?.catch(() => syncFullscreenUi());
-  } catch {
-    syncFullscreenUi();
-  }
-}
-
-function enterMobileGameMode(requestNative = false) {
+function enterMobileGameMode() {
   document.body.classList.remove('map-active');
   const alreadyActive = document.body.classList.contains('mobile-game-active');
   if (!alreadyActive) {
@@ -1090,8 +1059,6 @@ function enterMobileGameMode(requestNative = false) {
     document.body.classList.add('mobile-game-active');
   }
   resizeCanvas();
-  syncFullscreenUi();
-  if (requestNative) requestNativeFullscreen();
   return !alreadyActive;
 }
 
@@ -1101,39 +1068,13 @@ function leaveMobileGameMode(returnToBoard = false) {
   document.body.style.top = '';
   resizeCanvas();
 
-  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
-  if (nativeFullscreenElement() === ui.boardColumn && exit) {
-    try {
-      const pending = exit.call(document);
-      pending?.catch(() => syncFullscreenUi());
-    } catch {
-      syncFullscreenUi();
-    }
-  }
-
   if (wasActive) {
     requestAnimationFrame(() => {
       window.scrollTo(0, mobileScrollPosition);
       if (returnToBoard) ui.boardColumn.scrollIntoView({ block: 'start' });
     });
   }
-  syncFullscreenUi();
   return wasActive;
-}
-
-function toggleNativeFullscreen() {
-  enterMobileGameMode(false);
-  const exit = document.exitFullscreen ?? document.webkitExitFullscreen;
-  if (nativeFullscreenElement() === ui.boardColumn && exit) {
-    try {
-      const pending = exit.call(document);
-      pending?.catch(() => syncFullscreenUi());
-    } catch {
-      syncFullscreenUi();
-    }
-  } else {
-    requestNativeFullscreen();
-  }
 }
 
 function openMap() {
@@ -1154,7 +1095,7 @@ function openMap() {
 function startMapSelection() {
   closeMapSelection(false);
   document.body.classList.remove('map-active');
-  enterMobileGameMode(true);
+  enterMobileGameMode();
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
   if (!resumable) {
     selectedLevelId = mapSelectionId;
@@ -1183,7 +1124,6 @@ function showLevelIntro(resumable = false) {
     'levelIntroCopy',
     resumable ? 'resumeButton' : 'startButton',
     () => {
-      requestNativeFullscreen();
       state = 'playing';
       setPauseButtons(false);
       hideOverlay();
@@ -1264,8 +1204,7 @@ function showNewGameConfirmation() {
 
 function deleteStoredBrowserData() {
   try {
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(LEGACY_BEST_KEY);
+    saveStore.remove(SAVE_KEY, LEGACY_BEST_KEY);
   } catch {
     showOverlay(
       'deleteDataErrorKicker',
@@ -1316,11 +1255,7 @@ function showDeleteBrowserDataConfirmation() {
 }
 
 function loadLegacyBest() {
-  try {
-    return Number(localStorage.getItem(LEGACY_BEST_KEY)) || 0;
-  } catch {
-    return 0;
-  }
+  return saveStore.readNumber(LEGACY_BEST_KEY, 0);
 }
 
 function migrateLegacySave(parsed) {
@@ -1374,15 +1309,11 @@ function migrateLegacySave(parsed) {
 }
 
 function loadGame() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.version === SAVE_VERSION) return parsed;
-    if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
-    return null;
-  } catch {
-    return null;
-  }
+  const parsed = saveStore.readJson(SAVE_KEY);
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed.version === SAVE_VERSION) return parsed;
+  if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
+  return null;
 }
 
 function saveGame(quiet = false) {
@@ -1428,8 +1359,8 @@ function saveGame(quiet = false) {
   };
 
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
-    localStorage.removeItem(LEGACY_BEST_KEY);
+    saveStore.writeJson(SAVE_KEY, payload);
+    saveStore.remove(LEGACY_BEST_KEY);
     ui.saveStatus.textContent = t('saveSuccess');
     if (!quiet) {
       ui.saveNote.classList.add('saved');
@@ -1442,21 +1373,32 @@ function saveGame(quiet = false) {
 }
 
 function buildLevel() {
-  grid = Array.from({ length: ROWS }, (_, y) =>
-    Array.from({ length: COLS }, (_, x) => x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1),
-  );
-
-  grid[TUNNEL_ROW][0] = false;
-  grid[TUNNEL_ROW][COLS - 1] = false;
-
-  const blocks = LEVEL_BLOCKS[currentLocation().layout];
-  for (const [left, top, width, height] of blocks) {
-    for (let y = top; y < top + height; y += 1) {
-      for (let x = left; x < left + width; x += 1) grid[y][x] = true;
-    }
-  }
-
-  const reachable = reachableOpenKeys();
+  const location = currentLocation();
+  activeLevelDocument = createLevelDocument({
+    id: location.id,
+    icon: location.icon,
+    name: location.name,
+    description: location.description,
+    mission: location.mission,
+    location: { latitude: location.lat, longitude: location.lon, area: location.river },
+    board: {
+      columns: COLS,
+      rows: ROWS,
+      tileSize: TILE,
+      tunnelRows: [TUNNEL_ROW],
+      walls: LEVEL_BLOCKS[location.layout].map(([x, y, width, height]) => ({ x, y, width, height })),
+    },
+    theme: {
+      id: location.theme ?? 'neighborhood',
+      landmark: location.home ? 'brahmahof-home' : (location.theme ?? 'dog-park'),
+      palette: location.palette,
+    },
+    actors: { player: PLAYER_START, cats: CAT_STARTS },
+    collectibles: { powerUps: POWER_PELLET_POSITIONS.map(([x, y]) => ({ x, y })) },
+  });
+  grid = compileWallGrid(activeLevelDocument);
+  pixelRenderer.setLevel(activeLevelDocument);
+  const reachable = reachableTileKeys(activeLevelDocument);
   powerPellets = new Set();
   for (const [x, y] of POWER_PELLET_POSITIONS) {
     const key = toKey(x, y);
@@ -1603,7 +1545,7 @@ function restoreGame(save) {
   applyLanguage();
   updateHud();
 
-  if (save.mode !== 'map') enterMobileGameMode(false);
+  if (save.mode !== 'map') enterMobileGameMode();
 
   if (save.mode === 'map') {
     openMap();
@@ -1629,7 +1571,6 @@ function restoreGame(save) {
       'resumeCopy',
       'resumeButton',
       () => {
-        requestNativeFullscreen();
         state = 'playing';
         setPauseButtons(false);
         hideOverlay();
@@ -1702,7 +1643,7 @@ function setDirection(name) {
 }
 
 function startGame(reset = false) {
-  enterMobileGameMode(true);
+  enterMobileGameMode();
   const startsNewAttempt = reset || !runStarted;
   if (reset) {
     score = 0;
@@ -1729,7 +1670,6 @@ function togglePause() {
     state = 'paused';
     setPauseButtons(true);
     showOverlay('pauseKicker', 'pauseTitle', 'pauseCopy', 'pauseButton', () => {
-      requestNativeFullscreen();
       state = 'playing';
       setPauseButtons(false);
       hideOverlay();
@@ -1737,7 +1677,6 @@ function togglePause() {
     });
     saveGame();
   } else if (state === 'paused') {
-    requestNativeFullscreen();
     state = 'playing';
     setPauseButtons(false);
     hideOverlay();
@@ -1943,6 +1882,7 @@ function update(dt) {
   movePlayer(dt);
   for (const cat of cats) moveCat(cat, dt);
   collectTreats();
+  if (state !== 'playing') return;
   checkLocationEasterEggs();
 
   if (powerTimer > 0) powerTimer = Math.max(0, powerTimer - dt);
@@ -1951,21 +1891,13 @@ function update(dt) {
 
 function movePlayer(dt) {
   const speed = difficultyConfig().playerSpeed;
-  const centerX = Math.round(player.x);
-  const centerY = Math.round(player.y);
-  const threshold = speed * dt * 0.65 + 0.004;
-  const atCenter = Math.abs(player.x - centerX) < threshold && Math.abs(player.y - centerY) < threshold;
-
-  if (atCenter) {
-    player.x = centerX;
-    player.y = centerY;
-    if (canMove(centerX, centerY, player.nextDir)) player.dir = player.nextDir;
-    if (!canMove(centerX, centerY, player.dir)) player.dir = DIRECTIONS.none;
-  }
-
-  player.x += player.dir.x * speed * dt;
-  player.y += player.dir.y * speed * dt;
-  wrapActor(player);
+  moveGridActor(player, speed * dt, {
+    decideAtCenter(actor) {
+      if (canMove(actor.x, actor.y, actor.nextDir)) actor.dir = actor.nextDir;
+      if (!canMove(actor.x, actor.y, actor.dir)) actor.dir = DIRECTIONS.none;
+    },
+    wrap: wrapActor,
+  });
 }
 
 function moveCat(cat, dt) {
@@ -1976,24 +1908,16 @@ function moveCat(cat, dt) {
 
   const config = difficultyConfig();
   const speed = powerTimer > 0 ? config.frightenedSpeed : config.catSpeed;
-  const centerX = Math.round(cat.x);
-  const centerY = Math.round(cat.y);
-  const threshold = speed * dt * 0.65 + 0.004;
-  const atCenter = Math.abs(cat.x - centerX) < threshold && Math.abs(cat.y - centerY) < threshold;
-  const tileKey = toKey(centerX, centerY);
-
-  if (atCenter) {
-    cat.x = centerX;
-    cat.y = centerY;
-    if (cat.lastDecision !== tileKey || !canMove(centerX, centerY, cat.dir)) {
-      cat.dir = chooseCatDirection(cat, centerX, centerY);
-      cat.lastDecision = tileKey;
-    }
-  }
-
-  cat.x += cat.dir.x * speed * dt;
-  cat.y += cat.dir.y * speed * dt;
-  wrapActor(cat);
+  moveGridActor(cat, speed * dt, {
+    decideAtCenter(actor) {
+      const key = toKey(actor.x, actor.y);
+      if (actor.lastDecision !== key || !canMove(actor.x, actor.y, actor.dir)) {
+        actor.dir = chooseCatDirection(actor, actor.x, actor.y);
+        actor.lastDecision = key;
+      }
+    },
+    wrap: wrapActor,
+  });
 }
 
 function chooseCatDirection(cat, x, y) {
@@ -2021,8 +1945,8 @@ function chooseCatDirection(cat, x, y) {
 }
 
 function wrapActor(actor) {
-  if (actor.x < -0.55) actor.x = COLS - 0.45;
-  if (actor.x > COLS - 0.45) actor.x = -0.55;
+  if (actor.x < -0.5) actor.x = COLS - 0.5;
+  if (actor.x > COLS - 0.5) actor.x = -0.5;
 }
 
 function collectTreats() {
@@ -2053,7 +1977,7 @@ function collectTreats() {
   }
 
   if (collected) saveGame(true);
-  if (pellets.size === 0) completeLevel();
+  if (pellets.size === 0 && state === 'playing') completeLevel();
 }
 
 function checkCollisions() {
@@ -2163,14 +2087,44 @@ function vibrate(pattern) {
 }
 
 function render() {
-  ctx.clearRect(0, 0, BOARD_SIZE, BOARD_SIZE);
-  drawGround();
-  drawEasterEggs();
-  drawTreats();
-  for (const cat of cats) drawCat(cat);
-  drawWalker();
-  drawVignette();
-  presentScene();
+  if (!activeLevelDocument || !player) return;
+  const viewportWidth = Math.max(1, canvas.clientWidth);
+  const viewportHeight = Math.max(1, canvas.clientHeight);
+  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
+  const renderState = pixelRenderer.render({
+    level: activeLevelDocument,
+    player,
+    cats,
+    pellets,
+    powerUps: powerPellets,
+    elapsed,
+    powerTimer,
+    hitTimer: state === 'hit' ? hitTimer : 0,
+    easterEggs: {
+      ilzvogel: currentLocation().river.includes('ILZ') && unlockedEggs.has('ilzvogel'),
+      hundewiese: (currentLocation().home || currentLocation().theme === 'bschuett') && unlockedEggs.has('hundewiese'),
+      active: activeEasterEgg?.id,
+    },
+  }, {
+    alpha: simulationLoop.interpolationAlpha,
+    viewport: playViewport,
+    cameraEnabled: isCameraGameView(),
+  });
+  canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
+  canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
+  canvas.dataset.playerX = player.x.toFixed(3);
+  canvas.dataset.playerY = player.y.toFixed(3);
+  canvas.dataset.playerDirection = player.dir.name;
+  canvas.dataset.playerNextDirection = player.nextDir.name;
+  canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
+  canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
+  updateCatRadar(
+    renderState.camera.source.x,
+    renderState.camera.source.y,
+    renderState.camera.source.width,
+    renderState.camera.source.height,
+    playViewport,
+  );
 }
 
 function launchLevelConfetti() {
@@ -2745,35 +2699,18 @@ function drawVignette() {
 }
 
 function frame(now) {
-  const dt = Math.min((now - lastFrame) / 1000, 0.033);
-  lastFrame = now;
-  if (state === 'playing' || state === 'hit') {
+  simulationLoop.advance(now, (dt) => {
+    if (state !== 'playing' && state !== 'hit') return;
     update(dt);
     autoSaveElapsed += dt;
-    if (autoSaveElapsed >= 2) {
-      autoSaveElapsed = 0;
-      saveGame(true);
-    }
-  }
+    if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
+  });
   render();
   requestAnimationFrame(frame);
 }
 
 function resizeCanvas() {
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const bounds = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round((bounds.width || BOARD_SIZE) * ratio));
-  const height = Math.max(1, Math.round((bounds.height || BOARD_SIZE) * ratio));
-  if (canvas.width !== width) canvas.width = width;
-  if (canvas.height !== height) canvas.height = height;
-
-  if (sceneCanvas.width !== BOARD_SIZE * SCENE_PIXEL_RATIO) {
-    sceneCanvas.width = BOARD_SIZE * SCENE_PIXEL_RATIO;
-    sceneCanvas.height = BOARD_SIZE * SCENE_PIXEL_RATIO;
-  }
-  ctx.setTransform(SCENE_PIXEL_RATIO, 0, 0, SCENE_PIXEL_RATIO, 0, 0);
-  ctx.imageSmoothingEnabled = false;
-  displayCtx.imageSmoothingEnabled = false;
+  pixelRenderer.resize();
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2913,7 +2850,6 @@ ui.settingsPauseButton.addEventListener('click', toggleSettingsPause);
 ui.settingsMapButton.addEventListener('click', openMap);
 ui.mapButton.addEventListener('click', openMap);
 ui.mobileGameMenuButton.addEventListener('click', openSettings);
-ui.mobileFullscreenButton.addEventListener('click', toggleNativeFullscreen);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
 ui.mapCanvas.addEventListener('click', (event) => {
@@ -2963,20 +2899,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
 
-function handleFullscreenChange() {
-  syncFullscreenUi();
-  resizeCanvas();
-}
-
-document.addEventListener('fullscreenchange', handleFullscreenChange);
-document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 document.addEventListener('touchmove', (event) => {
   if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
 }, { passive: false });
 
 window.addEventListener('resize', () => {
   resizeCanvas();
-  syncFullscreenUi();
   positionMapMarkers();
 });
 const canvasResizeObserver = 'ResizeObserver' in window
