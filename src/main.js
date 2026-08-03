@@ -1,12 +1,15 @@
 import './style.css';
 import {
+  DIRECTIONS,
+  FixedStepLoop,
   PassauPixelRenderer,
+  chooseCatDirection as chooseSharedCatDirection,
   compileWallGrid,
   createLevelDocument,
+  moveCatActor,
+  movePlayerActor,
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
-import { FixedStepLoop } from './core/fixed-step-loop.js';
-import { moveGridActor } from './game/grid-motion.js';
 import { aggregateProgress } from './game/progress-system.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 
@@ -334,14 +337,6 @@ const MAP_CONTENT_WIDTH = MAP_WIDTH_KM * MAP_UNITS_PER_KM;
 const MAP_CONTENT_HEIGHT = MAP_HEIGHT_KM * MAP_UNITS_PER_KM;
 const MAP_OFFSET_X = (MAP_VIEWBOX_SIZE - MAP_CONTENT_WIDTH) / 2;
 const MAP_OFFSET_Y = (MAP_VIEWBOX_SIZE - MAP_CONTENT_HEIGHT) / 2;
-
-const DIRECTIONS = {
-  up: { x: 0, y: -1, name: 'up' },
-  down: { x: 0, y: 1, name: 'down' },
-  left: { x: -1, y: 0, name: 'left' },
-  right: { x: 1, y: 0, name: 'right' },
-  none: { x: 0, y: 0, name: 'none' },
-};
 
 const LEVEL_BLOCKS = [
   [
@@ -812,7 +807,7 @@ function applyDifficultyUi() {
 }
 
 function createCat(index) {
-  const cat = CAT_STARTS[index];
+  const cat = activeLevelDocument?.actors.cats[index] ?? CAT_STARTS[index];
   return {
     ...cat,
     index,
@@ -820,7 +815,7 @@ function createCat(index) {
     y: cat.y,
     dir: index === 0 ? DIRECTIONS.left : index === 1 ? DIRECTIONS.up : DIRECTIONS.right,
     lastDecision: '',
-    respawnTimer: index * 0.9,
+    respawnTimer: cat.behavior?.respawnDelay ?? index * 0.9,
   };
 }
 
@@ -1393,8 +1388,21 @@ function buildLevel() {
       landmark: location.home ? 'brahmahof-home' : (location.theme ?? 'dog-park'),
       palette: location.palette,
     },
-    actors: { player: PLAYER_START, cats: CAT_STARTS },
+    actors: {
+      player: { ...PLAYER_START, behavior: { controller: 'user', speedMultiplier: 1 } },
+      cats: CAT_STARTS.map((cat, index) => ({ ...cat, behavior: {
+        strategy: index === 1 ? 'ambush' : index === 2 ? 'scatter-chase' : 'chase', speedMultiplier: 1,
+        lookAhead: index === 1 ? 3 : 0, wanderMultiplier: index + 1, respawnDelay: index * 0.9, target: { x: 22, y: 22 },
+      } })),
+    },
     collectibles: { powerUps: POWER_PELLET_POSITIONS.map(([x, y]) => ({ x, y })) },
+    gameplay: {
+      treatTargets: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, config.treatTarget])),
+      difficulties: Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, config]) => [name, {
+        playerSpeed: config.playerSpeed, catSpeed: config.catSpeed, frightenedSpeed: config.frightenedSpeed,
+        catCount: config.catCount, lives: config.lives, powerDuration: config.powerDuration, wander: config.wander, grace: config.grace,
+      }])),
+    },
   });
   grid = compileWallGrid(activeLevelDocument);
   pixelRenderer.setLevel(activeLevelDocument);
@@ -1448,9 +1456,11 @@ function reachableOpenKeys() {
 }
 
 function resetActors() {
+  const playerSource = activeLevelDocument?.actors.player ?? PLAYER_START;
   player = {
-    x: PLAYER_START.x,
-    y: PLAYER_START.y,
+    ...playerSource,
+    x: playerSource.x,
+    y: playerSource.y,
     dir: DIRECTIONS.left,
     nextDir: DIRECTIONS.left,
   };
@@ -1891,13 +1901,7 @@ function update(dt) {
 
 function movePlayer(dt) {
   const speed = difficultyConfig().playerSpeed;
-  moveGridActor(player, speed * dt, {
-    decideAtCenter(actor) {
-      if (canMove(actor.x, actor.y, actor.nextDir)) actor.dir = actor.nextDir;
-      if (!canMove(actor.x, actor.y, actor.dir)) actor.dir = DIRECTIONS.none;
-    },
-    wrap: wrapActor,
-  });
+  movePlayerActor(player, speed * dt, { canMove, wrap: wrapActor });
 }
 
 function moveCat(cat, dt) {
@@ -1908,40 +1912,11 @@ function moveCat(cat, dt) {
 
   const config = difficultyConfig();
   const speed = powerTimer > 0 ? config.frightenedSpeed : config.catSpeed;
-  moveGridActor(cat, speed * dt, {
-    decideAtCenter(actor) {
-      const key = toKey(actor.x, actor.y);
-      if (actor.lastDecision !== key || !canMove(actor.x, actor.y, actor.dir)) {
-        actor.dir = chooseCatDirection(actor, actor.x, actor.y);
-        actor.lastDecision = key;
-      }
-    },
-    wrap: wrapActor,
-  });
+  moveCatActor(cat, speed * dt, { canMove, wrap: wrapActor, chooseDirection: (actor, x, y) => chooseCatDirection(actor, x, y) });
 }
 
 function chooseCatDirection(cat, x, y) {
-  const reverse = { x: -cat.dir.x, y: -cat.dir.y };
-  let options = Object.values(DIRECTIONS).filter(
-    (direction) => direction.name !== 'none' && canMove(x, y, direction),
-  );
-  const withoutReverse = options.filter((direction) => direction.x !== reverse.x || direction.y !== reverse.y);
-  if (withoutReverse.length) options = withoutReverse;
-
-  const ahead = cat.index === 1 ? 3 : 0;
-  const target = cat.index === 2 && Math.sin(elapsed * 0.7) > 0.35
-    ? { x: 22, y: 22 }
-    : { x: player.x + player.dir.x * ahead, y: player.y + player.dir.y * ahead };
-
-  return options
-    .map((direction) => {
-      const dx = x + direction.x - target.x;
-      const dy = y + direction.y - target.y;
-      const distance = dx * dx + dy * dy;
-      const personality = Math.random() * (cat.index + 1) * difficultyConfig().wander;
-      return { direction, score: powerTimer > 0 ? -distance + personality : distance + personality };
-    })
-    .sort((a, b) => a.score - b.score)[0]?.direction ?? DIRECTIONS.none;
+  return chooseSharedCatDirection({ cat, x, y, player, elapsed, powerActive: powerTimer > 0, canMove, wander: difficultyConfig().wander });
 }
 
 function wrapActor(actor) {
