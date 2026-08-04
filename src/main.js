@@ -2034,6 +2034,7 @@ function render() {
     alpha: simulationLoop.interpolationAlpha,
     viewport: playViewport,
     cameraEnabled: cutsceneSnapshot ? true : isCameraGameView(),
+    language,
     cameraTarget: cutsceneSnapshot?.camera ? {
       x: cutsceneSnapshot.camera.x * activeLevelDocument.board.tileSize + activeLevelDocument.board.tileSize / 2,
       y: cutsceneSnapshot.camera.y * activeLevelDocument.board.tileSize + activeLevelDocument.board.tileSize / 2,

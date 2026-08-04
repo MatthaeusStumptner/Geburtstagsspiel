@@ -36,3 +36,20 @@ test('original Passau events live in the published level files', async () => {
   assert.ok(events.some((event) => event.id === 'hundewiese' && event.message.dialect.includes('Lieblingsplatzerl')));
   assert.ok(events.some((event) => event.id === 'kirchenglockn' && event.trigger.type === 'direction-sequence'));
 });
+
+test('every Passau level ships a distinct intro, a new event object and movable localized text', async () => {
+  const levels = await Promise.all((await readdir(directory)).filter((name) => name.endsWith('.level.json'))
+    .map(async (filename) => JSON.parse(await readFile(resolve(directory, filename), 'utf8'))));
+  const signatures = new Set();
+  for (const level of levels) {
+    const intro = level.cutscenes.find((cutscene) => cutscene.id === 'intro');
+    assert.ok(intro, `${level.id} intro`);
+    assert.ok(intro.tracks.some((track) => track.type === 'camera'), `${level.id} camera`);
+    assert.ok(intro.tracks.some((track) => track.type === 'dialogue'), `${level.id} dialogue`);
+    assert.ok(level.events.some((event) => event.visual.assetId), `${level.id} authored event object`);
+    const copy = level.decorations.find((item) => item.type === 'text');
+    assert.ok(copy?.content.standard && copy?.content.dialect, `${level.id} localized movable text`);
+    signatures.add(`${intro.duration}:${intro.tracks.length}:${intro.tracks.flatMap((track) => track.keyframes).length}`);
+  }
+  assert.equal(signatures.size, levels.length);
+});
