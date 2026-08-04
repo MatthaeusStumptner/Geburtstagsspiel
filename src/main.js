@@ -13,12 +13,14 @@ import {
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
+import { LevelCutscenePlayer } from './game/level-cutscene-player.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 
 const canvas = document.querySelector('#game');
 const pixelRenderer = new PassauPixelRenderer(canvas, { zoom: 1.12 });
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
+const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
 
 const COLS = 25;
@@ -43,6 +45,7 @@ const TEXT = {
     mapKicker: 'DEINE GASSI-KARTE', mapTitle: 'Wo geht es heute hin?',
     mapCopy: 'Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.',
     mapStart: 'LEVEL STARTEN →', mapResume: 'WEITERGASSI →', mapButton: 'PASSAU-KARTE',
+    cutsceneSkip: 'ÜBERSPRINGEN →',
     settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & DARSTELLUNG', settingsTitle: 'Gassi-Zentrale',
     settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen schließen',
     menuLabel: 'MENÜ', levelIntroKicker: 'KURZ DIE LEINE SORTIEREN', levelIntroTitle: '{place}',
@@ -107,6 +110,7 @@ const TEXT = {
     mapKicker: 'DEI GASSI-KARTN', mapTitle: "Wo geh ma heit hi?",
     mapCopy: 'Suach da a Platzerl in Passau aus. De Abständ san geografisch skaliert.',
     mapStart: 'LEVEL STARTN →', mapResume: 'WEIDAGASSI →', mapButton: 'PASSAU-KARTN',
+    cutsceneSkip: 'ÜBERSPRINGA →',
     settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & ANSCHAUN', settingsTitle: 'Gassi-Zentraln',
     settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen zumacha',
     menuLabel: 'MENÜ', levelIntroKicker: 'KURZ D’LEIN SORTIERN', levelIntroTitle: '{place}',
@@ -314,6 +318,12 @@ const ui = {
   levelStatusLives: document.querySelector('#level-status-lives'),
   catRadar: document.querySelector('#cat-radar'),
   levelConfetti: document.querySelector('#level-confetti'),
+  levelCutscene: document.querySelector('#level-cutscene'),
+  levelCutsceneTitle: document.querySelector('#level-cutscene-title'),
+  levelCutsceneDialogue: document.querySelector('#level-cutscene-dialogue'),
+  levelCutsceneSpeaker: document.querySelector('#level-cutscene-speaker'),
+  levelCutsceneText: document.querySelector('#level-cutscene-text'),
+  levelCutsceneSkip: document.querySelector('#level-cutscene-skip'),
   mapButton: document.querySelector('#map-button'),
   mapScreen: document.querySelector('#map-screen'),
   mapCanvas: document.querySelector('#map-canvas'),
@@ -895,6 +905,7 @@ function updateLocationUi() {
 }
 
 function applyLanguage() {
+  levelCutscenePlayer.setLanguage(language);
   document.documentElement.lang = language === 'dialect' ? 'bar' : 'de';
   document.querySelectorAll('[data-i18n]').forEach((element) => {
     element.textContent = t(element.dataset.i18n);
@@ -909,6 +920,7 @@ function applyLanguage() {
   ui.settingsCloseButton.setAttribute('aria-label', t('settingsCloseLabel'));
   ui.mapSelectionClose.setAttribute('aria-label', t('mapDetailsClose'));
   ui.mobileGameMenuButton.setAttribute('aria-label', t('menuLabel'));
+  ui.levelCutsceneSkip.textContent = t('cutsceneSkip');
   applyDifficultyUi();
   updateLocationUi();
   setPauseButtons((state === 'menu' ? settingsReturnState : state) === 'paused');
@@ -958,6 +970,8 @@ function leaveMobileGameMode(returnToBoard = false) {
 }
 
 function openMap() {
+  levelCutscenePlayer.reset();
+  hideLevelCutsceneUi();
   leaveMobileGameMode(true);
   closeSettings(false);
   closeMapSelection(false);
@@ -1004,11 +1018,9 @@ function showLevelIntro(resumable = false) {
     'levelIntroCopy',
     resumable ? 'resumeButton' : 'startButton',
     () => {
-      state = 'playing';
-      setPauseButtons(false);
       hideOverlay();
-      ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(item.name)}`;
-      saveGame();
+      if (!resumable && startLevelCutscene()) return;
+      enterLevelPlay();
     },
     () => ({ place: localized(item.name), description: localized(item.description) }),
     { variant: 'level-intro', showControls: true },
@@ -1018,7 +1030,51 @@ function showLevelIntro(resumable = false) {
     : t('controlMenuHint');
 }
 
+function hideLevelCutsceneUi() {
+  ui.levelCutscene.hidden = true;
+  ui.levelCutsceneDialogue.hidden = true;
+}
+
+function syncLevelCutsceneUi(snapshot = levelCutscenePlayer.snapshot()) {
+  if (!snapshot || !levelCutscenePlayer.cutscene) { hideLevelCutsceneUi(); return; }
+  ui.levelCutscene.hidden = false;
+  ui.levelCutsceneTitle.textContent = localized(levelCutscenePlayer.cutscene.name).toUpperCase();
+  ui.levelCutsceneSkip.hidden = !levelCutscenePlayer.cutscene.skippable;
+  ui.levelCutsceneDialogue.hidden = !snapshot.dialogue;
+  if (snapshot.dialogue) {
+    ui.levelCutsceneSpeaker.textContent = snapshot.dialogue.speaker;
+    ui.levelCutsceneText.textContent = snapshot.dialogue.text;
+  }
+}
+
+function startLevelCutscene() {
+  if (!levelCutscenePlayer.start(activeLevelDocument, { id: 'intro', language })) return false;
+  state = 'cutscene';
+  setPauseButtons(false);
+  swipeInput.cancel();
+  syncLevelCutsceneUi();
+  ui.announcement.textContent = localized(levelCutscenePlayer.cutscene.name);
+  return true;
+}
+
+function enterLevelPlay() {
+  levelCutscenePlayer.reset();
+  hideLevelCutsceneUi();
+  state = 'playing';
+  setPauseButtons(false);
+  hideOverlay();
+  ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(currentLocation().name)}`;
+  saveGame();
+}
+
+function updateLevelCutscene(dt) {
+  if (levelCutscenePlayer.advance(dt)) enterLevelPlay();
+  else syncLevelCutsceneUi();
+}
+
 function resetGameProgress() {
+  levelCutscenePlayer.reset();
+  hideLevelCutsceneUi();
   leaveMobileGameMode(true);
   document.body.classList.add('map-active');
   state = 'map';
@@ -1423,9 +1479,9 @@ function restoreGame(save) {
 
   if (save.mode === 'map') {
     openMap();
-  } else if (save.mode === 'intro') {
+  } else if (save.mode === 'intro' || save.mode === 'cutscene') {
     state = 'intro';
-    showLevelIntro(true);
+    showLevelIntro(false);
   } else if (!runStarted) {
     state = 'ready';
     showStartOverlay();
@@ -1479,6 +1535,7 @@ function canMove(x, y, direction) {
 }
 
 function setDirection(name) {
+  if (state === 'cutscene') return;
   if (!DIRECTIONS[name]) return;
   const direction = DIRECTIONS[name];
   queuePlayerDirection(player, direction);
@@ -1949,7 +2006,20 @@ function render() {
   const viewportWidth = Math.max(1, canvas.clientWidth);
   const viewportHeight = Math.max(1, canvas.clientHeight);
   const playViewport = gameplayViewport(viewportWidth, viewportHeight);
-  const renderState = pixelRenderer.render({
+  const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
+  const renderState = pixelRenderer.render(cutsceneSnapshot ? {
+    level: activeLevelDocument,
+    player: cutsceneSnapshot.player,
+    cats: cutsceneSnapshot.cats,
+    decorations: cutsceneSnapshot.decorations,
+    pellets: new Set(),
+    powerUps: powerPellets,
+    elapsed: levelCutscenePlayer.time,
+    powerTimer: 0,
+    hitTimer: 0,
+    unlockedEvents: activeUnlockedEventIds(),
+    activeEventId: null,
+  } : {
     level: activeLevelDocument,
     player,
     cats,
@@ -1963,14 +2033,21 @@ function render() {
   }, {
     alpha: simulationLoop.interpolationAlpha,
     viewport: playViewport,
-    cameraEnabled: isCameraGameView(),
+    cameraEnabled: cutsceneSnapshot ? true : isCameraGameView(),
+    cameraTarget: cutsceneSnapshot?.camera ? {
+      x: cutsceneSnapshot.camera.x * activeLevelDocument.board.tileSize + activeLevelDocument.board.tileSize / 2,
+      y: cutsceneSnapshot.camera.y * activeLevelDocument.board.tileSize + activeLevelDocument.board.tileSize / 2,
+    } : undefined,
+    zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
   });
   canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
   canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
-  canvas.dataset.playerX = player.x.toFixed(3);
-  canvas.dataset.playerY = player.y.toFixed(3);
-  canvas.dataset.playerDirection = player.dir.name;
-  canvas.dataset.playerNextDirection = player.nextDir.name;
+  canvas.dataset.playerX = (cutsceneSnapshot?.player.x ?? player.x).toFixed(3);
+  canvas.dataset.playerY = (cutsceneSnapshot?.player.y ?? player.y).toFixed(3);
+  canvas.dataset.playerDirection = cutsceneSnapshot?.player.direction?.name ?? player.dir.name;
+  canvas.dataset.playerNextDirection = cutsceneSnapshot ? '' : player.nextDir.name;
+  canvas.dataset.cutscene = state === 'cutscene' ? levelCutscenePlayer.cutscene.id : '';
+  canvas.dataset.cutsceneTime = state === 'cutscene' ? levelCutscenePlayer.time.toFixed(3) : '';
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
   updateCatRadar(
@@ -2555,6 +2632,7 @@ function drawVignette() {
 
 function frame(now) {
   simulationLoop.advance(now, (dt) => {
+    if (state === 'cutscene') { updateLevelCutscene(dt); return; }
     if (state !== 'playing' && state !== 'hit') return;
     update(dt);
     autoSaveElapsed += dt;
@@ -2686,6 +2764,9 @@ ui.mapButton.addEventListener('click', openMap);
 ui.mobileGameMenuButton.addEventListener('click', openSettings);
 ui.mapStartButton.addEventListener('click', startMapSelection);
 ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
+ui.levelCutsceneSkip.addEventListener('click', () => {
+  if (state === 'cutscene' && levelCutscenePlayer.skip()) enterLevelPlay();
+});
 ui.mapCanvas.addEventListener('click', (event) => {
   if (!event.target.closest('.map-marker-wrap') && !ui.mapSelection.hidden) closeMapSelection(false);
 });
@@ -2810,6 +2891,19 @@ if (import.meta.env.DEV) {
     pellets.clear();
     powerPellets.clear();
     completeLevel();
+    return window.__GASSI_DEBUG__();
+  };
+  window.__GASSI_DEBUG_CUTSCENE__ = (cutscene) => {
+    activeLevelDocument = createLevelDocument({ ...activeLevelDocument, cutscenes: [cutscene] });
+    pixelRenderer.setLevel(activeLevelDocument);
+    hideOnboarding();
+    document.body.classList.remove('map-active');
+    enterMobileGameMode();
+    ui.mapScreen.hidden = true;
+    hideOverlay();
+    runStarted = true;
+    startLevelCutscene();
+    render();
     return window.__GASSI_DEBUG__();
   };
 }
