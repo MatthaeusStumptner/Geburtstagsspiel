@@ -303,7 +303,82 @@
     "home": false,
     "mapOrder": 6
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "bschuett-bank",
+      "assetId": "bench",
+      "name": "Parkbank",
+      "type": "bench",
+      "x": 6,
+      "y": 15,
+      "width": 2,
+      "height": 1,
+      "color": "#b4794f",
+      "label": "",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "",
+        "dialect": ""
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "park-regel",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 8,
+      "y": 4,
+      "width": 9,
+      "height": 2,
+      "color": "#8fcfa8",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Skaten · Spielen · Gassi",
+        "dialect": "Skaten · Spuin · Gassi"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "ilzvogel",
@@ -344,7 +419,18 @@
         "color": "#31b7cf",
         "accent": "#f1d05c",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
     },
     {
@@ -380,8 +466,273 @@
         "color": "#75a27c",
         "accent": "#f5c451",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "lolas-stockerl",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Lolas Superstöckchen",
+        "dialect": "D Lolas Supersteckerl"
+      },
+      "message": {
+        "standard": "Lola hat das beste Stöckchen im ganzen Bschüttpark gefunden.",
+        "dialect": "D Lola hod s beste Steckerl im ganzen Bschüttpark gfundn."
+      },
+      "reward": 140,
+      "scope": "level",
+      "trigger": {
+        "type": "direction-sequence",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [
+          "left",
+          "right",
+          "left",
+          "right",
+          "up"
+        ],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 7,
+        "y": 15.5,
+        "color": "#b4794f",
+        "accent": "#f5c451",
+        "label": "/",
+        "visibility": "after-trigger",
+        "assetId": "lola-stick",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#b4794f"
+          ],
+          "pixels": [
+            "00000000",
+            "00000010",
+            "00000110",
+            "00001100",
+            "00011000",
+            "00110000",
+            "01100000",
+            "01000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00000000",
+                    "00000010",
+                    "00000110",
+                    "00001100",
+                    "00011000",
+                    "00110000",
+                    "01100000",
+                    "01000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00000000",
+                    "00000010",
+                    "00000110",
+                    "00001100",
+                    "00011000",
+                    "00110000",
+                    "01100000",
+                    "01000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "spin",
+          "speed": 0.2,
+          "amplitude": 0.04,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Runde durch den Bschüttpark",
+        "dialect": "Rundn durch an Bschüttpark"
+      },
+      "duration": 4.8,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "park",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 12,
+              "zoom": 1.38
+            },
+            {
+              "id": "bank",
+              "time": 2,
+              "easing": "ease-in-out",
+              "x": 7,
+              "y": 15,
+              "zoom": 1.42
+            },
+            {
+              "id": "start",
+              "time": 4.8,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "kommt",
+              "time": 0,
+              "easing": "linear",
+              "x": 9,
+              "y": 20,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "wartet",
+              "time": 3.1,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 4.8,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "neugierige-katze",
+          "type": "actor",
+          "target": "cat:0",
+          "keyframes": [
+            {
+              "id": "schaut",
+              "time": 0,
+              "easing": "linear",
+              "x": 7,
+              "y": 14,
+              "state": "down",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "flitzt",
+              "time": 3.2,
+              "easing": "linear",
+              "x": 11,
+              "y": 12,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "park",
+              "time": 0.7,
+              "easing": "step",
+              "duration": 2.2,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Im Bschüttpark ist heute ordentlich etwas los.",
+                "dialect": "Im Bschüttpark is heid gscheid wos los."
+              }
+            },
+            {
+              "id": "lola",
+              "time": 3.2,
+              "easing": "step",
+              "duration": 1.2,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Lola, das Stöckchen bleibt liegen!",
+                "dialect": "Lola, des Steckerl bleibt liegn!"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

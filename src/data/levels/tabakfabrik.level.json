@@ -297,6 +297,428 @@
     "home": false,
     "mapOrder": 7
   },
-  "decorations": [],
-  "events": []
+  "decorations": [
+    {
+      "id": "fabrikdampf",
+      "assetId": "factory-steam",
+      "name": "Fabrikdampf",
+      "type": "custom",
+      "x": 6,
+      "y": 3,
+      "width": 2,
+      "height": 2,
+      "color": "#f0d0a0",
+      "label": "≈",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#f0d0a0"
+        ],
+        "pixels": [
+          "00011000",
+          "00110000",
+          "00011000",
+          "00001100",
+          "00011000",
+          "00110000",
+          "00000000",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00011000",
+                  "00110000",
+                  "00011000",
+                  "00001100",
+                  "00011000",
+                  "00110000",
+                  "00000000",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00011000",
+                  "00110000",
+                  "00011000",
+                  "00001100",
+                  "00011000",
+                  "00110000",
+                  "00000000",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "bob",
+        "speed": 0.45,
+        "amplitude": 0.18,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "≈",
+        "dialect": "≈"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "fabrik-tafel",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 8,
+      "width": 11,
+      "height": 2,
+      "color": "#f0d0a0",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Kultur in der Tabakfabrik",
+        "dialect": "Kultur in da Tabakfabrik"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "dampfzeichen",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Das alte Dampfzeichen",
+        "dialect": "S oide Dampfzeichen"
+      },
+      "message": {
+        "standard": "Über dem Schornstein erscheint ein kleines Dampfzeichen.",
+        "dialect": "Überm Kamin kimmt a kloans Dampfzeichen."
+      },
+      "reward": 150,
+      "scope": "level",
+      "trigger": {
+        "type": "time",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [],
+        "seconds": 15
+      },
+      "visual": {
+        "type": "custom",
+        "x": 7,
+        "y": 4,
+        "color": "#f0d0a0",
+        "accent": "#f5c451",
+        "label": "≈",
+        "visibility": "after-trigger",
+        "assetId": "factory-steam",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#f0d0a0"
+          ],
+          "pixels": [
+            "00011000",
+            "00110000",
+            "00011000",
+            "00001100",
+            "00011000",
+            "00110000",
+            "00000000",
+            "00000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00011000",
+                    "00110000",
+                    "00011000",
+                    "00001100",
+                    "00011000",
+                    "00110000",
+                    "00000000",
+                    "00000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00011000",
+                    "00110000",
+                    "00011000",
+                    "00001100",
+                    "00011000",
+                    "00110000",
+                    "00000000",
+                    "00000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "bob",
+          "speed": 0.45,
+          "amplitude": 0.18,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Die Fabrik erwacht",
+        "dialect": "D Fabrik wacht auf"
+      },
+      "duration": 5.8,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "schornstein",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 7,
+              "y": 3,
+              "zoom": 1.62
+            },
+            {
+              "id": "fassade",
+              "time": 2,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 9,
+              "zoom": 1.36
+            },
+            {
+              "id": "tor",
+              "time": 4,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 16,
+              "zoom": 1.28
+            },
+            {
+              "id": "start",
+              "time": 5.8,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "dampf",
+          "type": "object",
+          "target": "fabrikdampf",
+          "keyframes": [
+            {
+              "id": "unsichtbar",
+              "time": 0,
+              "easing": "linear",
+              "x": 6,
+              "y": 4,
+              "state": "idle",
+              "animation": "",
+              "visible": false
+            },
+            {
+              "id": "wolke-1",
+              "time": 0.6,
+              "easing": "ease-in-out",
+              "x": 6,
+              "y": 3,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            },
+            {
+              "id": "wolke-2",
+              "time": 2.2,
+              "easing": "ease-in-out",
+              "x": 7,
+              "y": 1.5,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "tor",
+              "time": 0,
+              "easing": "linear",
+              "x": 10,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 5.8,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "fabrik-katze",
+          "type": "actor",
+          "target": "cat:1",
+          "keyframes": [
+            {
+              "id": "lauert",
+              "time": 0,
+              "easing": "linear",
+              "x": 15,
+              "y": 15,
+              "state": "left",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "verschwindet",
+              "time": 4.2,
+              "easing": "linear",
+              "x": 19,
+              "y": 15,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "dampf",
+              "time": 0.7,
+              "easing": "step",
+              "duration": 1.8,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Die alte Fabrik gibt noch immer Zeichen.",
+                "dialect": "D oide Fabrik gibt no oiwei Zeichen."
+              }
+            },
+            {
+              "id": "katze",
+              "time": 3,
+              "easing": "step",
+              "duration": 1.7,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Und eine Katze hat Nachtschicht.",
+                "dialect": "Und a Katz hod Nachtschicht."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

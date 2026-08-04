@@ -309,7 +309,146 @@
     "home": false,
     "mapOrder": 3
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "domglocke-objekt",
+      "assetId": "cathedral-bell",
+      "name": "Domglocke",
+      "type": "custom",
+      "x": 11,
+      "y": 3,
+      "width": 2,
+      "height": 2,
+      "color": "#f5c451",
+      "label": "♜",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#8f6c2e",
+          "#f5c451"
+        ],
+        "pixels": [
+          "00011000",
+          "00111100",
+          "01111110",
+          "01122110",
+          "01111110",
+          "11111111",
+          "00111100",
+          "00011000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00011000",
+                  "00111100",
+                  "01111110",
+                  "01122110",
+                  "01111110",
+                  "11111111",
+                  "00111100",
+                  "00011000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00011000",
+                  "00111100",
+                  "01111110",
+                  "01122110",
+                  "01111110",
+                  "11111111",
+                  "00111100",
+                  "00011000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "spin",
+        "speed": 0.25,
+        "amplitude": 0.08,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "♜",
+        "dialect": "♜"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "dom-tafel",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 6,
+      "width": 11,
+      "height": 2,
+      "color": "#f1d05c",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Dom St. Stephan",
+        "dialect": "Dom St. Stephan"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "kirchenglockn",
@@ -353,8 +492,286 @@
         "color": "#8f6c2e",
         "accent": "#f5c451",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "orgelakkord",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Der große Orgelakkord",
+        "dialect": "Da große Orgelakkord"
+      },
+      "message": {
+        "standard": "Ein tiefer Akkord rollt über den Domplatz.",
+        "dialect": "A tiafa Akkord rollt üban Domplatz."
+      },
+      "reward": 180,
+      "scope": "level",
+      "trigger": {
+        "type": "time",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [],
+        "seconds": 12
+      },
+      "visual": {
+        "type": "custom",
+        "x": 12,
+        "y": 4,
+        "color": "#f5c451",
+        "accent": "#f5c451",
+        "label": "♜",
+        "visibility": "after-trigger",
+        "assetId": "cathedral-bell",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#8f6c2e",
+            "#f5c451"
+          ],
+          "pixels": [
+            "00011000",
+            "00111100",
+            "01111110",
+            "01122110",
+            "01111110",
+            "11111111",
+            "00111100",
+            "00011000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00011000",
+                    "00111100",
+                    "01111110",
+                    "01122110",
+                    "01111110",
+                    "11111111",
+                    "00111100",
+                    "00011000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00011000",
+                    "00111100",
+                    "01111110",
+                    "01122110",
+                    "01111110",
+                    "11111111",
+                    "00111100",
+                    "00011000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "spin",
+          "speed": 0.25,
+          "amplitude": 0.08,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Glocken über Passau",
+        "dialect": "Glockn über Passau"
+      },
+      "duration": 5.6,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "turm",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 2,
+              "zoom": 1.72
+            },
+            {
+              "id": "glocke",
+              "time": 1.8,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 4,
+              "zoom": 1.52
+            },
+            {
+              "id": "platz",
+              "time": 3.8,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 14,
+              "zoom": 1.25
+            },
+            {
+              "id": "start",
+              "time": 5.6,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "glockenschwung",
+          "type": "object",
+          "target": "domglocke-objekt",
+          "keyframes": [
+            {
+              "id": "links",
+              "time": 0,
+              "easing": "linear",
+              "x": 11,
+              "y": 3,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            },
+            {
+              "id": "rechts",
+              "time": 0.7,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 3,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "mitte",
+              "time": 1.4,
+              "easing": "ease-in-out",
+              "x": 11,
+              "y": 3,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "domplatz",
+              "time": 0,
+              "easing": "linear",
+              "x": 12,
+              "y": 18,
+              "state": "up",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "blickt",
+              "time": 3.8,
+              "easing": "linear",
+              "x": 12,
+              "y": 18,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 5.6,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "bim",
+              "time": 0.4,
+              "easing": "step",
+              "duration": 1.6,
+              "speaker": "Domglocke",
+              "text": {
+                "standard": "Bim. Bam.",
+                "dialect": "Bim. Bam."
+              }
+            },
+            {
+              "id": "franz",
+              "time": 2.4,
+              "easing": "step",
+              "duration": 2.2,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Lola, selbst die Glocken wünschen eine gute Runde.",
+                "dialect": "Lola, sogar d Glockn wünschen uns a guade Rundn."
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
