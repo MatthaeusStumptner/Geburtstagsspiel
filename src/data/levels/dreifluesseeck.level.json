@@ -303,7 +303,145 @@
     "home": false,
     "mapOrder": 4
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "drei-fluesse-funkeln",
+      "assetId": "river-spark",
+      "name": "Flussfunkeln",
+      "type": "custom",
+      "x": 21,
+      "y": 10,
+      "width": 2,
+      "height": 2,
+      "color": "#55d9dd",
+      "label": "✦",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#55d9dd"
+        ],
+        "pixels": [
+          "00010000",
+          "01010100",
+          "00111000",
+          "11111110",
+          "00111000",
+          "01010100",
+          "00010000",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00010000",
+                  "01010100",
+                  "00111000",
+                  "11111110",
+                  "00111000",
+                  "01010100",
+                  "00010000",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00010000",
+                  "01010100",
+                  "00111000",
+                  "11111110",
+                  "00111000",
+                  "01010100",
+                  "00010000",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "pulse",
+        "speed": 0.75,
+        "amplitude": 0.18,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "✦",
+        "dialect": "✦"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "flussnamen",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 6,
+      "y": 3,
+      "width": 13,
+      "height": 2,
+      "color": "#8ce5ec",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Donau · Inn · Ilz",
+        "dialect": "Donau · Inn · Ilz"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "ilzvogel",
@@ -344,8 +482,315 @@
         "color": "#31b7cf",
         "accent": "#f1d05c",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "dreiklang-der-fluesse",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Dreiklang der Flüsse",
+        "dialect": "Dreiklang vo de Fliss"
+      },
+      "message": {
+        "standard": "Inn, Ilz und Donau funkeln gleichzeitig.",
+        "dialect": "Inn, Ilz und Donau funkeln olle drei auf amoi."
+      },
+      "reward": 210,
+      "scope": "level",
+      "trigger": {
+        "type": "zone",
+        "zones": [
+          {
+            "x": 20,
+            "y": 9,
+            "width": 3,
+            "height": 3
+          }
+        ],
+        "sequence": [],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 21.5,
+        "y": 10.5,
+        "color": "#55d9dd",
+        "accent": "#f5c451",
+        "label": "✦",
+        "visibility": "after-trigger",
+        "assetId": "river-spark",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#55d9dd"
+          ],
+          "pixels": [
+            "00010000",
+            "01010100",
+            "00111000",
+            "11111110",
+            "00111000",
+            "01010100",
+            "00010000",
+            "00000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00010000",
+                    "01010100",
+                    "00111000",
+                    "11111110",
+                    "00111000",
+                    "01010100",
+                    "00010000",
+                    "00000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00010000",
+                    "01010100",
+                    "00111000",
+                    "11111110",
+                    "00111000",
+                    "01010100",
+                    "00010000",
+                    "00000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "pulse",
+          "speed": 0.75,
+          "amplitude": 0.18,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Drei Flüsse, eine Runde",
+        "dialect": "Drei Fliss, oane Rundn"
+      },
+      "duration": 6.4,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "donau",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 2,
+              "y": 7,
+              "zoom": 1.52
+            },
+            {
+              "id": "inn",
+              "time": 1.5,
+              "easing": "ease-in-out",
+              "x": 8,
+              "y": 22,
+              "zoom": 1.45
+            },
+            {
+              "id": "ilz",
+              "time": 3,
+              "easing": "ease-in-out",
+              "x": 22,
+              "y": 9,
+              "zoom": 1.5
+            },
+            {
+              "id": "mitte",
+              "time": 4.6,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 12,
+              "zoom": 1.23
+            },
+            {
+              "id": "start",
+              "time": 6.4,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "flussreflex",
+          "type": "object",
+          "target": "drei-fluesse-funkeln",
+          "keyframes": [
+            {
+              "id": "donau",
+              "time": 0,
+              "easing": "linear",
+              "x": 1,
+              "y": 7,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "inn",
+              "time": 1.5,
+              "easing": "ease-in-out",
+              "x": 8,
+              "y": 22,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "ilz",
+              "time": 3,
+              "easing": "ease-in-out",
+              "x": 21,
+              "y": 10,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "aussicht",
+              "time": 0,
+              "easing": "linear",
+              "x": 12,
+              "y": 18,
+              "state": "up",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "dreht",
+              "time": 4.6,
+              "easing": "linear",
+              "x": 12,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 6.4,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "donau",
+              "time": 0.2,
+              "easing": "step",
+              "duration": 1.2,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Die Donau.",
+                "dialect": "D Donau."
+              }
+            },
+            {
+              "id": "inn",
+              "time": 1.7,
+              "easing": "step",
+              "duration": 1.1,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Der Inn.",
+                "dialect": "Da Inn."
+              }
+            },
+            {
+              "id": "ilz",
+              "time": 3.2,
+              "easing": "step",
+              "duration": 1.1,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Und natürlich die Ilz.",
+                "dialect": "Und natürlich d Ilz."
+              }
+            },
+            {
+              "id": "lola",
+              "time": 4.7,
+              "easing": "step",
+              "duration": 1.4,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Lola interessiert sich trotzdem mehr für Guttis.",
+                "dialect": "D Lola interessiert si trotzdem mehr für Guttis."
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

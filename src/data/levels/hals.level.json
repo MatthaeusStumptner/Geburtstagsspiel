@@ -303,7 +303,145 @@
     "home": false,
     "mapOrder": 1
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "ilz-funkeln",
+      "assetId": "river-spark",
+      "name": "Flussfunkeln",
+      "type": "custom",
+      "x": 1,
+      "y": 10,
+      "width": 2,
+      "height": 2,
+      "color": "#55d9dd",
+      "label": "✦",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#55d9dd"
+        ],
+        "pixels": [
+          "00010000",
+          "01010100",
+          "00111000",
+          "11111110",
+          "00111000",
+          "01010100",
+          "00010000",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00010000",
+                  "01010100",
+                  "00111000",
+                  "11111110",
+                  "00111000",
+                  "01010100",
+                  "00010000",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00010000",
+                  "01010100",
+                  "00111000",
+                  "11111110",
+                  "00111000",
+                  "01010100",
+                  "00010000",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "pulse",
+        "speed": 0.75,
+        "amplitude": 0.18,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "✦",
+        "dialect": "✦"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "hals-schild",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 8,
+      "y": 3,
+      "width": 9,
+      "height": 2,
+      "color": "#b7eef0",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Hals · an der Ilz",
+        "dialect": "Hals · an da Ilz"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "ilzvogel",
@@ -344,8 +482,267 @@
         "color": "#31b7cf",
         "accent": "#f1d05c",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "ilzrauschen",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Das Rauschen der Ilz",
+        "dialect": "S Rauschn vo da Ilz"
+      },
+      "message": {
+        "standard": "Die Ilz erzählt heute besonders laut von Hals.",
+        "dialect": "D Ilz vazählt heid bsonders laut vom Hois."
+      },
+      "reward": 110,
+      "scope": "level",
+      "trigger": {
+        "type": "time",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [],
+        "seconds": 18
+      },
+      "visual": {
+        "type": "custom",
+        "x": 1.5,
+        "y": 10.5,
+        "color": "#55d9dd",
+        "accent": "#f5c451",
+        "label": "✦",
+        "visibility": "after-trigger",
+        "assetId": "river-spark",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#55d9dd"
+          ],
+          "pixels": [
+            "00010000",
+            "01010100",
+            "00111000",
+            "11111110",
+            "00111000",
+            "01010100",
+            "00010000",
+            "00000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00010000",
+                    "01010100",
+                    "00111000",
+                    "11111110",
+                    "00111000",
+                    "01010100",
+                    "00010000",
+                    "00000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00010000",
+                    "01010100",
+                    "00111000",
+                    "11111110",
+                    "00111000",
+                    "01010100",
+                    "00010000",
+                    "00000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "pulse",
+          "speed": 0.75,
+          "amplitude": 0.18,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Entlang der Ilz",
+        "dialect": "Entlang vo da Ilz"
+      },
+      "duration": 5.2,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "fluss",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 1.5,
+              "y": 11,
+              "zoom": 1.6
+            },
+            {
+              "id": "hals",
+              "time": 2.5,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 9,
+              "zoom": 1.28
+            },
+            {
+              "id": "gassi",
+              "time": 5.2,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "am-ufer",
+              "time": 0,
+              "easing": "linear",
+              "x": 5,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "einmarsch",
+              "time": 3.7,
+              "easing": "linear",
+              "x": 10,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "bereit",
+              "time": 5.2,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "wasserlicht",
+          "type": "object",
+          "target": "ilz-funkeln",
+          "keyframes": [
+            {
+              "id": "auftauchen",
+              "time": 0,
+              "easing": "linear",
+              "x": 1,
+              "y": 11,
+              "state": "idle",
+              "animation": "",
+              "visible": false
+            },
+            {
+              "id": "funkeln",
+              "time": 0.7,
+              "easing": "ease-in-out",
+              "x": 1,
+              "y": 10,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "ilz",
+              "time": 0.4,
+              "easing": "step",
+              "duration": 2.1,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Da glitzert die Ilz – Lola hat es natürlich zuerst gesehen.",
+                "dialect": "Do glitzert d Ilz – d Lola hods natürlich zerscht gsegn."
+              }
+            },
+            {
+              "id": "los",
+              "time": 3.1,
+              "easing": "step",
+              "duration": 1.5,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Dann auf nach Hals!",
+                "dialect": "Dann auf nach Hois!"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -291,7 +291,146 @@
     "home": true,
     "mapOrder": 0
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "briefkasten-30",
+      "assetId": "brahmahof-mailbox",
+      "name": "Briefkasten Nr. 30",
+      "type": "custom",
+      "x": 15,
+      "y": 16,
+      "width": 2,
+      "height": 2,
+      "color": "#d7b56d",
+      "label": "30",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#8a6a45",
+          "#f5c451"
+        ],
+        "pixels": [
+          "00000000",
+          "00111100",
+          "01111110",
+          "01222210",
+          "01111110",
+          "00011000",
+          "00011000",
+          "00011000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00000000",
+                  "00111100",
+                  "01111110",
+                  "01222210",
+                  "01111110",
+                  "00011000",
+                  "00011000",
+                  "00011000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00000000",
+                  "00111100",
+                  "01111110",
+                  "01222210",
+                  "01111110",
+                  "00011000",
+                  "00011000",
+                  "00011000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.1,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "30",
+        "dialect": "30"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "adresse-bramerhof",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 3,
+      "width": 11,
+      "height": 2,
+      "color": "#f5e7bd",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Am Bramerhof 30",
+        "dialect": "Am Bramerhof 30"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "ilzvogel",
@@ -332,7 +471,18 @@
         "color": "#31b7cf",
         "accent": "#f1d05c",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
     },
     {
@@ -368,8 +518,249 @@
         "color": "#75a27c",
         "accent": "#f5c451",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "post-fuer-franz",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Geburtstagspost",
+        "dialect": "Geburtstagspost"
+      },
+      "message": {
+        "standard": "Im Briefkasten wartet Geburtstagspost für Franz.",
+        "dialect": "Im Briefkastl wart a Geburtstagspost aufn Franz."
+      },
+      "reward": 130,
+      "scope": "level",
+      "trigger": {
+        "type": "zone",
+        "zones": [
+          {
+            "x": 14,
+            "y": 16,
+            "width": 3,
+            "height": 3
+          }
+        ],
+        "sequence": [],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 15.5,
+        "y": 16.5,
+        "color": "#d7b56d",
+        "accent": "#f5c451",
+        "label": "30",
+        "visibility": "after-trigger",
+        "assetId": "brahmahof-mailbox",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#8a6a45",
+            "#f5c451"
+          ],
+          "pixels": [
+            "00000000",
+            "00111100",
+            "01111110",
+            "01222210",
+            "01111110",
+            "00011000",
+            "00011000",
+            "00011000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00000000",
+                    "00111100",
+                    "01111110",
+                    "01222210",
+                    "01111110",
+                    "00011000",
+                    "00011000",
+                    "00011000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00000000",
+                    "00111100",
+                    "01111110",
+                    "01222210",
+                    "01111110",
+                    "00011000",
+                    "00011000",
+                    "00011000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.1,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Aufbruch am Bramerhof",
+        "dialect": "Aufbruch am Bramerhof"
+      },
+      "duration": 4,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "haus",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 8,
+              "zoom": 1.45
+            },
+            {
+              "id": "start",
+              "time": 4,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "tritt-raus",
+              "time": 0,
+              "easing": "linear",
+              "x": 11,
+              "y": 16,
+              "state": "down",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "bereit",
+              "time": 4,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "briefkasten",
+          "type": "object",
+          "target": "briefkasten-30",
+          "keyframes": [
+            {
+              "id": "still",
+              "time": 0,
+              "easing": "linear",
+              "x": 15,
+              "y": 16,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "wackelt",
+              "time": 1.4,
+              "easing": "ease-in-out",
+              "x": 15,
+              "y": 15.75,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "still-2",
+              "time": 2.1,
+              "easing": "linear",
+              "x": 15,
+              "y": 16,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "lola-wartet",
+              "time": 0.8,
+              "easing": "step",
+              "duration": 2.4,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Lola, die Runde beginnt direkt vor unserer Haustür.",
+                "dialect": "Lola, unsre Rundn fangt direkt vor da Haustür o."
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

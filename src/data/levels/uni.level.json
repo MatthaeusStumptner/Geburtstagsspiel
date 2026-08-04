@@ -303,6 +303,395 @@
     "home": false,
     "mapOrder": 5
   },
-  "decorations": [],
-  "events": []
+  "decorations": [
+    {
+      "id": "uni-buch",
+      "assetId": "university-book",
+      "name": "Passauer Buch",
+      "type": "custom",
+      "x": 15,
+      "y": 12,
+      "width": 2,
+      "height": 2,
+      "color": "#55d9dd",
+      "label": "▤",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#f5e7bd",
+          "#55d9dd"
+        ],
+        "pixels": [
+          "00000000",
+          "01100110",
+          "01211210",
+          "01211210",
+          "01211210",
+          "01211210",
+          "01111110",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00000000",
+                  "01100110",
+                  "01211210",
+                  "01211210",
+                  "01211210",
+                  "01211210",
+                  "01111110",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00000000",
+                  "01100110",
+                  "01211210",
+                  "01211210",
+                  "01211210",
+                  "01211210",
+                  "01111110",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.1,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "▤",
+        "dialect": "▤"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "campus-tafel",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 4,
+      "width": 11,
+      "height": 2,
+      "color": "#b7eef0",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Campus an der Innstraße",
+        "dialect": "Campus an da Innstraßn"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "pruefungs-gutti",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Das Prüfungs-Gutti",
+        "dialect": "S Prüfungs-Gutti"
+      },
+      "message": {
+        "standard": "Dieses Gutti besteht jede Prüfung mit Auszeichnung.",
+        "dialect": "Des Gutti besteht a jede Prüfung mit Auszeichnung."
+      },
+      "reward": 160,
+      "scope": "level",
+      "trigger": {
+        "type": "zone",
+        "zones": [
+          {
+            "x": 14,
+            "y": 11,
+            "width": 3,
+            "height": 3
+          }
+        ],
+        "sequence": [],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 16,
+        "y": 13,
+        "color": "#55d9dd",
+        "accent": "#f5c451",
+        "label": "▤",
+        "visibility": "after-trigger",
+        "assetId": "university-book",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#f5e7bd",
+            "#55d9dd"
+          ],
+          "pixels": [
+            "00000000",
+            "01100110",
+            "01211210",
+            "01211210",
+            "01211210",
+            "01211210",
+            "01111110",
+            "00000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00000000",
+                    "01100110",
+                    "01211210",
+                    "01211210",
+                    "01211210",
+                    "01211210",
+                    "01111110",
+                    "00000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00000000",
+                    "01100110",
+                    "01211210",
+                    "01211210",
+                    "01211210",
+                    "01211210",
+                    "01111110",
+                    "00000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.1,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Kurze Vorlesung für Lola",
+        "dialect": "A kurze Vorlesung für d Lola"
+      },
+      "duration": 4.3,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "campus",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 8,
+              "zoom": 1.32
+            },
+            {
+              "id": "buch",
+              "time": 1.6,
+              "easing": "ease-in-out",
+              "x": 16,
+              "y": 13,
+              "zoom": 1.58
+            },
+            {
+              "id": "start",
+              "time": 4.3,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "buch",
+          "type": "object",
+          "target": "uni-buch",
+          "keyframes": [
+            {
+              "id": "zu",
+              "time": 0,
+              "easing": "linear",
+              "x": 15,
+              "y": 12,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "auf",
+              "time": 1.1,
+              "easing": "ease-in-out",
+              "x": 15,
+              "y": 11.7,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            },
+            {
+              "id": "zurueck",
+              "time": 2.2,
+              "easing": "linear",
+              "x": 15,
+              "y": 12,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "studenten",
+              "time": 0,
+              "easing": "linear",
+              "x": 10,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 4.3,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "vorlesung",
+              "time": 1.1,
+              "easing": "step",
+              "duration": 2.3,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Thema heute: angewandte Gutti-Kunde.",
+                "dialect": "Thema heid: ogwandte Gutti-Kund."
+              }
+            },
+            {
+              "id": "lola",
+              "time": 3.5,
+              "easing": "step",
+              "duration": 0.7,
+              "speaker": "Lola",
+              "text": {
+                "standard": "Wuff!",
+                "dialect": "Wuff!"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

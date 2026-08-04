@@ -291,7 +291,146 @@
     "home": false,
     "mapOrder": 2
   },
-  "decorations": [],
+  "decorations": [
+    {
+      "id": "oberhaus-fahne",
+      "assetId": "oberhaus-flag",
+      "name": "Oberhaus-Fahne",
+      "type": "custom",
+      "x": 17,
+      "y": 4,
+      "width": 2,
+      "height": 2,
+      "color": "#f5c451",
+      "label": "⚑",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#7a4a34",
+          "#f5c451"
+        ],
+        "pixels": [
+          "00011000",
+          "00011110",
+          "00012220",
+          "00011110",
+          "00011000",
+          "00011000",
+          "00011000",
+          "00111100"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00012220",
+                  "00011110",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111100"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00012220",
+                  "00011110",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111100"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "bob",
+        "speed": 0.4,
+        "amplitude": 0.08,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "⚑",
+        "dialect": "⚑"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "oberhaus-banner",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 7,
+      "width": 11,
+      "height": 2,
+      "color": "#f1d05c",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "Veste Oberhaus",
+        "dialect": "Veste Oberhaus"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
   "events": [
     {
       "id": "kirchenglockn",
@@ -335,8 +474,292 @@
         "color": "#8f6c2e",
         "accent": "#f5c451",
         "label": "◆",
-        "visibility": "after-trigger"
+        "visibility": "after-trigger",
+        "assetId": "",
+        "appearance": null,
+        "spriteAnimation": "",
+        "animation": {
+          "type": "none",
+          "speed": 1,
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
       }
+    },
+    {
+      "id": "goldener-ausblick",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Goldener Passau-Blick",
+        "dialect": "Goldana Passau-Blick"
+      },
+      "message": {
+        "standard": "Von hier oben leuchtet ganz Passau.",
+        "dialect": "Vo do herob leucht ganz Passau."
+      },
+      "reward": 190,
+      "scope": "level",
+      "trigger": {
+        "type": "direction-sequence",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [
+          "up",
+          "up",
+          "up",
+          "right",
+          "left"
+        ],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 18,
+        "y": 5,
+        "color": "#f5c451",
+        "accent": "#f5c451",
+        "label": "⚑",
+        "visibility": "after-trigger",
+        "assetId": "oberhaus-flag",
+        "appearance": {
+          "width": 8,
+          "height": 8,
+          "palette": [
+            "transparent",
+            "#7a4a34",
+            "#f5c451"
+          ],
+          "pixels": [
+            "00011000",
+            "00011110",
+            "00012220",
+            "00011110",
+            "00011000",
+            "00011000",
+            "00011000",
+            "00111100"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00011000",
+                    "00011110",
+                    "00012220",
+                    "00011110",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00111100"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00011000",
+                    "00011110",
+                    "00012220",
+                    "00011110",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00111100"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "bob",
+          "speed": 0.4,
+          "amplitude": 0.08,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Hinauf zur Veste",
+        "dialect": "Auffi zur Veste"
+      },
+      "duration": 5,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "stadt",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 21,
+              "zoom": 1.4
+            },
+            {
+              "id": "aufstieg",
+              "time": 2.2,
+              "easing": "ease-in-out",
+              "x": 15,
+              "y": 11,
+              "zoom": 1.35
+            },
+            {
+              "id": "fahne",
+              "time": 3.5,
+              "easing": "ease-in-out",
+              "x": 18,
+              "y": 5,
+              "zoom": 1.55
+            },
+            {
+              "id": "start",
+              "time": 5,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "unten",
+              "time": 0,
+              "easing": "linear",
+              "x": 9,
+              "y": 21,
+              "state": "up",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "aufstieg",
+              "time": 2.5,
+              "easing": "linear",
+              "x": 14,
+              "y": 16,
+              "state": "up",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 5,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "fahne",
+          "type": "object",
+          "target": "oberhaus-fahne",
+          "keyframes": [
+            {
+              "id": "wind-links",
+              "time": 0,
+              "easing": "linear",
+              "x": 17,
+              "y": 4,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "wind-rechts",
+              "time": 1,
+              "easing": "ease-in-out",
+              "x": 17.35,
+              "y": 4,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "wind-mitte",
+              "time": 2,
+              "easing": "ease-in-out",
+              "x": 17,
+              "y": 4,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "schnaufen",
+              "time": 1.1,
+              "easing": "step",
+              "duration": 1.6,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Ein kleiner Aufstieg, sagt die Lola.",
+                "dialect": "A kloana Aufstieg, sagt d Lola."
+              }
+            },
+            {
+              "id": "blick",
+              "time": 3.3,
+              "easing": "step",
+              "duration": 1.5,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Aber der Blick lohnt sich.",
+                "dialect": "Aber da Blick lohnt si."
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

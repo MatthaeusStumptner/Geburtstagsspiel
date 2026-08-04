@@ -151,7 +151,10 @@
         "animation": {
           "type": "bob",
           "speed": 1.1,
-          "amplitude": 0.125
+          "amplitude": 0.125,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
         }
       },
       {
@@ -159,7 +162,10 @@
         "animation": {
           "type": "none",
           "speed": 1,
-          "amplitude": 0.15
+          "amplitude": 0.15,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
         }
       }
     ]
@@ -309,6 +315,663 @@
     "home": false,
     "mapOrder": 8
   },
-  "decorations": [],
-  "events": []
+  "decorations": [
+    {
+      "id": "zauberberg-note-frei",
+      "assetId": "zauberberg-note",
+      "name": "Zauberberg-Note",
+      "type": "custom",
+      "x": 11,
+      "y": 8,
+      "width": 2,
+      "height": 3,
+      "color": "#63d9d4",
+      "label": "♪",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 12,
+        "palette": [
+          "transparent",
+          "#63d9d4"
+        ],
+        "pixels": [
+          "00011000",
+          "00011110",
+          "00011010",
+          "00011010",
+          "00011000",
+          "00011000",
+          "00011000",
+          "00011000",
+          "00111000",
+          "01111000",
+          "01110000",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00011010",
+                  "00011010",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111000",
+                  "01111000",
+                  "01110000",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00011010",
+                  "00011010",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111000",
+                  "01111000",
+                  "01110000",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "bob",
+        "speed": 1.1,
+        "amplitude": 0.125,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "♪",
+        "dialect": "♪"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "zauberberg-box",
+      "assetId": "concert-speaker",
+      "name": "Konzertbox",
+      "type": "custom",
+      "x": 17,
+      "y": 11,
+      "width": 2,
+      "height": 2,
+      "color": "#ff4f87",
+      "label": "▣",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 8,
+        "palette": [
+          "transparent",
+          "#34203f",
+          "#ff4f87"
+        ],
+        "pixels": [
+          "00000000",
+          "01111110",
+          "01222210",
+          "01211210",
+          "01222210",
+          "01211210",
+          "01111110",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00000000",
+                  "01111110",
+                  "01222210",
+                  "01211210",
+                  "01222210",
+                  "01211210",
+                  "01111110",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00000000",
+                  "01111110",
+                  "01222210",
+                  "01211210",
+                  "01222210",
+                  "01211210",
+                  "01111110",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "pulse",
+        "speed": 0.55,
+        "amplitude": 0.06,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "▣",
+        "dialect": "▣"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "konzertplakat",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 7,
+      "y": 3,
+      "width": 11,
+      "height": 2,
+      "color": "#ffb4d0",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "content": {
+        "standard": "ROCK · PUNK · METAL",
+        "dialect": "ROCK · PUNK · METAL"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "borderColor": "#55d9dd",
+        "padding": 0.2,
+        "uppercase": false
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "zugabe",
+      "kind": "easter-egg",
+      "name": {
+        "standard": "Zauberberg-Zugabe",
+        "dialect": "Zauberberg-Zuagab"
+      },
+      "message": {
+        "standard": "Die Bühne spielt eine Zugabe nur für Franz und Lola.",
+        "dialect": "D Bühn spuit a Zuagab bloß fürn Franz und d Lola."
+      },
+      "reward": 260,
+      "scope": "level",
+      "trigger": {
+        "type": "direction-sequence",
+        "zones": [
+          {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 1
+          }
+        ],
+        "sequence": [
+          "up",
+          "up",
+          "down",
+          "left",
+          "right"
+        ],
+        "seconds": 10
+      },
+      "visual": {
+        "type": "custom",
+        "x": 12,
+        "y": 9,
+        "color": "#63d9d4",
+        "accent": "#f5c451",
+        "label": "♪",
+        "visibility": "after-trigger",
+        "assetId": "zauberberg-note",
+        "appearance": {
+          "width": 8,
+          "height": 12,
+          "palette": [
+            "transparent",
+            "#63d9d4"
+          ],
+          "pixels": [
+            "00011000",
+            "00011110",
+            "00011010",
+            "00011010",
+            "00011000",
+            "00011000",
+            "00011000",
+            "00011000",
+            "00111000",
+            "01111000",
+            "01110000",
+            "00000000"
+          ],
+          "animations": [
+            {
+              "id": "idle",
+              "fps": 4,
+              "duration": 0.25,
+              "loop": true,
+              "keyframes": [
+                {
+                  "id": "keyframe-1",
+                  "time": 0,
+                  "easing": "step",
+                  "pixels": [
+                    "00011000",
+                    "00011110",
+                    "00011010",
+                    "00011010",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00111000",
+                    "01111000",
+                    "01110000",
+                    "00000000"
+                  ]
+                }
+              ],
+              "frames": [
+                {
+                  "pixels": [
+                    "00011000",
+                    "00011110",
+                    "00011010",
+                    "00011010",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00011000",
+                    "00111000",
+                    "01111000",
+                    "01110000",
+                    "00000000"
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateAnimations": {
+            "idle": "idle",
+            "up": "idle",
+            "right": "idle",
+            "down": "idle",
+            "left": "idle"
+          }
+        },
+        "spriteAnimation": "idle",
+        "animation": {
+          "type": "bob",
+          "speed": 1.1,
+          "amplitude": 0.125,
+          "duration": 1,
+          "loop": true,
+          "keyframes": []
+        }
+      }
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro",
+      "kind": "intro",
+      "name": {
+        "standard": "Soundcheck am Zauberberg",
+        "dialect": "Soundcheck am Zauberberg"
+      },
+      "duration": 7.2,
+      "skippable": true,
+      "tracks": [
+        {
+          "id": "camera",
+          "type": "camera",
+          "target": "camera",
+          "keyframes": [
+            {
+              "id": "dunkel",
+              "time": 0,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 15,
+              "zoom": 1.05
+            },
+            {
+              "id": "licht-links",
+              "time": 1.2,
+              "easing": "ease-in-out",
+              "x": 8,
+              "y": 8,
+              "zoom": 1.48
+            },
+            {
+              "id": "licht-rechts",
+              "time": 2.4,
+              "easing": "ease-in-out",
+              "x": 17,
+              "y": 8,
+              "zoom": 1.48
+            },
+            {
+              "id": "note",
+              "time": 3.8,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 9,
+              "zoom": 1.7
+            },
+            {
+              "id": "band",
+              "time": 5.4,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 13,
+              "zoom": 1.3
+            },
+            {
+              "id": "start",
+              "time": 7.2,
+              "easing": "ease-in-out",
+              "x": 12,
+              "y": 20,
+              "zoom": 1.12
+            }
+          ]
+        },
+        {
+          "id": "franz-lola",
+          "type": "actor",
+          "target": "player",
+          "keyframes": [
+            {
+              "id": "backstage",
+              "time": 0,
+              "easing": "linear",
+              "x": 8,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": false
+            },
+            {
+              "id": "eintritt",
+              "time": 1.5,
+              "easing": "linear",
+              "x": 8,
+              "y": 18,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "mitte",
+              "time": 5.4,
+              "easing": "linear",
+              "x": 12,
+              "y": 18,
+              "state": "up",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "start",
+              "time": 7.2,
+              "easing": "linear",
+              "x": 12,
+              "y": 20,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "note-solo",
+          "type": "object",
+          "target": "zauberberg-note-frei",
+          "keyframes": [
+            {
+              "id": "still",
+              "time": 0,
+              "easing": "linear",
+              "x": 11,
+              "y": 8,
+              "state": "idle",
+              "animation": "",
+              "visible": false
+            },
+            {
+              "id": "einsatz",
+              "time": 2.8,
+              "easing": "ease-in-out",
+              "x": 11,
+              "y": 9,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            },
+            {
+              "id": "hoch",
+              "time": 3.8,
+              "easing": "ease-in-out",
+              "x": 11,
+              "y": 7.5,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            },
+            {
+              "id": "runter",
+              "time": 4.8,
+              "easing": "ease-in-out",
+              "x": 11,
+              "y": 9,
+              "state": "idle",
+              "animation": "idle",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "bassbox",
+          "type": "object",
+          "target": "zauberberg-box",
+          "keyframes": [
+            {
+              "id": "still",
+              "time": 0,
+              "easing": "linear",
+              "x": 17,
+              "y": 11,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "bass-1",
+              "time": 1.5,
+              "easing": "linear",
+              "x": 16.8,
+              "y": 11,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "bass-2",
+              "time": 2,
+              "easing": "linear",
+              "x": 17.2,
+              "y": 11,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "still-2",
+              "time": 2.5,
+              "easing": "linear",
+              "x": 17,
+              "y": 11,
+              "state": "idle",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "rock-katze",
+          "type": "actor",
+          "target": "cat:2",
+          "keyframes": [
+            {
+              "id": "buehne-links",
+              "time": 0,
+              "easing": "linear",
+              "x": 7,
+              "y": 12,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            },
+            {
+              "id": "buehne-rechts",
+              "time": 5.4,
+              "easing": "ease-in-out",
+              "x": 17,
+              "y": 12,
+              "state": "right",
+              "animation": "",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "id": "dialogue",
+          "type": "dialogue",
+          "target": "dialogue",
+          "keyframes": [
+            {
+              "id": "soundcheck",
+              "time": 0.5,
+              "easing": "step",
+              "duration": 1.5,
+              "speaker": "Technik",
+              "text": {
+                "standard": "Licht an. Boxen an.",
+                "dialect": "Licht o. Boxn o."
+              }
+            },
+            {
+              "id": "musik",
+              "time": 2.5,
+              "easing": "step",
+              "duration": 1.8,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Rock, Punk und Metal – Lola, das ist unsere Bühne.",
+                "dialect": "Rock, Punk und Metal – Lola, des is unsre Bühn."
+              }
+            },
+            {
+              "id": "katze",
+              "time": 5.1,
+              "easing": "step",
+              "duration": 1.5,
+              "speaker": "Franz",
+              "text": {
+                "standard": "Nur die Vorband sieht verdächtig nach Katze aus.",
+                "dialect": "Bloß d Vorband schaut verdächtig noch Katz aus."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
