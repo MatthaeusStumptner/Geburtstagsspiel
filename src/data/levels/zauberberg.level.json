@@ -168,15 +168,39 @@
           "keyframes": []
         }
       }
+    ],
+    "edgeEffects": [
+      {
+        "id": "buehnen-puls",
+        "type": "stage-pulse",
+        "side": "both",
+        "speed": 1.2,
+        "intensity": 0.75,
+        "count": 8,
+        "color": "#ff4f87",
+        "accent": "#55d9dd"
+      },
+      {
+        "id": "gitarren-funken",
+        "type": "sparks",
+        "side": "both",
+        "speed": 1.8,
+        "intensity": 0.8,
+        "count": 9,
+        "color": "#f5c451",
+        "accent": "#ff4f87"
+      }
     ]
   },
   "actors": {
     "player": {
+      "id": "player",
       "x": 12,
       "y": 20,
       "renderer": "franz-lola",
       "animation": "",
       "appearance": null,
+      "effects": [],
       "behavior": {
         "controller": "user",
         "speedMultiplier": 1
@@ -184,6 +208,7 @@
     },
     "cats": [
       {
+        "id": "cat-1",
         "x": 11,
         "y": 12,
         "renderer": "cat",
@@ -191,6 +216,22 @@
         "color": "#ff6b5f",
         "accent": "#9e302e",
         "appearance": null,
+        "effects": [
+          {
+            "id": "rock-glitch",
+            "type": "glitch",
+            "intensity": 0.75,
+            "speed": 2.4,
+            "color": "#ff4f87"
+          },
+          {
+            "id": "rock-neon",
+            "type": "neon",
+            "intensity": 0.45,
+            "speed": 1.2,
+            "color": "#55d9dd"
+          }
+        ],
         "behavior": {
           "strategy": "chase",
           "speedMultiplier": 1,
@@ -205,6 +246,7 @@
         }
       },
       {
+        "id": "cat-2",
         "x": 12,
         "y": 12,
         "renderer": "cat",
@@ -212,6 +254,7 @@
         "color": "#f2a65a",
         "accent": "#a6532c",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "ambush",
           "speedMultiplier": 1,
@@ -226,6 +269,7 @@
         }
       },
       {
+        "id": "cat-3",
         "x": 13,
         "y": 12,
         "renderer": "cat",
@@ -233,6 +277,7 @@
         "color": "#b792e8",
         "accent": "#66509d",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "scatter-chase",
           "speedMultiplier": 1,
@@ -414,6 +459,15 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [
+        {
+          "id": "buehnen-neon",
+          "type": "neon",
+          "intensity": 0.65,
+          "speed": 1.2,
+          "color": "#63d9d4"
+        }
+      ],
       "content": {
         "standard": "♪",
         "dialect": "♪"
@@ -423,7 +477,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0.88,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -515,6 +571,15 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [
+        {
+          "id": "bass-echo",
+          "type": "echo",
+          "intensity": 0.45,
+          "speed": 1.8,
+          "color": "#ff4f87"
+        }
+      ],
       "content": {
         "standard": "▣",
         "dialect": "▣"
@@ -524,7 +589,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0.88,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -552,6 +619,7 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [],
       "content": {
         "standard": "ROCK · PUNK · METAL",
         "dialect": "ROCK · PUNK · METAL"
@@ -561,7 +629,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -693,7 +763,16 @@
           "duration": 1,
           "loop": true,
           "keyframes": []
-        }
+        },
+        "effects": [
+          {
+            "id": "buehnen-neon",
+            "type": "neon",
+            "intensity": 0.65,
+            "speed": 1.2,
+            "color": "#63d9d4"
+          }
+        ]
       }
     }
   ],
