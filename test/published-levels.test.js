@@ -53,3 +53,36 @@ test('every Passau level ships a distinct intro, a new event object and movable 
   }
   assert.equal(signatures.size, levels.length);
 });
+
+const formerBakedLabels = {
+  home: ['HUNDEWIESE', 'FRANZ & LOLA'],
+  hals: ['HUNDEWIESE'],
+  oberhaus: ['HUNDEWIESE'],
+  dom: ['HUNDEWIESE'],
+  dreifluesseeck: ['HUNDEWIESE'],
+  uni: ['HUNDEWIESE'],
+  bschuett: ['BSCHÜTT · SKATE & SPIEL'],
+  tabakfabrik: ['TABAKFABRIK'],
+  zauberberg: ['ZAUBERBERG', 'ROCK · PUNK · METAL'],
+};
+
+test('former baked scenery labels are published only as editable transparent text blocks', async () => {
+  const levels = await Promise.all((await readdir(directory)).filter((name) => name.endsWith('.level.json'))
+    .map(async (filename) => JSON.parse(await readFile(resolve(directory, filename), 'utf8'))));
+  for (const level of levels) {
+    const texts = level.decorations.filter((item) => item.type === 'text');
+    const copy = texts.map((item) => item.content.standard);
+    for (const label of formerBakedLabels[level.id]) assert.ok(copy.includes(label), level.id + ': ' + label);
+    assert.ok(texts.every((item) => item.locked === false));
+    assert.ok(texts.every((item) => item.textStyle.backgroundOpacity === 0 && item.textStyle.borderOpacity === 0));
+  }
+});
+
+test('Zauberberg publishes two removable notes plus one removable event visual without a baked stage note', async () => {
+  const level = JSON.parse(await readFile(resolve(directory, 'zauberberg.level.json'), 'utf8'));
+  assert.deepEqual(level.theme.elements.map((item) => item.id), ['stage-lights']);
+  assert.equal(level.decorations.filter((item) => item.assetId === 'zauberberg-note').length, 2);
+  const encore = level.events.find((event) => event.id === 'zugabe');
+  assert.equal(encore.visual.type, 'custom');
+  assert.equal(encore.visual.assetId, 'zauberberg-note');
+});

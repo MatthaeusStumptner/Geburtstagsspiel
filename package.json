@@ -11,7 +11,7 @@
     "levels:import": "node scripts/import-level-catalog.mjs"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#09fc80f"
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#d7596ef"
   },
   "devDependencies": {
     "vite": "^6.1.0"

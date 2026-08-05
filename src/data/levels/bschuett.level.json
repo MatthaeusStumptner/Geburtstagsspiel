@@ -431,6 +431,46 @@
         "padding": 0.2,
         "uppercase": false
       }
+    },
+    {
+      "id": "kulisse-bschuett",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 8,
+      "y": 8.7,
+      "width": 9,
+      "height": 1,
+      "color": "#8fcfa8",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "BSCHÜTT · SKATE & SPIEL",
+        "dialect": "BSCHÜTT · SKATE & SPIEL"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
     }
   ],
   "events": [

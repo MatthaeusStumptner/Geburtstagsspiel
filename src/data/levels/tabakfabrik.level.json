@@ -486,6 +486,46 @@
         "padding": 0.2,
         "uppercase": false
       }
+    },
+    {
+      "id": "kulisse-tabakfabrik",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 9,
+      "y": 6.05,
+      "width": 7,
+      "height": 1,
+      "color": "#f0d0a0",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "TABAKFABRIK",
+        "dialect": "TABAKFABRIK"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
     }
   ],
   "events": [

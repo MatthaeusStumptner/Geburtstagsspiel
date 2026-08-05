@@ -473,6 +473,86 @@
         "padding": 0.2,
         "uppercase": false
       }
+    },
+    {
+      "id": "kulisse-hundewiese",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 10,
+      "y": 9.5,
+      "width": 5,
+      "height": 1,
+      "color": "#8fcfa8",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "HUNDEWIESE",
+        "dialect": "HUNDEWIESE"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "hausname-franz-lola",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 9,
+      "y": 6.3,
+      "width": 7,
+      "height": 1,
+      "color": "#f5e7bd",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "FRANZ & LOLA",
+        "dialect": "FRANZ & LOLA"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
     }
   ],
   "events": [

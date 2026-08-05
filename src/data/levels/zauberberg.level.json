@@ -47,40 +47,16 @@
         "height": 3
       },
       {
-        "x": 11,
-        "y": 4,
-        "width": 1,
-        "height": 6
-      },
-      {
-        "x": 14,
-        "y": 4,
-        "width": 1,
-        "height": 6
-      },
-      {
-        "x": 8,
-        "y": 5,
-        "width": 3,
-        "height": 5
-      },
-      {
-        "x": 12,
-        "y": 5,
-        "width": 2,
-        "height": 5
-      },
-      {
-        "x": 15,
-        "y": 5,
-        "width": 2,
-        "height": 5
-      },
-      {
         "x": 2,
         "y": 7,
         "width": 4,
         "height": 4
+      },
+      {
+        "x": 8,
+        "y": 5,
+        "width": 9,
+        "height": 5
       },
       {
         "x": 19,
@@ -107,12 +83,6 @@
         "height": 3
       },
       {
-        "x": 19,
-        "y": 15,
-        "width": 4,
-        "height": 3
-      },
-      {
         "x": 8,
         "y": 16,
         "width": 3,
@@ -125,15 +95,15 @@
         "height": 3
       },
       {
-        "x": 2,
-        "y": 20,
-        "width": 5,
+        "x": 19,
+        "y": 15,
+        "width": 4,
         "height": 3
       },
       {
-        "x": 19,
+        "x": 2,
         "y": 20,
-        "width": 4,
+        "width": 5,
         "height": 3
       },
       {
@@ -147,6 +117,12 @@
         "y": 21,
         "width": 3,
         "height": 2
+      },
+      {
+        "x": 19,
+        "y": 20,
+        "width": 4,
+        "height": 3
       }
     ]
   },
@@ -171,20 +147,9 @@
     },
     "elements": [
       {
-        "id": "stage-note",
-        "animation": {
-          "type": "bob",
-          "speed": 1.1,
-          "amplitude": 0.125,
-          "duration": 1,
-          "loop": true,
-          "keyframes": []
-        }
-      },
-      {
         "id": "stage-lights",
         "animation": {
-          "type": "blink",
+          "type": "none",
           "speed": 1,
           "amplitude": 0.15,
           "duration": 1,
@@ -509,6 +474,129 @@
       }
     },
     {
+      "id": "zauberberg-buehnen-note",
+      "assetId": "zauberberg-note",
+      "name": "Bühnen-Note",
+      "type": "custom",
+      "x": 12,
+      "y": 7.25,
+      "width": 1,
+      "height": 1.5,
+      "color": "#63d9d4",
+      "label": "♪",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 8,
+        "height": 12,
+        "palette": [
+          "transparent",
+          "#63d9d4"
+        ],
+        "pixels": [
+          "00011000",
+          "00011110",
+          "00011010",
+          "00011010",
+          "00011000",
+          "00011000",
+          "00011000",
+          "00011000",
+          "00111000",
+          "01111000",
+          "01110000",
+          "00000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00011010",
+                  "00011010",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111000",
+                  "01111000",
+                  "01110000",
+                  "00000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "00011000",
+                  "00011110",
+                  "00011010",
+                  "00011010",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00011000",
+                  "00111000",
+                  "01111000",
+                  "01110000",
+                  "00000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "bob",
+        "speed": 1.1,
+        "amplitude": 0.125,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [
+        {
+          "id": "buehnen-neon",
+          "type": "neon",
+          "intensity": 0.65,
+          "speed": 1.2,
+          "color": "#63d9d4"
+        }
+      ],
+      "content": {
+        "standard": "♪",
+        "dialect": "♪"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0.88,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
       "id": "zauberberg-box",
       "assetId": "concert-speaker",
       "name": "Konzertbox",
@@ -621,15 +709,55 @@
       }
     },
     {
+      "id": "zauberberg-titel",
+      "assetId": "text-block",
+      "name": "Freier Textblock",
+      "type": "text",
+      "x": 8,
+      "y": 5.15,
+      "width": 9,
+      "height": 1,
+      "color": "#ff5d93",
+      "label": "TEXT",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": null,
+      "spriteAnimation": "",
+      "animation": {
+        "type": "none",
+        "speed": 1,
+        "amplitude": 0.15,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "ZAUBERBERG",
+        "dialect": "ZAUBERBERG"
+      },
+      "textStyle": {
+        "fontSize": 0.45,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
       "id": "konzertplakat",
       "assetId": "text-block",
       "name": "Freier Textblock",
       "type": "text",
-      "x": 7.173,
-      "y": 2.423,
-      "width": 10.197,
-      "height": 1.854,
-      "color": "#ffb4d0",
+      "x": 7,
+      "y": 6.15,
+      "width": 11,
+      "height": 1,
+      "color": "#f1e0b7",
       "label": "TEXT",
       "layer": "scenery",
       "locked": false,
@@ -649,14 +777,14 @@
         "dialect": "ROCK · PUNK · METAL"
       },
       "textStyle": {
-        "fontSize": 0.417,
+        "fontSize": 0.45,
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
         "backgroundOpacity": 0,
         "borderColor": "#55d9dd",
         "borderOpacity": 0,
-        "padding": 0.185,
+        "padding": 0.2,
         "uppercase": false
       }
     }
