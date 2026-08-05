@@ -47,16 +47,40 @@
         "height": 3
       },
       {
-        "x": 2,
-        "y": 7,
-        "width": 4,
-        "height": 4
+        "x": 11,
+        "y": 4,
+        "width": 1,
+        "height": 6
+      },
+      {
+        "x": 14,
+        "y": 4,
+        "width": 1,
+        "height": 6
       },
       {
         "x": 8,
         "y": 5,
-        "width": 9,
+        "width": 3,
         "height": 5
+      },
+      {
+        "x": 12,
+        "y": 5,
+        "width": 2,
+        "height": 5
+      },
+      {
+        "x": 15,
+        "y": 5,
+        "width": 2,
+        "height": 5
+      },
+      {
+        "x": 2,
+        "y": 7,
+        "width": 4,
+        "height": 4
       },
       {
         "x": 19,
@@ -83,6 +107,12 @@
         "height": 3
       },
       {
+        "x": 19,
+        "y": 15,
+        "width": 4,
+        "height": 3
+      },
+      {
         "x": 8,
         "y": 16,
         "width": 3,
@@ -95,15 +125,15 @@
         "height": 3
       },
       {
-        "x": 19,
-        "y": 15,
-        "width": 4,
-        "height": 3
-      },
-      {
         "x": 2,
         "y": 20,
         "width": 5,
+        "height": 3
+      },
+      {
+        "x": 19,
+        "y": 20,
+        "width": 4,
         "height": 3
       },
       {
@@ -117,12 +147,6 @@
         "y": 21,
         "width": 3,
         "height": 2
-      },
-      {
-        "x": 19,
-        "y": 20,
-        "width": 4,
-        "height": 3
       }
     ]
   },
@@ -160,7 +184,7 @@
       {
         "id": "stage-lights",
         "animation": {
-          "type": "none",
+          "type": "blink",
           "speed": 1,
           "amplitude": 0.15,
           "duration": 1,
@@ -601,10 +625,10 @@
       "assetId": "text-block",
       "name": "Freier Textblock",
       "type": "text",
-      "x": 7,
-      "y": 3,
-      "width": 11,
-      "height": 2,
+      "x": 7.173,
+      "y": 2.423,
+      "width": 10.197,
+      "height": 1.854,
       "color": "#ffb4d0",
       "label": "TEXT",
       "layer": "scenery",
@@ -625,14 +649,14 @@
         "dialect": "ROCK · PUNK · METAL"
       },
       "textStyle": {
-        "fontSize": 0.45,
+        "fontSize": 0.417,
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
         "backgroundOpacity": 0,
         "borderColor": "#55d9dd",
         "borderOpacity": 0,
-        "padding": 0.2,
+        "padding": 0.185,
         "uppercase": false
       }
     }
