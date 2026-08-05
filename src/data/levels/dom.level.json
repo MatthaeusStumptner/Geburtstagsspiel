@@ -162,15 +162,39 @@
         "#8a7559"
       ],
       "water": "#287e9b"
-    }
+    },
+    "edgeEffects": [
+      {
+        "id": "dom-lichter",
+        "type": "city-lights",
+        "side": "both",
+        "speed": 0.7,
+        "intensity": 0.55,
+        "count": 7,
+        "color": "#f5c451",
+        "accent": "#ffb4d0"
+      },
+      {
+        "id": "dom-tauben",
+        "type": "birds",
+        "side": "both",
+        "speed": 0.55,
+        "intensity": 0.45,
+        "count": 4,
+        "color": "#f3eee0",
+        "accent": "#55d9dd"
+      }
+    ]
   },
   "actors": {
     "player": {
+      "id": "player",
       "x": 12,
       "y": 20,
       "renderer": "franz-lola",
       "animation": "",
       "appearance": null,
+      "effects": [],
       "behavior": {
         "controller": "user",
         "speedMultiplier": 1
@@ -178,6 +202,7 @@
     },
     "cats": [
       {
+        "id": "cat-1",
         "x": 11,
         "y": 12,
         "renderer": "cat",
@@ -185,6 +210,15 @@
         "color": "#ff6b5f",
         "accent": "#9e302e",
         "appearance": null,
+        "effects": [
+          {
+            "id": "orgel-neon",
+            "type": "neon",
+            "intensity": 0.35,
+            "speed": 0.8,
+            "color": "#f5c451"
+          }
+        ],
         "behavior": {
           "strategy": "chase",
           "speedMultiplier": 1,
@@ -199,6 +233,7 @@
         }
       },
       {
+        "id": "cat-2",
         "x": 12,
         "y": 12,
         "renderer": "cat",
@@ -206,6 +241,7 @@
         "color": "#f2a65a",
         "accent": "#a6532c",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "ambush",
           "speedMultiplier": 1,
@@ -220,6 +256,7 @@
         }
       },
       {
+        "id": "cat-3",
         "x": 13,
         "y": 12,
         "renderer": "cat",
@@ -227,6 +264,7 @@
         "color": "#b792e8",
         "accent": "#66509d",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "scatter-chase",
           "speedMultiplier": 1,
@@ -397,6 +435,7 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [],
       "content": {
         "standard": "♜",
         "dialect": "♜"
@@ -406,7 +445,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0.88,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -434,6 +475,7 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [],
       "content": {
         "standard": "Dom St. Stephan",
         "dialect": "Dom St. Stephan"
@@ -443,7 +485,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -503,7 +547,8 @@
           "duration": 1,
           "loop": true,
           "keyframes": []
-        }
+        },
+        "effects": []
       }
     },
     {
@@ -614,7 +659,8 @@
           "duration": 1,
           "loop": true,
           "keyframes": []
-        }
+        },
+        "effects": []
       }
     }
   ],

@@ -156,15 +156,49 @@
         "#3a3f48"
       ],
       "water": "#0a5368"
-    }
+    },
+    "edgeEffects": [
+      {
+        "id": "ilz-stroemung",
+        "type": "water-flow",
+        "side": "left",
+        "speed": 0.9,
+        "intensity": 0.7,
+        "count": 6,
+        "color": "#2379a3",
+        "accent": "#8ce5ec"
+      },
+      {
+        "id": "ilz-fische",
+        "type": "fish",
+        "side": "left",
+        "speed": 0.8,
+        "intensity": 0.65,
+        "count": 5,
+        "color": "#8ce5ec",
+        "accent": "#f5c451"
+      },
+      {
+        "id": "ilz-zille",
+        "type": "boat",
+        "side": "left",
+        "speed": 0.35,
+        "intensity": 0.7,
+        "count": 1,
+        "color": "#b4794f",
+        "accent": "#f5e7bd"
+      }
+    ]
   },
   "actors": {
     "player": {
+      "id": "player",
       "x": 12,
       "y": 20,
       "renderer": "franz-lola",
       "animation": "",
       "appearance": null,
+      "effects": [],
       "behavior": {
         "controller": "user",
         "speedMultiplier": 1
@@ -172,6 +206,7 @@
     },
     "cats": [
       {
+        "id": "cat-1",
         "x": 11,
         "y": 12,
         "renderer": "cat",
@@ -179,6 +214,15 @@
         "color": "#ff6b5f",
         "accent": "#9e302e",
         "appearance": null,
+        "effects": [
+          {
+            "id": "ilz-neon",
+            "type": "neon",
+            "intensity": 0.3,
+            "speed": 0.8,
+            "color": "#55d9dd"
+          }
+        ],
         "behavior": {
           "strategy": "chase",
           "speedMultiplier": 1,
@@ -193,6 +237,7 @@
         }
       },
       {
+        "id": "cat-2",
         "x": 12,
         "y": 12,
         "renderer": "cat",
@@ -200,6 +245,7 @@
         "color": "#f2a65a",
         "accent": "#a6532c",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "ambush",
           "speedMultiplier": 1,
@@ -214,6 +260,7 @@
         }
       },
       {
+        "id": "cat-3",
         "x": 13,
         "y": 12,
         "renderer": "cat",
@@ -221,6 +268,7 @@
         "color": "#b792e8",
         "accent": "#66509d",
         "appearance": null,
+        "effects": [],
         "behavior": {
           "strategy": "scatter-chase",
           "speedMultiplier": 1,
@@ -390,6 +438,15 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [
+        {
+          "id": "wasser-funkeln",
+          "type": "sparkle",
+          "intensity": 0.6,
+          "speed": 1.2,
+          "color": "#55d9dd"
+        }
+      ],
       "content": {
         "standard": "✦",
         "dialect": "✦"
@@ -399,7 +456,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0.88,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -427,6 +486,7 @@
         "loop": true,
         "keyframes": []
       },
+      "effects": [],
       "content": {
         "standard": "Hals · an der Ilz",
         "dialect": "Hals · an da Ilz"
@@ -436,7 +496,9 @@
         "align": "center",
         "verticalAlign": "middle",
         "background": "#071016",
+        "backgroundOpacity": 0,
         "borderColor": "#55d9dd",
+        "borderOpacity": 0,
         "padding": 0.2,
         "uppercase": false
       }
@@ -493,7 +555,8 @@
           "duration": 1,
           "loop": true,
           "keyframes": []
-        }
+        },
+        "effects": []
       }
     },
     {
@@ -603,7 +666,16 @@
           "duration": 1,
           "loop": true,
           "keyframes": []
-        }
+        },
+        "effects": [
+          {
+            "id": "wasser-funkeln",
+            "type": "sparkle",
+            "intensity": 0.6,
+            "speed": 1.2,
+            "color": "#55d9dd"
+          }
+        ]
       }
     }
   ],
