@@ -184,7 +184,7 @@
       {
         "id": "stage-lights",
         "animation": {
-          "type": "none",
+          "type": "blink",
           "speed": 1,
           "amplitude": 0.15,
           "duration": 1,
