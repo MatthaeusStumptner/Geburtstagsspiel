@@ -278,7 +278,8 @@
           }
         }
       }
-    ]
+    ],
+    "characters": []
   },
   "collectibles": {
     "powerUps": [
