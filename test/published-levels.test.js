@@ -37,7 +37,7 @@ test('original Passau events live in the published level files', async () => {
   assert.ok(events.some((event) => event.id === 'kirchenglockn' && event.trigger.type === 'direction-sequence'));
 });
 
-test('every Passau level ships a distinct intro, a new event object and movable localized text', async () => {
+test('every Passau level ships a distinct intro, an authored event and movable localized text', async () => {
   const levels = await Promise.all((await readdir(directory)).filter((name) => name.endsWith('.level.json'))
     .map(async (filename) => JSON.parse(await readFile(resolve(directory, filename), 'utf8'))));
   const signatures = new Set();
@@ -46,7 +46,8 @@ test('every Passau level ships a distinct intro, a new event object and movable 
     assert.ok(intro, `${level.id} intro`);
     assert.ok(intro.tracks.some((track) => track.type === 'camera'), `${level.id} camera`);
     assert.ok(intro.tracks.some((track) => track.type === 'dialogue'), `${level.id} dialogue`);
-    assert.ok(level.events.some((event) => event.visual.assetId), `${level.id} authored event object`);
+    assert.ok(level.events.length > 0, `${level.id} authored event`);
+    if (level.id !== 'zauberberg') assert.ok(level.events.some((event) => event.visual.assetId), `${level.id} authored event object`);
     const copy = level.decorations.find((item) => item.type === 'text');
     assert.ok(copy?.content.standard && copy?.content.dialect, `${level.id} localized movable text`);
     signatures.add(`${intro.duration}:${intro.tracks.length}:${intro.tracks.flatMap((track) => track.keyframes).length}`);
@@ -78,11 +79,12 @@ test('former baked scenery labels are published only as editable transparent tex
   }
 });
 
-test('Zauberberg publishes two removable notes plus one removable event visual without a baked stage note', async () => {
+test('Zauberberg publishes without baked, placed, event-backed or cutscene note objects', async () => {
   const level = JSON.parse(await readFile(resolve(directory, 'zauberberg.level.json'), 'utf8'));
   assert.deepEqual(level.theme.elements.map((item) => item.id), ['stage-lights']);
-  assert.equal(level.decorations.filter((item) => item.assetId === 'zauberberg-note').length, 2);
+  assert.equal(level.decorations.filter((item) => item.assetId === 'zauberberg-note').length, 0);
   const encore = level.events.find((event) => event.id === 'zugabe');
-  assert.equal(encore.visual.type, 'custom');
-  assert.equal(encore.visual.assetId, 'zauberberg-note');
+  assert.equal(encore.visual.type, 'none');
+  assert.equal(encore.visual.assetId, '');
+  assert.equal(level.cutscenes[0].tracks.some((track) => track.target?.includes('note')), false);
 });
