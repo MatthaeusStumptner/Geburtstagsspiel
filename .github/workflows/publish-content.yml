@@ -5,6 +5,12 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - src/data/levels/*.level.json
+      - src/data/library/characters/*.character.json
+      - src/data/library/tilesets/*.tileset.json
+      - src/data/library/blocks/*.block.json
+      - src/data/library/animations/*.animation.json
+      - src/data/library/cutscenes/*.cutscene.json
+      - src/data/library/objects/*.object.json
 
 permissions:
   actions: write
@@ -27,7 +33,7 @@ jobs:
           PUBLISHER_BOT_LOGIN: ${{ vars.PUBLISHER_BOT_LOGIN }}
         run: node scripts/validate-publish-pr.mjs
 
-      - name: Check out proposed level data
+      - name: Check out proposed content data
         uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

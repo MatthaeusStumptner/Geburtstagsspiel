@@ -2013,6 +2013,7 @@ function render() {
     level: activeLevelDocument,
     player: cutsceneSnapshot.player,
     cats: cutsceneSnapshot.cats,
+    characters: cutsceneSnapshot.characters,
     decorations: cutsceneSnapshot.decorations,
     pellets: new Set(),
     powerUps: powerPellets,

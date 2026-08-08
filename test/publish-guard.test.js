@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertPublishedLevelPaths, assertPublisherPullRequest } from '../scripts/publish-guard.mjs';
+import { assertPublishedContentPaths, assertPublisherPullRequest } from '../scripts/publish-guard.mjs';
 
 function pullRequest(overrides = {}) {
   return {
@@ -18,9 +18,19 @@ test('publishing guard accepts only the exact configured app bot in the same rep
   assert.throws(() => assertPublisherPullRequest(pullRequest({ head: { ref: 'publisher/hals', repo: { full_name: 'attacker/fork' } } }), 'franz-lola-publisher[bot]'), /demselben Repository/);
 });
 
-test('publishing guard rejects every change outside canonical level JSON', () => {
-  assert.doesNotThrow(() => assertPublishedLevelPaths(['src/data/levels/hals.level.json']));
-  assert.throws(() => assertPublishedLevelPaths(['src/data/levels/hals.level.json', '.github/workflows/deploy.yml']), /ausschließlich Level-JSON/);
-  assert.throws(() => assertPublishedLevelPaths(['src/data/levels/..%2Fmain.js.level.json']), /ausschließlich Level-JSON/);
-  assert.throws(() => assertPublishedLevelPaths([]), /keine Dateien/);
+test('publishing guard accepts every canonical content type and nothing else', () => {
+  const allowed = [
+    'src/data/levels/hals.level.json',
+    'src/data/library/characters/postler.character.json',
+    'src/data/library/tilesets/innstadt.tileset.json',
+    'src/data/library/blocks/ziegel.block.json',
+    'src/data/library/animations/winken.animation.json',
+    'src/data/library/cutscenes/servus.cutscene.json',
+    'src/data/library/objects/briefkasten.object.json',
+  ];
+  assert.doesNotThrow(() => assertPublishedContentPaths(allowed));
+  assert.throws(() => assertPublishedContentPaths([...allowed, '.github/workflows/deploy.yml']), /kanonische Content-JSON/);
+  assert.throws(() => assertPublishedContentPaths(['src/data/levels/..%2Fmain.js.level.json']), /kanonische Content-JSON/);
+  assert.throws(() => assertPublishedContentPaths(['src/data/library/characters/postler.object.json']), /kanonische Content-JSON/);
+  assert.throws(() => assertPublishedContentPaths([]), /keine Dateien/);
 });
