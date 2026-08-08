@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { assertPublishedLevelPaths, assertPublisherPullRequest } from './publish-guard.mjs';
+import { assertPublishedContentPaths, assertPublisherPullRequest } from './publish-guard.mjs';
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const pullRequest = event.pull_request;
@@ -24,5 +24,5 @@ for (let page = 1; page <= 10; page += 1) {
   if (files.length < 100) break;
 }
 
-assertPublishedLevelPaths(changedFiles);
-console.log(`Vertrauenswürdiger Publishing-PR mit ${changedFiles.length} Leveldatei(en).`);
+assertPublishedContentPaths(changedFiles);
+console.log(`Vertrauenswürdiger Publishing-PR mit ${changedFiles.length} Inhaltsdatei(en).`);
