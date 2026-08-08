@@ -354,6 +354,7 @@
     {
       "id": "zauberberg-box",
       "assetId": "concert-speaker",
+      "assetOverrides": [],
       "name": "Konzertbox",
       "type": "custom",
       "x": 17,
@@ -466,6 +467,7 @@
     {
       "id": "zauberberg-titel",
       "assetId": "text-block",
+      "assetOverrides": [],
       "name": "Freier Textblock",
       "type": "text",
       "x": 8,
@@ -506,6 +508,7 @@
     {
       "id": "konzertplakat",
       "assetId": "text-block",
+      "assetOverrides": [],
       "name": "Freier Textblock",
       "type": "text",
       "x": 7,
@@ -537,6 +540,122 @@
         "verticalAlign": "middle",
         "background": "#071016",
         "backgroundOpacity": 0,
+        "borderColor": "#55d9dd",
+        "borderOpacity": 0,
+        "padding": 0.2,
+        "uppercase": false
+      }
+    },
+    {
+      "id": "music-note-1786224303465-3",
+      "assetId": "music-note",
+      "assetOverrides": [],
+      "name": "Musiknote",
+      "type": "custom",
+      "x": 11.508,
+      "y": 7.439,
+      "width": 2.057,
+      "height": 2.057,
+      "color": "#55d9dd",
+      "label": "♪",
+      "layer": "scenery",
+      "locked": false,
+      "appearance": {
+        "width": 12,
+        "height": 12,
+        "palette": [
+          "transparent",
+          "#f5c451"
+        ],
+        "pixels": [
+          "000000110000",
+          "000000111100",
+          "000000100100",
+          "000000100100",
+          "000000100100",
+          "000000100100",
+          "000011100000",
+          "000111100000",
+          "000111000000",
+          "000000000000",
+          "000000000000",
+          "000000000000"
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "fps": 4,
+            "duration": 0.25,
+            "loop": true,
+            "keyframes": [
+              {
+                "id": "keyframe-1",
+                "time": 0,
+                "easing": "step",
+                "pixels": [
+                  "000000110000",
+                  "000000111100",
+                  "000000100100",
+                  "000000100100",
+                  "000000100100",
+                  "000000100100",
+                  "000011100000",
+                  "000111100000",
+                  "000111000000",
+                  "000000000000",
+                  "000000000000",
+                  "000000000000"
+                ]
+              }
+            ],
+            "frames": [
+              {
+                "pixels": [
+                  "000000110000",
+                  "000000111100",
+                  "000000100100",
+                  "000000100100",
+                  "000000100100",
+                  "000000100100",
+                  "000011100000",
+                  "000111100000",
+                  "000111000000",
+                  "000000000000",
+                  "000000000000",
+                  "000000000000"
+                ]
+              }
+            ]
+          }
+        ],
+        "stateAnimations": {
+          "idle": "idle",
+          "up": "idle",
+          "right": "idle",
+          "down": "idle",
+          "left": "idle"
+        }
+      },
+      "spriteAnimation": "idle",
+      "animation": {
+        "type": "bob",
+        "speed": 1.1,
+        "amplitude": 0.125,
+        "duration": 1,
+        "loop": true,
+        "keyframes": []
+      },
+      "effects": [],
+      "content": {
+        "standard": "♪",
+        "dialect": "♪"
+      },
+      "textStyle": {
+        "fontSize": 0.5,
+        "align": "center",
+        "verticalAlign": "middle",
+        "background": "#071016",
+        "backgroundOpacity": 0.88,
         "borderColor": "#55d9dd",
         "borderOpacity": 0,
         "padding": 0.2,
