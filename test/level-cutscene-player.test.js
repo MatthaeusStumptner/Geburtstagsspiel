@@ -10,7 +10,11 @@ function levelWithIntro() {
     location: { area: 'PASSAU', river: [], lat: 48.57, lon: 13.47 },
     board: { columns: 9, rows: 9, tileSize: 24, tunnelRows: [], walls: [] },
     theme: { landmark: 'dog-park', elements: [], palette: { ground: ['#111111'], walls: ['#222222'], curb: '#333333', water: '#004455' } },
-    actors: { player: { x: 4, y: 7, renderer: 'franz-lola' }, cats: [] },
+    actors: {
+      player: { x: 4, y: 7, renderer: 'franz-lola' },
+      cats: [],
+      characters: [{ id: 'postler-1', characterId: 'postler', name: 'Passauer Postler', x: 2, y: 5, appearance: { width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels: ['0110', '1111', '0110', '1001'] } }],
+    },
     collectibles: { powerUps: [] }, decorations: [], events: [],
     gameplay: { pelletSeed: 1, treatTargets: { easy: 10, normal: 12, hard: 14 } },
     cutscenes: [{
@@ -18,6 +22,7 @@ function levelWithIntro() {
       tracks: [
         { id: 'camera', type: 'camera', target: 'camera', keyframes: [{ id: 'a', time: 0, x: 1, y: 2, zoom: 1.5 }, { id: 'b', time: 2, x: 4, y: 7, zoom: 1.12 }] },
         { id: 'actor', type: 'actor', target: 'player', keyframes: [{ id: 'a', time: 0, x: 1, y: 7, state: 'right' }, { id: 'b', time: 2, x: 4, y: 7, state: 'idle' }] },
+        { id: 'postler', type: 'actor', target: 'character:postler-1', keyframes: [{ id: 'a', time: 0, x: 2, y: 5, state: 'left' }, { id: 'b', time: 2, x: 6, y: 5, state: 'right' }] },
         { id: 'text', type: 'dialogue', target: 'dialogue', keyframes: [{ id: 'a', time: 0, duration: 2, speaker: 'Franz', text: { standard: 'Los geht es!', dialect: 'Pack ma’s!' } }] },
       ],
     }],
@@ -30,6 +35,8 @@ test('plays the level-owned intro with camera, actor and localized dialogue', ()
   player.advance(1);
   const snapshot = player.snapshot();
   assert.equal(snapshot.player.x, 2.5);
+  assert.equal(snapshot.characters[0].x, 4);
+  assert.equal(snapshot.characters[0].direction.name, 'right');
   assert.equal(snapshot.camera.zoom, 1.31);
   assert.equal(snapshot.dialogue.text, 'Pack ma’s!');
   assert.equal(player.running, true);
