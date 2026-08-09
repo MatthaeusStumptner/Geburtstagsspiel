@@ -11,7 +11,7 @@
     "levels:import": "node scripts/import-level-catalog.mjs"
   },
   "dependencies": {
-    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#f728829"
+    "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#17ea1b8"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.1.1",

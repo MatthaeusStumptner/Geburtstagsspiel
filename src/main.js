@@ -47,7 +47,7 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   preferWebGPU: true,
   fallback: true,
   quality: 'auto',
-  powerPreference: 'low-power',
+  powerPreference: 'high-performance',
 });
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
 const levelCutscenePlayer = new LevelCutscenePlayer();
