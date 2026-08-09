@@ -38,7 +38,17 @@ import {
 } from './ui/ui-preferences.js';
 
 const canvas = document.querySelector('#game');
-const pixelRenderer = new PassauPixelRenderer(canvas, { zoom: 1.12 });
+const rendererBackendParameter = new URLSearchParams(location.search).get('renderer');
+const requestedRendererBackend = ['auto', 'canvas2d', 'webgl2', 'webgpu'].includes(rendererBackendParameter) ? rendererBackendParameter : 'auto';
+let pixelRenderer = null;
+const pixelRendererReady = PassauPixelRenderer.create(canvas, {
+  zoom: 1.12,
+  backend: requestedRendererBackend,
+  preferWebGPU: true,
+  fallback: true,
+  quality: 'auto',
+  powerPreference: 'high-performance',
+});
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
 const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
@@ -1866,7 +1876,10 @@ function render() {
       y: cutsceneSnapshot.camera.y * activeLevelDocument.board.tileSize + activeLevelDocument.board.tileSize / 2,
     } : undefined,
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
+    reducedMotion,
   });
+  canvas.dataset.rendererBackend = renderState.renderer.backend;
+  canvas.dataset.rendererQuality = renderState.renderer.quality;
   canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
   canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
   canvas.dataset.playerX = (cutsceneSnapshot?.player.x ?? player.x).toFixed(3);
@@ -2052,7 +2065,7 @@ function frame(now) {
 }
 
 function resizeCanvas() {
-  pixelRenderer.resize();
+  pixelRenderer?.resize();
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2248,21 +2261,29 @@ canvasResizeObserver?.observe(canvas);
 window.addEventListener('pagehide', () => {
   saveGame(true);
   audioService.destroy();
+  pixelRenderer?.destroy();
 });
 
-if (storedGame) restoreGame(storedGame);
-else {
-  buildLevel();
-  applyLanguage();
-  updateHud();
-  openMap();
-}
-if (requiresOnboarding) showOnboarding();
-resizeCanvas();
-requestAnimationFrame(frame);
+pixelRendererReady.then((renderer) => {
+  pixelRenderer = renderer;
+  if (storedGame) restoreGame(storedGame);
+  else {
+    buildLevel();
+    applyLanguage();
+    updateHud();
+    openMap();
+  }
+  if (requiresOnboarding) showOnboarding();
+  resizeCanvas();
+  requestAnimationFrame(frame);
+}).catch((error) => {
+  console.error('Renderer konnte nicht initialisiert werden.', error);
+  ui.announcement.textContent = 'Die Grafik konnte nicht initialisiert werden. Bitte die Seite neu laden.';
+});
 
 if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
+  window.__GASSI_RENDERER_DEBUG__ = () => pixelRenderer?.rendererInfo() ?? { backend: 'initializing' };
   window.__GASSI_DEBUG__ = () => ({
     state,
     player: { x: player.x, y: player.y, direction: player.dir.name, nextDirection: player.nextDir.name },
