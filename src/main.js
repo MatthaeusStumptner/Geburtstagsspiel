@@ -1,4 +1,5 @@
 import './style.css';
+import { mount } from 'svelte';
 import {
   DIRECTIONS,
   DirectionalSwipeInput,
@@ -13,10 +14,28 @@ import {
   reachableTileKeys,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
+import { BrowserAudioService } from './audio/browser-audio-service.js';
+import { soundscapeProfile } from './audio/level-soundscapes.js';
+import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
 import { LevelCutscenePlayer } from './game/level-cutscene-player.js';
+import { DIFFICULTIES } from './game/difficulty-config.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { respawnCat } from './game/actor-respawn.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
+import { migrateSave } from './platform/save-migrations.js';
+import UiApp from './ui/App.svelte';
+import { createMapGeometry } from './ui/map-geometry.js';
+import {
+  ENDGAME_BOOT_LINES,
+  endgameBootView,
+  endgamePageView,
+} from './ui/endgame-sequence.js';
+import { mountUiSurfaces } from './ui/mount-ui-surfaces.js';
+import { createUiSession } from './ui/ui-session.js';
+import {
+  resolveReducedMotionPreference,
+  settingsContextForState,
+} from './ui/ui-preferences.js';
 
 const canvas = document.querySelector('#game');
 const pixelRenderer = new PassauPixelRenderer(canvas, { zoom: 1.12 });
@@ -32,252 +51,24 @@ const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 6;
+const SAVE_VERSION = 9;
 const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
 const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
 const CAMERA_ZOOM = 1.12;
 
-const TEXT = {
-  standard: {
-    eyebrow: 'EIN KLEINES ABENTEUER AUS PASSAU',
-    scoreLabel: 'PUNKTE', bestLabel: 'BESTE RUNDE', roundLabel: 'LEVEL', livesLabel: 'LEINEN',
-    globalProgressLabel: 'PASSAU-FORTSCHRITT',
-    mapKicker: 'DEINE GASSI-KARTE', mapTitle: 'Wo geht es heute hin?',
-    mapCopy: 'Wähle einen Ort in Passau. Die Abstände der Punkte sind geografisch skaliert.',
-    mapStart: 'LEVEL STARTEN →', mapResume: 'WEITERGASSI →', mapButton: 'PASSAU-KARTE',
-    cutsceneSkip: 'ÜBERSPRINGEN →',
-    settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & DARSTELLUNG', settingsTitle: 'Gassi-Zentrale',
-    settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen schließen',
-    menuLabel: 'MENÜ', levelIntroKicker: 'KURZ DIE LEINE SORTIEREN', levelIntroTitle: '{place}',
-    levelIntroCopy: '{description}', controlIntroHint: 'Wische in die gewünschte Richtung. Lola übernimmt den Richtungswechsel sofort.',
-    controlMenuHint: 'Mobil wischen, am Desktop Pfeiltasten oder WASD verwenden.',
-    difficultyLabel: 'SCHWIERIGKEIT', difficultyEasy: 'Spaziergang', difficultyNormal: 'Gassirunde', difficultyHard: 'Abenteuer',
-    easyHint: '2 Katzen · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
-    normalHint: '3 Katzen · 3 Leinen · 110 Guttis · ausgewogenes Tempo',
-    hardHint: '3 schnelle Katzen · 2 Leinen · 160 Guttis',
-    treatProgressLabel: 'GUTTIS GESAMMELT',
-    languageLabel: 'SPRACHE', standardButton: 'Schönes Deutsch', dialectButton: 'Niederbairisch*',
-    languageJoke: '* Amtlich keine eigene Sprache – aber versuchen Sie das einmal einem Niederbayern zu erklären.',
-    flavourQuote: '„Nur noch eine kleine Runde.“', flavourByline: '— Franz, seit 45 Minuten',
-    keyHint: 'PFEILTASTEN / WASD · P ZUM PAUSIEREN', mobileHint: 'WISCHEN LENKT SOFORT',
-    mobileBackMap: 'PASSAU-KARTE', enterFullscreenLabel: 'Vollbild aktivieren', exitFullscreenLabel: 'Vollbild verlassen',
-    routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNISSE',
-    guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkte',
-    powerTitle: 'Schnüffel-Power', powerCopy: 'Die Katzen suchen das Weite',
-    catTitle: 'Nachbarskatzen', catCopy: 'Lieber Abstand halten', controlsLabel: 'STEUERUNG', orLabel: 'oder',
-    footerPlace: 'PASSAU · STADT & FLÜSSE', footerTagline: 'PIXEL FÜR PIXEL DURCH DIE NACHT',
-    saveSuccess: 'IM BROWSER GESPEICHERT', saveBlocked: 'SPEICHER IST GESPERRT',
-    pause: 'Ⅱ  PAUSE', continue: '▶  WEITER', soundOn: '♪  TON AN', soundOff: '♪  TON AUS',
-    startKicker: 'DIE ABENDRUNDE BEGINNT', startTitle: 'Los geht’s, Franz!',
-    startCopy: 'Sammle alle Guttis ein, halte Abstand zu den Nachbarskatzen und bringe Lola sicher ans Ziel.',
-    startButton: 'AUF GEHT’S →', resumeKicker: 'DEINE RUNDE IST NOCH DA', resumeTitle: 'Willkommen zurück, Franz!',
-    resumeCopy: 'Level {level}, {score} Punkte und {lives} {leash} wurden sicher im Browser gespeichert.',
-    resumeButton: 'WEITERGASSI →', leashOne: 'Leine', leashMany: 'Leinen',
-    pauseKicker: 'EINE KLEINE VERSCHNAUFPAUSE', pauseTitle: 'Warte kurz, Lola!',
-    pauseCopy: 'Die Runde ist pausiert. Franz bindet sich nur schnell einen Schuh.', pauseButton: 'WEITER GEHT’S →',
-    winKicker: 'ALLE GUTTIS SIND EINGESAMMELT', winTitle: 'Sauber, das war’s!',
-    winCopy: 'Lola ist zufrieden und Franz ein wenig müde. Dieser Ort ist jetzt auf der Passau-Karte abgehakt.',
-    winButton: 'ZUR PASSAU-KARTE →', overKicker: 'DIE KATZEN WAREN HEUTE SCHNELLER', overTitle: 'Jetzt geht es heim.',
-    overCopy: 'Franz und Lola haben {score} Punkte gesammelt. Morgen versuchen sie es wieder.', overButton: 'NOCH EINMAL →',
-    playAnnouncement: 'Auf geht es mit Franz und Lola', powerAnnouncement: 'Schnüffel-Power! Die Katzen suchen das Weite',
-    eggIlz: 'Donnerwetter, ein Eisvogel an der Ilz!', eggPark: 'Lola hat ihren Lieblingsplatz gefunden!',
-    eggBell: 'Bim bam! Die Passauer Glocken läuten nur für euch.', secretFound: 'Geheimnis entdeckt: {message}',
-    missionPrefix: 'HEUTIGE RUNDE', mapSelected: 'AUSGEWÄHLT', mapCompleted: 'GESCHAFFT',
-    mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUCHE', mapStatsScore: 'BESTE PUNKTE',
-    mapStatsStatus: 'STATUS', mapStatsOpen: 'NOCH OFFEN', mapStatsActive: 'AKTIVE RUNDE',
-    mapStatsDone: 'GESCHAFFT', mapDetailsClose: 'Ortsdetails schließen',
-    mapAggregateLevels: 'LEVEL ABGESCHLOSSEN', mapAggregateTreats: 'GUTTIS GEFUNDEN',
-    levelScoreLabel: 'LEVEL-PUNKTE', levelRemainingLabel: 'NOCH OFFEN',
-    finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau ist geschafft!',
-    finaleCopy: 'Franz und Lola haben alle neun Gassi-Orte erkundet. Jedes Gutti, jeder Umweg und jede Leine haben sich gelohnt.',
-    finaleButton: 'ZUR EHRENRUNDE →',
-    newGameButton: '↺ NEUER SPIELSTAND', newGameKicker: 'WIRKLICH NEU ANFANGEN?',
-    newGameTitle: 'Eine neue Gassi-Karte?',
-    newGameCopy: 'Punkte, Orts-Häkchen und Geheimnisse werden gelöscht. Sprache, Ton und Schwierigkeit bleiben erhalten.',
-    newGameConfirm: 'JA, NEU STARTEN', cancelButton: 'ABBRECHEN',
-    deleteBrowserDataButton: '⚠ ALLE BROWSERDATEN LÖSCHEN',
-    deleteDataKicker: 'LETZTE SICHERHEITSABFRAGE', deleteDataTitle: 'Die komplette Akte vernichten?',
-    deleteDataCopy: 'Der gesamte Spielstand dieses Spiels wird aus dem Browser gelöscht – einschließlich Leveln, Punkten, Einstellungen und Einweisung. Danach beginnt Vorgang 60 wieder ganz von vorn. Das lässt sich nicht rückgängig machen.',
-    deleteDataConfirm: 'JA, ALLES ENDGÜLTIG LÖSCHEN',
-    deleteDataErrorKicker: 'LÖSCHUNG BLOCKIERT', deleteDataErrorTitle: 'Die Akte klemmt im Schredder',
-    deleteDataErrorCopy: 'Der Browser hat das Löschen verhindert. Bitte prüfe, ob Website-Daten oder privater Modus blockiert sind.',
-    deleteDataErrorButton: 'ZURÜCK ZUM SPIEL',
-  },
-  dialect: {
-    eyebrow: 'A KLOANS ABENTEUER AUS PASSAU',
-    scoreLabel: 'PUNKT', bestLabel: 'BESTE RUNDN', roundLabel: 'LEVEL', livesLabel: 'LEINEN',
-    globalProgressLabel: 'PASSAU-FORTSCHRITT',
-    mapKicker: 'DEI GASSI-KARTN', mapTitle: "Wo geh ma heit hi?",
-    mapCopy: 'Suach da a Platzerl in Passau aus. De Abständ san geografisch skaliert.',
-    mapStart: 'LEVEL STARTN →', mapResume: 'WEIDAGASSI →', mapButton: 'PASSAU-KARTN',
-    cutsceneSkip: 'ÜBERSPRINGA →',
-    settingsLabel: 'EINSTELLUNGEN', settingsKicker: 'SPIEL & ANSCHAUN', settingsTitle: 'Gassi-Zentraln',
-    settingsSystemLabel: 'SYSTEM', settingsCloseLabel: 'Einstellungen zumacha',
-    menuLabel: 'MENÜ', levelIntroKicker: 'KURZ D’LEIN SORTIERN', levelIntroTitle: '{place}',
-    levelIntroCopy: '{description}', controlIntroHint: 'Wisch in de Richtung, wo’s hi geh soi. D’Lola draht glei mit.',
-    controlMenuHint: 'Mobil wischn, am Rechner Pfeiltastn oder WASD nehma.',
-    difficultyLabel: 'WIA HART?', difficultyEasy: 'Gmiatlich', difficultyNormal: 'Gassirundn', difficultyHard: 'Sakrisch',
-    easyHint: '2 Katzn · 5 Leinen · 70 Guttis · lange Schnüffel-Power',
-    normalHint: '3 Katzn · 3 Leinen · 110 Guttis · guads Tempo',
-    hardHint: '3 sakrisch flinke Katzn · 2 Leinen · 160 Guttis',
-    treatProgressLabel: 'GUTTIS EIGSAMMELT',
-    languageLabel: 'SPRACH', standardButton: 'Schönes Deutsch', dialectButton: 'Niederbairisch*',
-    languageJoke: "* Koa richtige Sprach – aber des sogn aa bloß Leit, de's ned vastehn.",
-    flavourQuote: '„Bloß no a kloane Rundn.“', flavourByline: '— da Franz, seit 45 Minutn',
-    keyHint: 'PFEILTASTN / WASD · P ZUM PAUSIEREN', mobileHint: 'WISCHN LENKT GLEI',
-    mobileBackMap: 'ZUR PASSAU-KARTN', enterFullscreenLabel: 'Vollbild o', exitFullscreenLabel: 'Vollbild aus',
-    routeOne: 'START', routeTwo: 'GUTTIS', routeThree: 'ZIEL', secretsLabel: 'PASSAU-GEHEIMNIS',
-    guideLabel: 'GASSI-GUIDE', treatTitle: 'Gutti', treatCopy: '+10 Punkt',
-    powerTitle: 'Schnüffel-Power', powerCopy: "D'Katzn gebn Fersngeld",
-    catTitle: 'Nochbarskatzn', catCopy: 'Liaba Abstand hoidn', controlsLabel: 'STEUERUNG', orLabel: 'oda',
-    footerPlace: 'PASSAU · STADT & FLIASS', footerTagline: "PIXEL FÜR PIXEL DURCH D'NACHT",
-    saveSuccess: "IM BROWSER G'SPEICHERT", saveBlocked: 'SPEICHER IS GSPERRT',
-    pause: 'Ⅱ  PAUSE', continue: '▶  WEIDA', soundOn: '♪  TON O', soundOff: '♪  TON AUS',
-    startKicker: "D'ABENDRUNDN GEHT O", startTitle: "Pack ma's, Franz!",
-    startCopy: "Sammel olle Guttis ei, hoid di von de Nochbarskatzn fern und bring d'Lola guad ans Ziel.",
-    startButton: "AUF GEHT'S →", resumeKicker: 'DEI RUNDN IS NO DO', resumeTitle: 'Servus zruck, Franz!',
-    resumeCopy: "Level {level}, {score} Punkt und {lives} {leash} san sauber im Browser g'speichert.",
-    resumeButton: 'WEIDAGASSI →', leashOne: 'Leine', leashMany: 'Leinen',
-    pauseKicker: 'A KLOANE VERSCHNAUFPAUSN', pauseTitle: 'Wart amoi, Lola!',
-    pauseCopy: "D'Rundn is pausiert. Da Franz bind't se bloß gschwind an Schuah.", pauseButton: "WEIDA GEHT'S →",
-    winKicker: 'OLLE GUTTIS SAN EIGSAMMELT', winTitle: 'Sauba, des war’s!',
-    winCopy: "D'Lola is zfriedn und da Franz a bisserl miad. Des Platzerl is auf da Passau-Kartn abghakt.",
-    winButton: 'ZUR PASSAU-KARTN →', overKicker: 'DE KATZN WARN HEIT GSCHWINDER', overTitle: 'Jetz geht’s hoam.',
-    overCopy: "Da Franz und d'Lola ham {score} Punkt eigsammelt. Moang pack ma's wieder.", overButton: 'NO AMOI →',
-    playAnnouncement: "Auf geht's mit Franz und Lola", powerAnnouncement: "Schnüffel-Power! D'Katzn gebn Fersngeld",
-    eggIlz: 'Sakradi, a Eisvogl an da Ilz!', eggPark: "Ja mei, d'Lola hod ihr Lieblingsplatzerl gfundn!",
-    eggBell: "Bim bam! D'Passauer Glockn läutn bloß für eich.", secretFound: 'Geheimnis entdeckt: {message}',
-    missionPrefix: 'HEITIGE RUNDN', mapSelected: 'AUSGWÄHLT', mapCompleted: 'GSCHAFFT',
-    mapStatsTreats: 'GUTTIS', mapStatsAttempts: 'VERSUACH', mapStatsScore: 'BESTE PUNKT',
-    mapStatsStatus: 'STATUS', mapStatsOpen: 'NO OFFN', mapStatsActive: 'AKTIVE RUNDN',
-    mapStatsDone: 'GSCHAFFT', mapDetailsClose: 'Ortsdetails zumacha',
-    mapAggregateLevels: 'LEVEL GSCHAFFT', mapAggregateTreats: 'GUTTIS GFUNDN',
-    levelScoreLabel: 'LEVEL-PUNKT', levelRemainingLabel: 'NO OFFN',
-    finaleKicker: '100% PASSAU', finaleTitle: 'Ganz Passau is abgassi’d!',
-    finaleCopy: "Da Franz und d'Lola ham olle neun Gassi-Platzerl erkundet. Jeds Gutti, jeda Umweg und jede Leine ham se rentiert.",
-    finaleButton: 'ZUR EHRENRUNDN →',
-    newGameButton: '↺ NEIA SPIELSTAND', newGameKicker: 'WIRKLI VON VORN?',
-    newGameTitle: 'A frische Gassi-Kartn?',
-    newGameCopy: "Punkt, Orts-Hakerl und Geheimnis werdn glöscht. Sprach, Ton und Schwierigkeit bleibn wia's san.",
-    newGameConfirm: 'JA, NEI STARTN', cancelButton: 'ABBRECHN',
-    deleteBrowserDataButton: '⚠ OLLE BROWSERDATEN LÖSCHN',
-    deleteDataKicker: 'LETZTE SICHERHEITSABFRAG', deleteDataTitle: 'De komplette Akt vernichtn?',
-    deleteDataCopy: 'Da ganze Spielstand von dem Spiel werd ausm Browser glöscht – Level, Punkt, Einstellungen und Einweisung. Danach fangt Vorgang 60 wieder ganz von vorn o. Des ko ma ned rückgängig macha.',
-    deleteDataConfirm: 'JA, OIS ENDGÜLTIG LÖSCHN',
-    deleteDataErrorKicker: 'LÖSCHN BLOCKIERT', deleteDataErrorTitle: 'De Akt hängt im Schredder',
-    deleteDataErrorCopy: 'Da Browser hod des Löschn verhindert. Bittsche prüaf, ob Website-Daten oder da private Modus blockiert san.',
-    deleteDataErrorButton: 'ZRUCK ZUM SPIEL',
-  },
+const MAP_GEOMETRY = createMapGeometry(PASSAU_LEVELS);
+const MAP_LABEL_LIFTS = {
+  hals: 8,
+  home: 14,
+  bschuett: 28,
+  oberhaus: 8,
+  dom: 30,
+  dreifluesseeck: 8,
+  uni: 8,
+  zauberberg: 24,
+  tabakfabrik: 8,
 };
-
-const ONBOARDING_GUIDE = {
-  standard: [
-    {
-      kicker: 'SONDERAKTE F-60 · OFFENLEGUNG',
-      title: 'Der Auftrag',
-      copy: 'Der versiegelte Umschlag springt auf. Darin liegt eine Karte von Passau – und daneben wartet Lola bereits mit angelegter Leine. Zum 60. Geburtstag wurde eine ganz besondere Ehrenrunde genehmigt.',
-      points: [
-        'Neun Passauer Orte bilden das offizielle Einsatzgebiet.',
-        'An jedem Ort müssen sämtliche Guttis ordnungsgemäß sichergestellt werden.',
-        'Nachbarskatzen betrachten den Vorgang leider als ihre Zuständigkeit.',
-      ],
-      finePrint: 'Aktenvermerk: Lola führt die operative Leitung. Franz trägt die Leine und die Verantwortung.',
-      next: 'ZUR BEDIENUNGSANWEISUNG →',
-    },
-    {
-      kicker: 'DIENSTANWEISUNG · FORTBEWEGUNG',
-      title: 'Lola gibt die Richtung vor',
-      copy: 'Sobald sich die beiden in Bewegung setzen, genügt ein kurzer Richtungswunsch. Lola versteht ihn sofort – meistens sogar schneller als eine kommunale Dienststelle.',
-      points: [
-        'Desktop: Pfeiltasten oder W, A, S und D verwenden.',
-        'Mobil: direkt auf dem Spielfeld in die gewünschte Richtung wischen.',
-        'Richtungen dürfen schon kurz vor der nächsten Kreuzung vorgemerkt werden.',
-      ],
-      finePrint: 'P oder die Leertaste pausieren den Vorgang. Spontane Schuhbindepausen sind zulässig.',
-      next: 'ZU DEN EINSATZMITTELN →',
-    },
-    {
-      kicker: 'DIENSTANWEISUNG · EINSATZMITTEL',
-      title: 'Was unterwegs wichtig wird',
-      copy: 'Die Sonderstelle hat drei auffällig unbürokratische Hilfsmittel genehmigt. Das Zahnrad-Menü enthält außerdem Karte, Pause und Ton – falls die Lage eine geordnete Unterbrechung verlangt.',
-      points: [
-        'Gelbe Guttis zählen zum Auftrag und müssen vollständig eingesammelt werden.',
-        'Die große Pfote aktiviert Schnüffel-Power und vertreibt Katzen vorübergehend.',
-        'Randpfeile zeigen Katzen an, die außerhalb des sichtbaren Bereichs lauern.',
-      ],
-      finePrint: 'Damit ist die Einweisung abgeschlossen. Der eigentliche Vorgang beginnt auf der Passau-Karte.',
-      finish: 'VORGANG 60 STARTEN →',
-    },
-  ],
-  dialect: [
-    {
-      kicker: 'SONDERAKT F-60 · JETZT WERD AUFGMACHT',
-      title: 'Da Auftrag',
-      copy: "Da versiegelte Umschlag springt auf. Drin liegt a Kartn von Passau – und daneben wart d'Lola scho mit da Lein. Zum 60er is a ganz bsondere Ehrenrundn genehmigt worn.",
-      points: [
-        'Neun Passauer Platzerl san des amtliche Einsatzgebiet.',
-        'An jedem Platzerl miassn olle Guttis sauber sichergstellt werdn.',
-        "De Nochbarskatzn hoitn des leider aa für eahna Zuständigkeit.",
-      ],
-      finePrint: "Aktenvermerk: D'Lola hod d'Einsatzleitung. Da Franz hod d'Lein und d'Verantwortung.",
-      next: 'ZUR BEDIENUNGSANWEISUNG →',
-    },
-    {
-      kicker: 'DIENSTANWEISUNG · FORTBEWEGUNG',
-      title: "D'Lola gibt d'Richtung vor",
-      copy: "Sobald de zwoa unterwegs san, reicht a kurzer Richtungswunsch. D'Lola vasteht'n sofort – meistens schneller ois a kommunale Dienststell.",
-      points: [
-        'Am Rechner: Pfeiltastn oder W, A, S und D nehma.',
-        'Mobil: direkt aufm Spielfeld in de gewünschte Richtung wischn.',
-        'D Richtung ko scho kurz vor da nächsten Kreuzung vorgemerkt werdn.',
-      ],
-      finePrint: 'P oder d Leertastn pausiern den Vorgang. Schuahbindn is ausdrücklich erlaubt.',
-      next: 'ZU DE EINSATZMITTEL →',
-    },
-    {
-      kicker: 'DIENSTANWEISUNG · EINSATZMITTEL',
-      title: 'Wos unterwegs wichtig werd',
-      copy: 'De Sonderstell hod drei erstaunlich unbürokratische Hilfsmittel genehmigt. Im Zahnrad-Menü san außerdem Kartn, Pause und Ton – falls d Lage a gscheide Unterbrechung braucht.',
-      points: [
-        'De gelbn Guttis ghern zum Auftrag und miassn olle eigsammelt werdn.',
-        'De große Pfotn aktiviert d Schnüffel-Power und vertreibt Katzn für a Zeitl.',
-        'Randpfeile zoagn Katzn, de grad außerhalb vom sichtbaren Bereich lauern.',
-      ],
-      finePrint: 'Damit war d Einweisung. Da eigentliche Vorgang fangt auf da Passau-Kartn o.',
-      finish: 'JETZT PACK MA VORGANG 60 →',
-    },
-  ],
-};
-
-const DIFFICULTIES = {
-  easy: {
-    playerSpeed: 5.8, catSpeed: 2.55, frightenedSpeed: 1.85, catCount: 2,
-    lives: 5, powerDuration: 12, treatTarget: 70, wander: 7.2, grace: 2.2, nameKey: 'difficultyEasy', hintKey: 'easyHint',
-  },
-  normal: {
-    playerSpeed: 5.55, catSpeed: 3.35, frightenedSpeed: 2.55, catCount: 3,
-    lives: 3, powerDuration: 9, treatTarget: 110, wander: 4.2, grace: 1.6, nameKey: 'difficultyNormal', hintKey: 'normalHint',
-  },
-  hard: {
-    playerSpeed: 5.35, catSpeed: 4.05, frightenedSpeed: 3.25, catCount: 3,
-    lives: 2, powerDuration: 7, treatTarget: 160, wander: 2.1, grace: 1.1, nameKey: 'difficultyHard', hintKey: 'hardHint',
-  },
-};
-
-const MAP_BOUNDS = { minLat: 48.5645, maxLat: 48.5945, minLon: 13.447, maxLon: 13.489 };
-const MAP_VIEWBOX_SIZE = 700;
-const MAP_PADDING = 45;
-const KM_PER_LATITUDE_DEGREE = 111.32;
-const KM_PER_LONGITUDE_DEGREE = KM_PER_LATITUDE_DEGREE
-  * Math.cos(((MAP_BOUNDS.minLat + MAP_BOUNDS.maxLat) / 2) * Math.PI / 180);
-const MAP_WIDTH_KM = (MAP_BOUNDS.maxLon - MAP_BOUNDS.minLon) * KM_PER_LONGITUDE_DEGREE;
-const MAP_HEIGHT_KM = (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat) * KM_PER_LATITUDE_DEGREE;
-const MAP_UNITS_PER_KM = (MAP_VIEWBOX_SIZE - MAP_PADDING * 2) / Math.max(MAP_WIDTH_KM, MAP_HEIGHT_KM);
-const MAP_CONTENT_WIDTH = MAP_WIDTH_KM * MAP_UNITS_PER_KM;
-const MAP_CONTENT_HEIGHT = MAP_HEIGHT_KM * MAP_UNITS_PER_KM;
-const MAP_OFFSET_X = (MAP_VIEWBOX_SIZE - MAP_CONTENT_WIDTH) / 2;
-const MAP_OFFSET_Y = (MAP_VIEWBOX_SIZE - MAP_CONTENT_HEIGHT) / 2;
 
 const PLAYER_START = { x: 12, y: 20 };
 const POWER_PELLET_POSITIONS = [[1, 1], [23, 1], [1, 23], [23, 23]];
@@ -290,93 +81,8 @@ const CAT_STARTS = [
 const ui = {
   appShell: document.querySelector('.app-shell'),
   boardColumn: document.querySelector('.board-column'),
-  score: document.querySelector('#score'),
-  best: document.querySelector('#best'),
-  level: document.querySelector('#level'),
-  lives: document.querySelector('#lives'),
-  globalProgress: document.querySelector('#global-progress'),
-  globalProgressCopy: document.querySelector('#global-progress-copy'),
-  globalProgressBar: document.querySelector('#global-progress-bar'),
-  overlay: document.querySelector('#overlay'),
-  overlayCelebration: document.querySelector('#overlay-celebration'),
-  overlayKicker: document.querySelector('#overlay-kicker'),
-  overlayTitle: document.querySelector('#overlay-title'),
-  overlayCopy: document.querySelector('#overlay-copy'),
-  overlayButton: document.querySelector('#overlay-button'),
-  overlaySecondaryButton: document.querySelector('#overlay-secondary-button'),
-  controlIntro: document.querySelector('#control-intro'),
-  pauseButton: document.querySelector('#pause-button'),
-  soundButton: document.querySelector('#sound-button'),
-  mobileGameHeader: document.querySelector('#mobile-game-header'),
-  mobileGameMenuButton: document.querySelector('#mobile-game-menu-button'),
-  mobileGameLevel: document.querySelector('#mobile-game-level'),
-  mobileGameLocation: document.querySelector('#mobile-game-location'),
-  mapCompletedLevels: document.querySelector('#map-completed-levels'),
-  mapTotalTreats: document.querySelector('#map-total-treats'),
-  levelStatusScore: document.querySelector('#level-status-score'),
-  levelStatusTreats: document.querySelector('#level-status-treats'),
-  levelStatusRemaining: document.querySelector('#level-status-remaining'),
-  levelStatusLives: document.querySelector('#level-status-lives'),
   catRadar: document.querySelector('#cat-radar'),
-  levelConfetti: document.querySelector('#level-confetti'),
-  levelCutscene: document.querySelector('#level-cutscene'),
-  levelCutsceneTitle: document.querySelector('#level-cutscene-title'),
-  levelCutsceneDialogue: document.querySelector('#level-cutscene-dialogue'),
-  levelCutsceneSpeaker: document.querySelector('#level-cutscene-speaker'),
-  levelCutsceneText: document.querySelector('#level-cutscene-text'),
-  levelCutsceneSkip: document.querySelector('#level-cutscene-skip'),
-  mapButton: document.querySelector('#map-button'),
-  mapScreen: document.querySelector('#map-screen'),
-  mapCanvas: document.querySelector('#map-canvas'),
-  mapSvg: document.querySelector('#passau-map'),
-  mapMarkers: document.querySelector('#map-markers'),
-  mapSelection: document.querySelector('#map-selection'),
-  mapSelectionClose: document.querySelector('#map-selection-close'),
-  mapSelectionKicker: document.querySelector('#map-selection-kicker'),
-  mapSelectionTitle: document.querySelector('#map-selection-title'),
-  mapSelectionCopy: document.querySelector('#map-selection-copy'),
-  mapStatsTreats: document.querySelector('#map-stats-treats'),
-  mapStatsAttempts: document.querySelector('#map-stats-attempts'),
-  mapStatsScore: document.querySelector('#map-stats-score'),
-  mapStatsStatus: document.querySelector('#map-stats-status'),
-  mapStartButton: document.querySelector('#map-start-button'),
-  settingsDialog: document.querySelector('#settings-dialog'),
-  settingsButton: document.querySelector('#settings-open-button'),
-  settingsCloseButton: document.querySelector('#settings-close-button'),
-  settingsPauseButton: document.querySelector('#settings-pause-button'),
-  settingsSoundButton: document.querySelector('#settings-sound-button'),
-  settingsMapButton: document.querySelector('#settings-map-button'),
-  locationRiver: document.querySelector('#location-river'),
-  locationCoordinates: document.querySelector('#location-coordinates'),
-  locationName: document.querySelector('#location-name'),
-  missionLabel: document.querySelector('#mission-label'),
-  missionTitle: document.querySelector('#mission-title'),
-  treatProgress: document.querySelector('#treat-progress'),
-  difficultyHint: document.querySelector('#difficulty-hint'),
-  newGameButton: document.querySelector('#new-game-button'),
-  deleteBrowserDataButton: document.querySelector('#delete-browser-data-button'),
-  eggs: document.querySelector('#eggs'),
-  saveStatus: document.querySelector('#save-status'),
-  saveNote: document.querySelector('.save-note'),
-  easterToast: document.querySelector('#easter-toast'),
-  easterToastCopy: document.querySelector('#easter-toast-copy'),
   announcement: document.querySelector('#announcement'),
-  onboardingDialog: document.querySelector('#onboarding-dialog'),
-  onboardingPanel: document.querySelector('.onboarding-panel'),
-  onboardingLoginForm: document.querySelector('#onboarding-login-form'),
-  onboardingName: document.querySelector('#onboarding-name'),
-  onboardingAge: document.querySelector('#onboarding-age'),
-  onboardingLoginError: document.querySelector('#onboarding-login-error'),
-  onboardingSetupNext: document.querySelector('#onboarding-setup-next'),
-  onboardingGuideKicker: document.querySelector('#onboarding-guide-kicker'),
-  onboardingGuideTitle: document.querySelector('#onboarding-guide-title'),
-  onboardingGuideCopy: document.querySelector('#onboarding-guide-copy'),
-  onboardingGuidePoints: document.querySelector('#onboarding-guide-points'),
-  onboardingGuidePosition: document.querySelector('.onboarding-guide-position'),
-  onboardingGuideBack: document.querySelector('#onboarding-guide-back'),
-  onboardingGuideNext: document.querySelector('#onboarding-guide-next'),
-  onboardingGuideFinePrint: document.querySelector('#onboarding-guide-fine-print'),
-  onboardingFinish: document.querySelector('#onboarding-finish'),
 };
 
 const storedGame = loadGame();
@@ -399,7 +105,11 @@ let lives = DIFFICULTIES[difficulty].lives;
 let powerTimer = 0;
 let hitTimer = 0;
 let graceTimer = 0;
-let soundEnabled = false;
+let soundEnabled = storedGame ? Boolean(storedGame.soundEnabled) : true;
+let reducedMotion = resolveReducedMotionPreference(
+  storedGame?.reducedMotion,
+  window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
+);
 let runStarted = false;
 let language = storedGame?.language === 'standard' ? 'standard' : 'dialect';
 let levelTreatTotal = 0;
@@ -407,33 +117,48 @@ let selectedLevelId = PASSAU_LEVELS.some((item) => item.id === storedGame?.selec
   ? storedGame.selectedLevelId
   : 'home';
 let mapSelectionId = selectedLevelId;
+let mapSelectionOpen = false;
 let completedLevelIds = new Set(
   Array.isArray(storedGame?.completedLevelIds)
     ? storedGame.completedLevelIds.filter((id) => PASSAU_LEVELS.some((item) => item.id === id))
     : [],
 );
+let concertUnlocked = Boolean(storedGame?.concertUnlocked)
+  || completedLevelIds.size === PASSAU_LEVELS.length;
+let concertRevealSeen = Boolean(storedGame?.concertRevealSeen);
 let levelStats = normalizeLevelStats(storedGame?.levelStats);
 let levelRunScore = Math.max(0, Math.floor(Number(storedGame?.levelRunScore) || 0));
 let unlockedEggs = new Set();
 let activeEasterEgg = null;
 let currentOverlay = null;
+let endgamePage = 0;
+let mapEndgameActive = false;
+let mapEndgamePhase = 'boot';
+let mapEndgameBootStep = 0;
+let mapEndgameTimers = [];
+let sceneTransitionToken = 0;
+let sceneTransitionActive = false;
 let directionHistory = [];
 let savePulseTimer;
-let audioContext;
+let savePulse = false;
 let elapsed = 0;
 let levelEventElapsed = 0;
 let autoSaveElapsed = 0;
 const swipeInput = new DirectionalSwipeInput({ activationDistance: SWIPE_ACTIVATION_DISTANCE, dominanceRatio: 1.08 });
 let mobileScrollPosition = 0;
+const uiSession = createUiSession();
+let settingsOpen = false;
 let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
+let cutsceneUiRevealTimer = null;
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
 let activeLevelDocument = null;
+const audioService = new BrowserAudioService(() => soundEnabled);
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -443,139 +168,138 @@ function t(key, values = {}) {
   );
 }
 
+function playUiSound(kind = 'press') {
+  audioService.playUi(kind);
+}
+
+function syncLevelAudioForState(targetState = state) {
+  const effectiveState = targetState === 'menu' ? settingsReturnState : targetState;
+  if (effectiveState === 'map') {
+    if (mapSelectionOpen) audioService.previewLevel(mapSelectionId);
+    else audioService.stopLevelSoundscape();
+    return;
+  }
+  if (effectiveState === 'intro') audioService.playLevel(selectedLevelId, 'intro');
+  else if (effectiveState === 'cutscene') audioService.playLevel(selectedLevelId, 'cutscene');
+  else if (effectiveState === 'playing' || effectiveState === 'hit') audioService.playLevel(selectedLevelId, 'playing');
+  else if (effectiveState === 'paused') audioService.playLevel(selectedLevelId, 'paused');
+  else if (effectiveState === 'won') audioService.playLevel(selectedLevelId, 'won');
+  else if (effectiveState === 'over') audioService.playLevel(selectedLevelId, 'over');
+  else audioService.stopLevelSoundscape();
+}
+
+function syncReducedMotionButton() {
+  syncSettingsMenu();
+}
+
+function applyReducedMotion() {
+  document.documentElement.classList.toggle('reduced-motion', reducedMotion);
+  document.documentElement.dataset.reducedMotion = String(reducedMotion);
+  syncReducedMotionButton();
+}
+
+function toggleReducedMotion() {
+  reducedMotion = !reducedMotion;
+  applyReducedMotion();
+  saveGame();
+}
+
 function updateOnboardingChoices() {
-  document.querySelectorAll('[data-onboarding-language]').forEach((button) => {
-    const active = button.dataset.onboardingLanguage === onboardingLanguage;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  document.querySelectorAll('[data-onboarding-difficulty]').forEach((button) => {
-    const active = button.dataset.onboardingDifficulty === onboardingDifficulty;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
+  uiSession.patch('onboarding', {
+    language: onboardingLanguage,
+    difficulty: onboardingDifficulty,
   });
 }
 
 function showOnboardingStep(step) {
-  const order = ['identity', 'setup', 'guide'];
-  const titleIds = {
-    identity: 'onboarding-title',
-    setup: 'onboarding-setup-title',
-    guide: 'onboarding-guide-title',
-  };
-  const activeIndex = order.indexOf(step);
-  document.querySelectorAll('[data-onboarding-step]').forEach((section) => {
-    section.hidden = section.dataset.onboardingStep !== step;
-  });
-  document.querySelectorAll('[data-onboarding-progress]').forEach((indicator, index) => {
-    indicator.classList.toggle('active', index === activeIndex);
-    indicator.classList.toggle('done', index < activeIndex);
-  });
-  ui.onboardingDialog.querySelector('.onboarding-progress')
-    .setAttribute('aria-label', `Einrichtung, Schritt ${activeIndex + 1} von ${order.length}`);
-  ui.onboardingPanel.setAttribute('aria-labelledby', titleIds[step]);
-  requestAnimationFrame(() => {
-    if (step === 'identity') ui.onboardingName.focus();
-    if (step === 'setup') document.querySelector('[data-onboarding-language].active')?.focus();
-    if (step === 'guide') ui.onboardingGuideNext.focus();
-  });
+  uiSession.patch('onboarding', { step });
 }
 
 function showOnboarding() {
   updateOnboardingChoices();
-  showOnboardingStep('identity');
-  ui.onboardingDialog.hidden = false;
-  ui.onboardingDialog.inert = false;
-  ui.onboardingDialog.setAttribute('aria-hidden', 'false');
+  uiSession.patch('onboarding', {
+    open: true,
+    step: 'identity',
+    error: '',
+    success: false,
+    busy: false,
+    nameInvalid: false,
+    ageInvalid: false,
+  });
   ui.appShell.inert = true;
   document.body.classList.add('onboarding-open');
 }
 
 function hideOnboarding() {
-  ui.onboardingDialog.hidden = true;
-  ui.onboardingDialog.inert = true;
-  ui.onboardingDialog.setAttribute('aria-hidden', 'true');
+  uiSession.patch('onboarding', { open: false });
   ui.appShell.inert = false;
   document.body.classList.remove('onboarding-open');
 }
 
-function validateOnboardingLogin() {
-  const enteredName = ui.onboardingName.value.trim().toLocaleLowerCase('de-DE');
-  const enteredAge = Number(ui.onboardingAge.value);
+function validateOnboardingLogin(nameValue, ageValue) {
+  const enteredName = String(nameValue ?? '').trim().toLocaleLowerCase('de-DE');
+  const enteredAge = Number(ageValue);
   const nameMatches = enteredName === 'franz';
-  const ageMatches = ui.onboardingAge.value !== '' && enteredAge === 60;
-  ui.onboardingName.setAttribute('aria-invalid', String(!nameMatches));
-  ui.onboardingAge.setAttribute('aria-invalid', String(!ageMatches));
+  const ageMatches = String(ageValue ?? '') !== '' && enteredAge === 60;
 
   if (nameMatches && ageMatches) {
-    ui.onboardingLoginError.classList.add('success');
-    ui.onboardingLoginError.textContent = 'Treffer. Personalakte F-60 bestätigt. Der versiegelte Umschlag wird aus dem Archiv geholt …';
-    ui.onboardingLoginForm.querySelector('button[type="submit"]').disabled = true;
+    playUiSound('success');
+    uiSession.patch('onboarding', {
+      error: 'Treffer. Personalakte F-60 bestätigt. Der versiegelte Umschlag wird aus dem Archiv geholt …',
+      success: true,
+      busy: true,
+      nameInvalid: false,
+      ageInvalid: false,
+    });
     setTimeout(() => {
-      ui.onboardingLoginError.classList.remove('success');
-      ui.onboardingLoginForm.querySelector('button[type="submit"]').disabled = false;
+      uiSession.patch('onboarding', { error: '', success: false, busy: false, nameInvalid: false, ageInvalid: false });
       showOnboardingStep('setup');
     }, 650);
     return;
   }
 
   onboardingLoginAttempts += 1;
-  ui.onboardingLoginError.classList.remove('success');
-  if (!enteredName && ui.onboardingAge.value === '') {
-    ui.onboardingLoginError.textContent = 'Ganz ohne Angaben wird selbst eine Fake-Behörde misstrauisch. Name und Alter bitte!';
+  playUiSound('error');
+  let error;
+  if (!enteredName && String(ageValue ?? '') === '') {
+    error = 'Ganz ohne Angaben wird selbst eine Fake-Behörde misstrauisch. Name und Alter bitte!';
   } else if (!nameMatches && !ageMatches) {
-    ui.onboardingLoginError.textContent = 'Kein Treffer im Sonderregister. Hinterlegt sind Franz und die Kennzahl 60.';
+    error = 'Kein Treffer im Sonderregister. Hinterlegt sind Franz und die Kennzahl 60.';
   } else if (!nameMatches) {
-    ui.onboardingLoginError.textContent = 'Die Kennzahl passt, der Personenschlüssel nicht. Zuständig ist ausschließlich Franz.';
+    error = 'Die Kennzahl passt, der Personenschlüssel nicht. Zuständig ist ausschließlich Franz.';
   } else if (enteredAge < 60) {
-    ui.onboardingLoginError.textContent = 'Fast! Aber unter 60 fehlt noch die amtliche Geburtstagsreife.';
+    error = 'Fast! Aber unter 60 fehlt noch die amtliche Geburtstagsreife.';
   } else {
-    ui.onboardingLoginError.textContent = 'Die Akte sagt 60. Komplimente über zusätzliche Lebenserfahrung zählen leider nicht.';
+    error = 'Die Akte sagt 60. Komplimente über zusätzliche Lebenserfahrung zählen leider nicht.';
   }
   if (onboardingLoginAttempts >= 3) {
-    ui.onboardingLoginError.textContent += ' Inoffizieller Amtshinweis: F… wie Franz und sechzig ohne Formulargebühr.';
+    error += ' Inoffizieller Amtshinweis: F… wie Franz und sechzig ohne Formulargebühr.';
   }
+  uiSession.patch('onboarding', {
+    error,
+    success: false,
+    busy: false,
+    nameInvalid: !nameMatches,
+    ageInvalid: !ageMatches,
+  });
 }
 
 function renderOnboardingGuidePage() {
   const pages = ONBOARDING_GUIDE[language] ?? ONBOARDING_GUIDE.standard;
   const page = pages[onboardingGuidePage];
-  const lastPage = onboardingGuidePage === pages.length - 1;
-  ui.onboardingGuideKicker.textContent = page.kicker;
-  ui.onboardingGuideTitle.textContent = page.title;
-  ui.onboardingGuideCopy.textContent = page.copy;
-  [...ui.onboardingGuidePoints.children].forEach((item, index) => {
-    item.textContent = page.points[index] ?? '';
+  uiSession.patch('onboarding', {
+    language,
+    difficulty,
+    guidePage: onboardingGuidePage,
+    guidePages: pages.length,
+    guide: page,
   });
-  document.querySelectorAll('[data-guide-visual]').forEach((visual, index) => {
-    visual.hidden = index !== onboardingGuidePage;
-  });
-  [...ui.onboardingGuidePosition.children].forEach((indicator, index) => {
-    indicator.classList.toggle('active', index === onboardingGuidePage);
-    indicator.classList.toggle('done', index < onboardingGuidePage);
-  });
-  ui.onboardingGuidePosition.setAttribute(
-    'aria-label',
-    `Einweisung, Seite ${onboardingGuidePage + 1} von ${pages.length}`,
-  );
-  ui.onboardingGuideBack.hidden = onboardingGuidePage === 0;
-  ui.onboardingGuideNext.hidden = lastPage;
-  ui.onboardingFinish.hidden = !lastPage;
-  ui.onboardingGuideNext.textContent = page.next ?? 'WEITER →';
-  ui.onboardingFinish.textContent = page.finish ?? 'VORGANG 60 STARTEN →';
-  ui.onboardingGuideBack.textContent = language === 'dialect' ? '← ZRUCK' : '← ZURÜCK';
-  ui.onboardingGuideFinePrint.textContent = page.finePrint;
-  ui.onboardingPanel.scrollTop = 0;
 }
 
 function moveOnboardingGuide(direction) {
   const pages = ONBOARDING_GUIDE[language] ?? ONBOARDING_GUIDE.standard;
   onboardingGuidePage = Math.max(0, Math.min(pages.length - 1, onboardingGuidePage + direction));
   renderOnboardingGuidePage();
-  requestAnimationFrame(() => {
-    if (onboardingGuidePage === pages.length - 1) ui.onboardingFinish.focus();
-    else ui.onboardingGuideNext.focus();
-  });
 }
 
 function prepareOnboardingGuide() {
@@ -597,6 +321,7 @@ function prepareOnboardingGuide() {
 }
 
 function finishOnboarding() {
+  playUiSound('success');
   if (onboardingPreview) {
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete('onboarding');
@@ -610,7 +335,7 @@ function finishOnboarding() {
   ui.announcement.textContent = language === 'dialect'
     ? "Servus Franz, d'Passau-Kartn is freigschoit!"
     : 'Willkommen Franz, die Passau-Karte ist freigeschaltet!';
-  requestAnimationFrame(() => ui.settingsButton.focus());
+  requestAnimationFrame(() => document.querySelector('#settings-open-button')?.focus());
 }
 
 function currentLocation() {
@@ -690,13 +415,7 @@ function recordLevelAttempt() {
 }
 
 function applyDifficultyUi() {
-  const config = difficultyConfig();
-  document.querySelectorAll('[data-difficulty]').forEach((button) => {
-    const active = button.dataset.difficulty === difficulty;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  ui.difficultyHint.textContent = t(config.hintKey);
+  syncSettingsMenu();
 }
 
 function createCat(index) {
@@ -750,98 +469,7 @@ function setDifficulty(nextDifficulty) {
   saveGame();
 }
 
-function projectPoint(lat, lon) {
-  const xKm = (lon - MAP_BOUNDS.minLon) * KM_PER_LONGITUDE_DEGREE;
-  const yKm = (MAP_BOUNDS.maxLat - lat) * KM_PER_LATITUDE_DEGREE;
-  const x = MAP_OFFSET_X + xKm * MAP_UNITS_PER_KM;
-  const y = MAP_OFFSET_Y + yKm * MAP_UNITS_PER_KM;
-  return { x, y };
-}
-
-function mapPath(points) {
-  return points.map(([lat, lon], index) => {
-    const point = projectPoint(lat, lon);
-    return `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
-  }).join(' ');
-}
-
-function renderPassauMap() {
-  const danube = mapPath([[48.5752, 13.447], [48.5750, 13.457], [48.5752, 13.467], [48.5739, 13.478], [48.5743, 13.489]]);
-  const inn = mapPath([[48.5645, 13.448], [48.5675, 13.454], [48.5705, 13.463], [48.5725, 13.471], [48.5739, 13.478]]);
-  const ilz = mapPath([[48.5945, 13.459], [48.5906, 13.462], [48.5870, 13.461], [48.5835, 13.466], [48.5783, 13.471], [48.5741, 13.477]]);
-  const locationsById = Object.fromEntries(PASSAU_LEVELS.map((item) => [item.id, item]));
-  const routeNorth = mapPath(['hals', 'home', 'bschuett', 'oberhaus', 'dom', 'dreifluesseeck']
-    .map((id) => [locationsById[id].lat, locationsById[id].lon]));
-  const routeSouth = mapPath(['uni', 'zauberberg', 'dom', 'tabakfabrik', 'dreifluesseeck']
-    .map((id) => [locationsById[id].lat, locationsById[id].lon]));
-  const scaleStartX = MAP_VIEWBOX_SIZE - MAP_PADDING - MAP_UNITS_PER_KM;
-  const scaleEndX = MAP_VIEWBOX_SIZE - MAP_PADDING;
-  const scaleY = MAP_VIEWBOX_SIZE - 26;
-  ui.mapSvg.innerHTML = `
-    <ellipse class="district" cx="350" cy="235" rx="225" ry="155"></ellipse>
-    <ellipse class="district" cx="350" cy="480" rx="260" ry="140"></ellipse>
-    <path class="road" d="${routeNorth}"></path>
-    <path class="road" d="${routeSouth}"></path>
-    <path class="river river-bank" d="${danube}"></path><path class="river danube" d="${danube}"></path>
-    <path class="river river-bank" d="${inn}"></path><path class="river inn" d="${inn}"></path>
-    <path class="river river-bank" d="${ilz}"></path><path class="river ilz" d="${ilz}"></path>
-    <path class="river-glint river-glint-danube" d="${danube}"></path>
-    <path class="river-glint river-glint-inn" d="${inn}"></path>
-    <path class="river-glint river-glint-ilz" d="${ilz}"></path>
-    <text class="river-label" x="120" y="432">DONAU</text>
-    <text class="river-label" x="176" y="617">INN</text>
-    <text class="river-label" x="290" y="88">ILZ</text>
-    <g class="map-scale-svg" aria-hidden="true">
-      <path d="M ${scaleStartX.toFixed(1)} ${scaleY} v -7 M ${scaleStartX.toFixed(1)} ${scaleY} H ${scaleEndX.toFixed(1)} M ${scaleEndX.toFixed(1)} ${scaleY} v -7"></path>
-      <text x="${((scaleStartX + scaleEndX) / 2).toFixed(1)}" y="${scaleY - 12}">1 KM</text>
-    </g>
-  `;
-
-  ui.mapMarkers.replaceChildren();
-  PASSAU_LEVELS.forEach((item, index) => {
-    const point = projectPoint(item.lat, item.lon);
-    const markerWrap = document.createElement('div');
-    const marker = document.createElement('button');
-    const label = document.createElement('span');
-    markerWrap.className = 'map-marker-wrap';
-    markerWrap.dataset.levelId = item.id;
-    markerWrap.dataset.mapX = point.x;
-    markerWrap.dataset.mapY = point.y;
-    markerWrap.style.setProperty('--marker-delay', `${index * -0.32}s`);
-    marker.type = 'button';
-    marker.className = `map-marker${item.home ? ' home' : ''}${item.markerClass ? ` ${item.markerClass}` : ''}${completedLevelIds.has(item.id) ? ' completed' : ''}`;
-    marker.setAttribute('aria-label', localized(item.name));
-    const markerIcon = document.createElement('span');
-    markerIcon.setAttribute('aria-hidden', 'true');
-    markerIcon.textContent = item.icon;
-    marker.append(markerIcon);
-    label.className = 'map-marker-label';
-    label.setAttribute('aria-hidden', 'true');
-    label.textContent = localized(item.name);
-    markerWrap.addEventListener('click', () => selectMapLocation(item.id));
-    markerWrap.append(label, marker);
-    ui.mapMarkers.append(markerWrap);
-  });
-  updateMapSelection();
-  requestAnimationFrame(positionMapMarkers);
-}
-
-function positionMapMarkers() {
-  const matrix = ui.mapSvg.getScreenCTM();
-  const canvasRect = ui.mapCanvas.getBoundingClientRect();
-  if (!matrix || canvasRect.width === 0 || canvasRect.height === 0) return;
-
-  ui.mapMarkers.querySelectorAll('[data-level-id]').forEach((marker) => {
-    const point = ui.mapSvg.createSVGPoint();
-    point.x = Number(marker.dataset.mapX);
-    point.y = Number(marker.dataset.mapY);
-    const screenPoint = point.matrixTransform(matrix);
-    marker.style.left = `${screenPoint.x - canvasRect.left}px`;
-    marker.style.top = `${screenPoint.y - canvasRect.top}px`;
-  });
-}
-
-function updateMapSelection() {
+function currentMapSelectionView() {
   const item = PASSAU_LEVELS.find((entry) => entry.id === mapSelectionId) ?? PASSAU_LEVELS[0];
   const index = PASSAU_LEVELS.indexOf(item) + 1;
   const complete = completedLevelIds.has(item.id);
@@ -849,62 +477,100 @@ function updateMapSelection() {
   if (item.id === selectedLevelId && runStarted) updateCurrentLevelStatsSnapshot(complete);
   const stats = statsForLevel(item.id);
   const treatsTotal = stats.treatsTotal || difficultyConfig(publishedLevel(item.id)).treatTarget;
-  ui.mapSelectionKicker.textContent = `${complete ? t('mapCompleted') : t('mapSelected')} · LEVEL ${String(index).padStart(2, '0')}`;
-  ui.mapSelectionTitle.textContent = localized(item.name);
-  ui.mapSelectionCopy.textContent = localized(item.description);
-  ui.mapStatsTreats.textContent = `${stats.bestTreats} / ${treatsTotal}`;
-  ui.mapStatsAttempts.textContent = stats.attempts.toLocaleString('de-DE');
-  ui.mapStatsScore.textContent = stats.bestScore.toLocaleString('de-DE');
-  ui.mapStatsStatus.textContent = complete ? t('mapStatsDone') : resumable ? t('mapStatsActive') : t('mapStatsOpen');
-  ui.mapStartButton.textContent = resumable ? t('mapResume') : t('mapStart');
-  ui.mapMarkers.querySelectorAll('[data-level-id]').forEach((marker) => {
-    const markerButton = marker.querySelector('.map-marker');
-    const markerLabel = marker.querySelector('.map-marker-label');
-    markerButton.classList.toggle('selected', !ui.mapSelection.hidden && marker.dataset.levelId === item.id);
-    const markerItem = PASSAU_LEVELS.find((entry) => entry.id === marker.dataset.levelId);
-    markerLabel.textContent = localized(markerItem.name);
-    markerButton.setAttribute('aria-label', localized(markerItem.name));
+  return {
+    id: item.id,
+    kicker: `${complete ? t('mapCompleted') : t('mapSelected')} · LEVEL ${String(index).padStart(2, '0')}`,
+    name: localized(item.name),
+    description: localized(item.description),
+    bestTreats: stats.bestTreats,
+    treatsTotal,
+    attempts: stats.attempts.toLocaleString('de-DE'),
+    bestScore: stats.bestScore.toLocaleString('de-DE'),
+    status: complete ? t('mapStatsDone') : resumable ? t('mapStatsActive') : t('mapStatsOpen'),
+    startLabel: resumable ? t('mapResume') : t('mapStart'),
+    soundscape: soundscapeProfile(item.id)?.name ?? '',
+  };
+}
+
+function currentMapEndgameView() {
+  if (!mapEndgameActive) return null;
+  if (mapEndgamePhase === 'boot') {
+    return endgameBootView(mapEndgameBootStep, (key) => t(key));
+  }
+  return endgamePageView(endgamePage, (key) => t(key));
+}
+
+function renderPassauMap() {
+  const points = Object.fromEntries(MAP_GEOMETRY.markers.map((marker) => [marker.id, marker]));
+  uiSession.patch('map', {
+    open: state === 'map',
+    selectionOpen: mapSelectionOpen,
+    selectedId: mapSelectionId,
+    geometry: MAP_GEOMETRY,
+    markers: PASSAU_LEVELS.map((item) => ({
+      ...points[item.id],
+      id: item.id,
+      name: localized(item.name),
+      icon: item.icon,
+      home: Boolean(item.home),
+      markerClass: item.markerClass ?? '',
+      labelLift: MAP_LABEL_LIFTS[item.id] ?? 9,
+      completed: completedLevelIds.has(item.id),
+    })),
+    selection: mapSelectionOpen ? currentMapSelectionView() : null,
+    concertUnlocked: concertUnlocked && concertRevealSeen,
+    endgameEvent: currentMapEndgameView(),
+    copy: {
+      kicker: t('mapKicker'),
+      title: t('mapTitle'),
+      copy: t('mapCopy'),
+      settingsLabel: t('settingsLabel'),
+      mapA11yLabel: language === 'dialect'
+        ? 'Maßstäbliche Kartn von Passau mit auswählbaren Gassi-Orten'
+        : 'Maßstäbliche Karte von Passau mit auswählbaren Gassi-Orten',
+      closeLabel: t('mapDetailsClose'),
+      statsLabel: language === 'dialect' ? 'Level-Statistik' : 'Levelstatistik',
+      treatsLabel: t('mapStatsTreats'),
+      attemptsLabel: t('mapStatsAttempts'),
+      scoreLabel: t('mapStatsScore'),
+      statusLabel: t('mapStatsStatus'),
+      soundscapeLabel: language === 'dialect' ? 'KLANG VOM PLATZERL' : 'KLANG DES ORTES',
+      concertUnlocked: t('concertMapBadge'),
+    },
   });
 }
 
-function showMapSelection() {
-  ui.mapSelection.hidden = false;
-  ui.mapSelection.setAttribute('aria-hidden', 'false');
-  ui.mapScreen.classList.add('map-details-open');
-  requestAnimationFrame(() => ui.mapSelection.classList.add('open'));
-  updateMapSelection();
-  if (window.matchMedia('(max-width: 680px)').matches) {
-    requestAnimationFrame(() => ui.mapSelectionClose.focus());
-  }
+function updateMapSelection() {
+  renderPassauMap();
 }
 
-function closeMapSelection(returnFocus = false) {
-  const marker = ui.mapMarkers.querySelector(`[data-level-id="${mapSelectionId}"]`);
-  ui.mapSelection.classList.remove('open');
-  ui.mapSelection.hidden = true;
-  ui.mapSelection.setAttribute('aria-hidden', 'true');
-  ui.mapScreen.classList.remove('map-details-open');
-  marker?.querySelector('.map-marker')?.classList.remove('selected');
-  if (returnFocus) marker?.querySelector('.map-marker')?.focus();
+function showMapSelection() {
+  mapSelectionOpen = true;
+  renderPassauMap();
+}
+
+function closeMapSelection(returnFocus = false, keepAudio = false) {
+  const focusId = mapSelectionId;
+  mapSelectionOpen = false;
+  if (!keepAudio && state === 'map') audioService.stopLevelSoundscape();
+  renderPassauMap();
+  if (returnFocus) requestAnimationFrame(() => {
+    document.querySelector(`[data-level-id="${focusId}"] .map-marker`)?.focus();
+  });
 }
 
 function selectMapLocation(id) {
   if (!PASSAU_LEVELS.some((item) => item.id === id)) return;
+  playUiSound('select');
   mapSelectionId = id;
+  audioService.previewLevel(id);
   showMapSelection();
 }
 
 function updateLocationUi() {
   const item = currentLocation();
-  const locationLevel = PASSAU_LEVELS.indexOf(item) + 1;
-  ui.locationRiver.textContent = item.river;
-  ui.locationCoordinates.textContent = `${item.lat.toFixed(3)}° N · ${item.lon.toFixed(3)}° E`;
-  ui.locationName.textContent = localized(item.name).toUpperCase();
-  ui.mobileGameLevel.textContent = `LEVEL ${String(locationLevel).padStart(2, '0')}`;
-  ui.mobileGameLocation.textContent = localized(item.name).toUpperCase();
-  ui.missionLabel.textContent = `${t('missionPrefix')} · ${String(locationLevel).padStart(2, '0')} · ${t(difficultyConfig().nameKey).toUpperCase()}`;
-  ui.missionTitle.textContent = localized(item.mission);
   canvas.setAttribute('aria-label', `${localized(item.name)}: Gassi-Runde mit Franz und Lola`);
+  syncHudView();
 }
 
 function applyLanguage() {
@@ -913,22 +579,15 @@ function applyLanguage() {
   document.querySelectorAll('[data-i18n]').forEach((element) => {
     element.textContent = t(element.dataset.i18n);
   });
-  document.querySelectorAll('[data-language]').forEach((button) => {
-    const active = button.dataset.language === language;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  ui.saveStatus.textContent = t('saveSuccess');
-  ui.settingsButton.setAttribute('aria-label', t('settingsLabel'));
-  ui.settingsCloseButton.setAttribute('aria-label', t('settingsCloseLabel'));
-  ui.mapSelectionClose.setAttribute('aria-label', t('mapDetailsClose'));
-  ui.mobileGameMenuButton.setAttribute('aria-label', t('menuLabel'));
-  ui.levelCutsceneSkip.textContent = t('cutsceneSkip');
   applyDifficultyUi();
   updateLocationUi();
   setPauseButtons((state === 'menu' ? settingsReturnState : state) === 'paused');
   syncSoundButtons();
+  applyReducedMotion();
+  syncSettingsMenu();
   renderPassauMap();
+  syncHudView();
+  syncLevelCutsceneUi();
   if (currentOverlay) refreshOverlay();
 }
 
@@ -972,7 +631,70 @@ function leaveMobileGameMode(returnToBoard = false) {
   return wasActive;
 }
 
+function waitForUi(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function clearMapEndgameTimers() {
+  mapEndgameTimers.forEach((timer) => clearTimeout(timer));
+  mapEndgameTimers = [];
+}
+
+function startMapEndgameSequence() {
+  if (state !== 'map' || !concertUnlocked || concertRevealSeen || mapEndgameActive) return;
+  clearMapEndgameTimers();
+  closeMapSelection(false);
+  mapEndgameActive = true;
+  mapEndgamePhase = 'boot';
+  mapEndgameBootStep = 0;
+  endgamePage = 0;
+  ui.announcement.textContent = t('mapEventBootAnnouncement');
+  renderPassauMap();
+
+  const stepDuration = reducedMotion ? 45 : 620;
+  for (let step = 1; step < ENDGAME_BOOT_LINES.length; step += 1) {
+    mapEndgameTimers.push(setTimeout(() => {
+      mapEndgameBootStep = step;
+      playUiSound('select');
+      renderPassauMap();
+    }, step * stepDuration));
+  }
+  mapEndgameTimers.push(setTimeout(() => {
+    mapEndgamePhase = 'reveal';
+    endgamePage = 0;
+    playUiSound('success');
+    beep(523, 0.1, 0.035, 'square');
+    renderPassauMap();
+  }, ENDGAME_BOOT_LINES.length * stepDuration + (reducedMotion ? 30 : 480)));
+}
+
+async function transitionFromMapToLevel() {
+  if (sceneTransitionActive || mapEndgameActive) return;
+  sceneTransitionActive = true;
+  audioService.setLevelMode('transition');
+  const token = ++sceneTransitionToken;
+  const place = localized(PASSAU_LEVELS.find((item) => item.id === mapSelectionId)?.name ?? currentLocation().name);
+  uiSession.patch('sceneTransition', {
+    active: true,
+    phase: 'covering',
+    label: t('levelTransitionLoading'),
+    place: place.toUpperCase(),
+  });
+
+  await waitForUi(reducedMotion ? 30 : 400);
+  if (token !== sceneTransitionToken) return;
+  commitMapSelectionStart();
+  uiSession.patch('sceneTransition', { phase: 'revealing' });
+
+  await waitForUi(reducedMotion ? 30 : 480);
+  if (token !== sceneTransitionToken) return;
+  sceneTransitionActive = false;
+  uiSession.patch('sceneTransition', { active: false, phase: 'idle' });
+}
+
 function openMap() {
+  clearCutscenePresentation();
+  audioService.stopLevelSoundscape();
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   leaveMobileGameMode(true);
@@ -983,14 +705,16 @@ function openMap() {
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
   hideOverlay();
-  ui.mapScreen.hidden = false;
   renderPassauMap();
   updateHud();
   saveGame();
+  if (concertUnlocked && !concertRevealSeen && !mapEndgameActive) {
+    requestAnimationFrame(() => requestAnimationFrame(startMapEndgameSequence));
+  }
 }
 
-function startMapSelection() {
-  closeMapSelection(false);
+function commitMapSelectionStart() {
+  closeMapSelection(false, true);
   document.body.classList.remove('map-active');
   enterMobileGameMode();
   const resumable = mapSelectionId === selectedLevelId && runStarted && lives > 0 && pellets.size > 0;
@@ -1005,12 +729,17 @@ function startMapSelection() {
   }
   runStarted = true;
   state = 'intro';
-  ui.mapScreen.hidden = true;
+  audioService.playLevel(selectedLevelId, 'intro');
+  renderPassauMap();
   setPauseButtons(false);
   updateLocationUi();
   updateHud();
   showLevelIntro(resumable);
   saveGame();
+}
+
+function startMapSelection() {
+  transitionFromMapToLevel();
 }
 
 function showLevelIntro(resumable = false) {
@@ -1028,31 +757,52 @@ function showLevelIntro(resumable = false) {
     () => ({ place: localized(item.name), description: localized(item.description) }),
     { variant: 'level-intro', showControls: true },
   );
-  ui.controlIntro.querySelector('p').textContent = isMobileGameLayout()
-    ? t('controlIntroHint')
-    : t('controlMenuHint');
 }
 
 function hideLevelCutsceneUi() {
-  ui.levelCutscene.hidden = true;
-  ui.levelCutsceneDialogue.hidden = true;
+  uiSession.patch('levelOverlays', { cutscene: null });
+}
+
+function clearCutscenePresentation() {
+  clearTimeout(cutsceneUiRevealTimer);
+  cutsceneUiRevealTimer = null;
+  document.body.classList.remove('cutscene-active', 'cutscene-ui-reveal');
+}
+
+function beginCutscenePresentation() {
+  clearCutscenePresentation();
+  document.body.classList.add('cutscene-active');
+}
+
+function revealGameUiAfterCutscene() {
+  document.body.classList.remove('cutscene-active', 'cutscene-ui-reveal');
+  document.body.classList.add('cutscene-ui-reveal');
+  cutsceneUiRevealTimer = setTimeout(() => {
+    document.body.classList.remove('cutscene-ui-reveal');
+    cutsceneUiRevealTimer = null;
+  }, reducedMotion ? 30 : 760);
 }
 
 function syncLevelCutsceneUi(snapshot = levelCutscenePlayer.snapshot()) {
   if (!snapshot || !levelCutscenePlayer.cutscene) { hideLevelCutsceneUi(); return; }
-  ui.levelCutscene.hidden = false;
-  ui.levelCutsceneTitle.textContent = localized(levelCutscenePlayer.cutscene.name).toUpperCase();
-  ui.levelCutsceneSkip.hidden = !levelCutscenePlayer.cutscene.skippable;
-  ui.levelCutsceneDialogue.hidden = !snapshot.dialogue;
-  if (snapshot.dialogue) {
-    ui.levelCutsceneSpeaker.textContent = snapshot.dialogue.speaker;
-    ui.levelCutsceneText.textContent = snapshot.dialogue.text;
-  }
+  uiSession.patch('levelOverlays', {
+    cutscene: {
+      title: localized(levelCutscenePlayer.cutscene.name).toUpperCase(),
+      skippable: Boolean(levelCutscenePlayer.cutscene.skippable),
+      skipLabel: t('cutsceneSkip'),
+      dialogue: snapshot.dialogue ? {
+        speaker: snapshot.dialogue.speaker,
+        text: snapshot.dialogue.text,
+      } : null,
+    },
+  });
 }
 
 function startLevelCutscene() {
   if (!levelCutscenePlayer.start(activeLevelDocument, { id: 'intro', language })) return false;
   state = 'cutscene';
+  audioService.playLevel(selectedLevelId, 'cutscene');
+  beginCutscenePresentation();
   setPauseButtons(false);
   swipeInput.cancel();
   syncLevelCutsceneUi();
@@ -1061,11 +811,14 @@ function startLevelCutscene() {
 }
 
 function enterLevelPlay() {
+  const leavingCutscene = document.body.classList.contains('cutscene-active');
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   state = 'playing';
   setPauseButtons(false);
   hideOverlay();
+  if (leavingCutscene) revealGameUiAfterCutscene();
+  else clearCutscenePresentation();
   ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(currentLocation().name)}`;
   saveGame();
 }
@@ -1076,6 +829,8 @@ function updateLevelCutscene(dt) {
 }
 
 function resetGameProgress() {
+  clearCutscenePresentation();
+  audioService.stopLevelSoundscape();
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   leaveMobileGameMode(true);
@@ -1098,10 +853,17 @@ function resetGameProgress() {
   unlockedEggs.clear();
   activeEasterEgg = null;
   directionHistory = [];
-  ui.easterToast.hidden = true;
+  concertUnlocked = false;
+  concertRevealSeen = false;
+  clearMapEndgameTimers();
+  mapEndgameActive = false;
+  sceneTransitionToken += 1;
+  sceneTransitionActive = false;
+  uiSession.patch('sceneTransition', { active: false, phase: 'idle' });
+  uiSession.patch('levelOverlays', { easterToast: null, confetti: [], confettiActive: false });
   buildLevel();
   hideOverlay();
-  ui.mapScreen.hidden = false;
+  renderPassauMap();
   setPauseButtons(false);
   updateLocationUi();
   updateHud();
@@ -1112,7 +874,6 @@ function resetGameProgress() {
 function showNewGameConfirmation() {
   const previous = {
     state,
-    mapHidden: ui.mapScreen.hidden,
     overlay: currentOverlay ? { ...currentOverlay } : null,
   };
   if (state === 'playing' || state === 'hit') {
@@ -1121,7 +882,6 @@ function showNewGameConfirmation() {
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
-    ui.mapScreen.hidden = previous.mapHidden;
     if (previous.overlay) {
       currentOverlay = previous.overlay;
       refreshOverlay();
@@ -1164,7 +924,6 @@ function deleteStoredBrowserData() {
 function showDeleteBrowserDataConfirmation() {
   const previous = {
     state,
-    mapHidden: ui.mapScreen.hidden,
     overlay: currentOverlay ? { ...currentOverlay } : null,
   };
   if (state === 'playing' || state === 'hit') {
@@ -1173,7 +932,6 @@ function showDeleteBrowserDataConfirmation() {
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
-    ui.mapScreen.hidden = previous.mapHidden;
     if (previous.overlay) {
       currentOverlay = previous.overlay;
       refreshOverlay();
@@ -1198,60 +956,19 @@ function loadLegacyBest() {
 }
 
 function migrateLegacySave(parsed) {
-  const legacy = { ...parsed };
-  if (parsed.version === 2) {
-    legacy.language = 'dialect';
-    legacy.selectedLevelId = 'hals';
-    legacy.completedLevelIds = [];
-  }
-  if (parsed.version <= 3) {
-    legacy.difficulty = 'normal';
-    legacy.graceTimer = 0;
-  }
-
-  const config = DIFFICULTIES[legacy.difficulty] ?? DIFFICULTIES.normal;
-  const savedPellets = Array.isArray(legacy.pellets) ? legacy.pellets : [];
-  const savedPowerPellets = Array.isArray(legacy.powerPellets) ? legacy.powerPellets : [];
-  const oldRemaining = savedPellets.length + savedPowerPellets.length;
-  const oldTotal = Math.max(oldRemaining, Math.floor(Number(legacy.levelTreatTotal) || oldRemaining));
-  const collectedPowerUps = Math.max(0, POWER_PELLET_POSITIONS.length - savedPowerPellets.length);
-  const collectedGuttis = Math.max(0, oldTotal - oldRemaining - collectedPowerUps);
-  const completedIds = new Set(Array.isArray(legacy.completedLevelIds) ? legacy.completedLevelIds : []);
-  const legacyStats = legacy.levelStats && typeof legacy.levelStats === 'object' ? legacy.levelStats : {};
-  const migratedStats = Object.fromEntries(PASSAU_LEVELS.map((item) => {
-    const stats = legacyStats[item.id] && typeof legacyStats[item.id] === 'object'
-      ? legacyStats[item.id]
-      : {};
-    const completed = completedIds.has(item.id) || Boolean(stats.completed);
-    const currentLevel = item.id === legacy.selectedLevelId;
-    const previousBest = Math.max(0, Math.floor(Number(stats.bestTreats) || 0));
-    const adjustedBest = currentLevel
-      ? Math.max(collectedGuttis, previousBest - collectedPowerUps)
-      : previousBest;
-    return [item.id, {
-      ...stats,
-      treatsTotal: stats.attempts || completed || currentLevel ? config.treatTarget : 0,
-      bestTreats: completed ? config.treatTarget : Math.min(config.treatTarget, adjustedBest),
-      completed,
-    }];
-  }));
-
-  return {
-    ...legacy,
-    version: SAVE_VERSION,
-    rebalanceTreats: true,
-    migratedTreatsCollected: Math.min(config.treatTarget, collectedGuttis),
-    levelTreatTotal: config.treatTarget,
-    levelStats: migratedStats,
-    levelRunScore: Math.max(0, Math.floor(Number(legacy.levelRunScore) || 0)),
-  };
+  return migrateSave(parsed, {
+    saveVersion: SAVE_VERSION,
+    difficulties: DIFFICULTIES,
+    levels: PASSAU_LEVELS,
+    powerUpCount: POWER_PELLET_POSITIONS.length,
+  });
 }
 
 function loadGame() {
   const parsed = saveStore.readJson(SAVE_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
   if (parsed.version === SAVE_VERSION) return parsed;
-  if ([2, 3, 4, 5].includes(parsed.version)) return migrateLegacySave(parsed);
+  if ([2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return migrateLegacySave(parsed);
   return null;
 }
 
@@ -1272,6 +989,7 @@ function saveGame(quiet = false) {
     hitTimer,
     graceTimer,
     soundEnabled,
+    reducedMotion,
     language,
     difficulty,
     levelTreatTotal,
@@ -1280,6 +998,8 @@ function saveGame(quiet = false) {
     levelStats,
     selectedLevelId,
     completedLevelIds: [...completedLevelIds],
+    concertUnlocked,
+    concertRevealSeen,
     unlockedEggs: [...unlockedEggs],
     pellets: [...pellets],
     powerPellets: [...powerPellets],
@@ -1301,14 +1021,18 @@ function saveGame(quiet = false) {
   try {
     saveStore.writeJson(SAVE_KEY, payload);
     saveStore.remove(LEGACY_BEST_KEY);
-    ui.saveStatus.textContent = t('saveSuccess');
+    savePulse = !quiet;
+    syncHudView(t('saveSuccess'));
     if (!quiet) {
-      ui.saveNote.classList.add('saved');
       clearTimeout(savePulseTimer);
-      savePulseTimer = setTimeout(() => ui.saveNote.classList.remove('saved'), 550);
+      savePulseTimer = setTimeout(() => {
+        savePulse = false;
+        syncHudView();
+      }, 550);
     }
   } catch {
-    ui.saveStatus.textContent = t('saveBlocked');
+    savePulse = false;
+    syncHudView(t('saveBlocked'));
   }
 }
 
@@ -1425,6 +1149,13 @@ function restoreGame(save) {
     ? Math.max(0, Math.min(difficultyConfig().lives, Math.floor(savedLives)))
     : difficultyConfig().lives;
   soundEnabled = Boolean(save.soundEnabled);
+  reducedMotion = resolveReducedMotionPreference(
+    save.reducedMotion,
+    window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
+  );
+  concertUnlocked = Boolean(save.concertUnlocked)
+    || completedLevelIds.size === PASSAU_LEVELS.length;
+  concertRevealSeen = Boolean(save.concertRevealSeen);
   runStarted = Boolean(save.runStarted);
   unlockedEggs = new Set(
     Array.isArray(save.unlockedEggs)
@@ -1507,6 +1238,7 @@ function restoreGame(save) {
       'resumeButton',
       () => {
         state = 'playing';
+        audioService.setLevelMode('playing');
         setPauseButtons(false);
         hideOverlay();
         saveGame();
@@ -1519,6 +1251,7 @@ function restoreGame(save) {
       }),
     );
   }
+  syncLevelAudioForState();
 }
 
 function toKey(x, y) {
@@ -1570,7 +1303,9 @@ function startGame(reset = false) {
   }
   runStarted = true;
   state = 'playing';
-  ui.mapScreen.hidden = true;
+  audioService.playLevel(selectedLevelId, 'playing');
+  audioService.playLevel(selectedLevelId, 'playing');
+  renderPassauMap();
   setPauseButtons(false);
   hideOverlay();
   updateHud();
@@ -1581,9 +1316,11 @@ function startGame(reset = false) {
 function togglePause() {
   if (state === 'playing') {
     state = 'paused';
+    audioService.setLevelMode('paused');
     setPauseButtons(true);
     showOverlay('pauseKicker', 'pauseTitle', 'pauseCopy', 'pauseButton', () => {
       state = 'playing';
+      audioService.setLevelMode('playing');
       setPauseButtons(false);
       hideOverlay();
       saveGame();
@@ -1591,6 +1328,7 @@ function togglePause() {
     saveGame();
   } else if (state === 'paused') {
     state = 'playing';
+    audioService.setLevelMode('playing');
     setPauseButtons(false);
     hideOverlay();
     saveGame();
@@ -1598,55 +1336,91 @@ function togglePause() {
 }
 
 function setPauseButtons(paused) {
-  ui.pauseButton.setAttribute('aria-pressed', String(paused));
-  ui.pauseButton.textContent = paused ? t('continue') : t('pause');
+  syncHudView();
   syncSettingsMenu();
 }
 
 function syncSoundButtons() {
-  ui.soundButton.setAttribute('aria-pressed', String(soundEnabled));
-  ui.soundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
-  ui.settingsSoundButton.setAttribute('aria-pressed', String(soundEnabled));
-  ui.settingsSoundButton.textContent = soundEnabled ? t('soundOn') : t('soundOff');
+  syncHudView();
+  syncSettingsMenu();
 }
 
 function syncSettingsMenu() {
   const effectiveState = state === 'menu' ? settingsReturnState : state;
+  const context = settingsContextForState(state, settingsReturnState);
   const canPause = ['playing', 'hit', 'paused'].includes(effectiveState);
   const paused = effectiveState === 'paused';
-  ui.settingsPauseButton.disabled = !canPause;
-  ui.settingsPauseButton.setAttribute('aria-pressed', String(paused));
-  ui.settingsPauseButton.textContent = paused ? t('continue') : t('pause');
-  ui.settingsMapButton.disabled = effectiveState === 'map';
+  const config = difficultyConfig();
+  uiSession.patch('settings', {
+    open: settingsOpen,
+    context,
+    canPause,
+    paused,
+    soundEnabled,
+    reducedMotion,
+    language,
+    difficulty,
+    copy: {
+      kicker: t('settingsKicker'),
+      title: t('settingsTitle'),
+      closeLabel: t('settingsCloseLabel'),
+      contextLabel: t(context === 'map' ? 'settingsMapContext' : 'settingsGameContext'),
+      contextCopy: t(context === 'map' ? 'settingsMapContextCopy' : 'settingsGameContextCopy'),
+      difficultyLabel: t('difficultyLabel'),
+      difficulties: [
+        { id: 'easy', label: t('difficultyEasy') },
+        { id: 'normal', label: t('difficultyNormal') },
+        { id: 'hard', label: t('difficultyHard') },
+      ],
+      difficultyHint: t(config.hintKey),
+      languageLabel: t('languageLabel'),
+      languages: [
+        { id: 'standard', label: t('standardButton') },
+        { id: 'dialect', label: t('dialectButton') },
+      ],
+      languageJoke: t('languageJoke'),
+      controlsLabel: t('controlsLabel'),
+      controlHint: t('controlMenuHint'),
+      comfortLabel: t('settingsComfortLabel'),
+      soundLabel: soundEnabled ? t('soundOn') : t('soundOff'),
+      reducedMotionLabel: reducedMotion ? t('reducedMotionOn') : t('reducedMotionOff'),
+      reducedMotionCopy: t('reducedMotionCopy'),
+      roundLabel: t('settingsRoundLabel'),
+      pauseLabel: paused ? t('continue') : t('pause'),
+      mapLabel: t('mapButton'),
+      dataLabel: t('settingsDataLabel'),
+      newGameLabel: t('newGameButton'),
+      deleteDataLabel: t('deleteBrowserDataButton'),
+    },
+  });
 }
 
 function openSettings() {
-  if (!ui.settingsDialog.hidden) return;
+  if (settingsOpen) return;
+  playUiSound('open');
   settingsReturnFocus = document.activeElement;
   if (state !== 'map') {
     settingsReturnState = state;
     state = 'menu';
   }
+  settingsOpen = true;
   syncSettingsMenu();
-  ui.settingsDialog.hidden = false;
-  ui.settingsDialog.inert = false;
-  ui.settingsDialog.setAttribute('aria-hidden', 'false');
   document.body.classList.add('settings-open');
-  requestAnimationFrame(() => ui.settingsCloseButton.focus());
 }
 
 function closeSettings(returnFocus = true) {
-  if (ui.settingsDialog.hidden) return;
-  ui.settingsDialog.hidden = true;
-  ui.settingsDialog.inert = true;
-  ui.settingsDialog.setAttribute('aria-hidden', 'true');
+  if (!settingsOpen) return;
+  playUiSound('close');
+  settingsOpen = false;
   document.body.classList.remove('settings-open');
   if (state === 'menu' && settingsReturnState) state = settingsReturnState;
   settingsReturnState = null;
   syncSettingsMenu();
   if (returnFocus) {
-    const focusTarget = settingsReturnFocus?.isConnected ? settingsReturnFocus : ui.settingsButton;
-    focusTarget.focus();
+    const focusTarget = settingsReturnFocus?.isConnected
+      ? settingsReturnFocus
+      : document.querySelector('#settings-open-button, #mobile-game-menu-button');
+    focusTarget?.focus();
   }
   settingsReturnFocus = null;
 }
@@ -1654,14 +1428,17 @@ function closeSettings(returnFocus = true) {
 function toggleSettingsPause() {
   if (state !== 'menu' || !['playing', 'hit', 'paused'].includes(settingsReturnState)) return;
   settingsReturnState = settingsReturnState === 'paused' ? 'playing' : 'paused';
+  audioService.setLevelMode(settingsReturnState === 'paused' ? 'paused' : 'playing');
   syncSettingsMenu();
   saveGame();
 }
 
 function toggleSound() {
+  if (soundEnabled) playUiSound('close');
   soundEnabled = !soundEnabled;
+  audioService.setEnabled(soundEnabled);
   syncSoundButtons();
-  if (soundEnabled) beep(440, 0.08, 0.035, 'square');
+  if (soundEnabled) playUiSound('confirm');
   saveGame();
 }
 
@@ -1679,67 +1456,101 @@ function showStartOverlay() {
 function showOverlay(kickerKey, titleKey, copyKey, buttonKey, handler, values = {}, options = {}) {
   currentOverlay = { kickerKey, titleKey, copyKey, buttonKey, handler, values, options };
   refreshOverlay();
-  ui.overlay.hidden = false;
-  ui.overlay.inert = false;
-  ui.overlay.setAttribute('aria-hidden', 'false');
-  ui.overlay.classList.remove('hidden');
 }
 
 function refreshOverlay() {
   if (!currentOverlay) return;
-  const { kickerKey, titleKey, copyKey, buttonKey, handler, values, options = {} } = currentOverlay;
+  const { kickerKey, titleKey, copyKey, buttonKey, values, options = {} } = currentOverlay;
   const resolvedValues = typeof values === 'function' ? values() : values;
-  ui.overlayKicker.textContent = t(kickerKey, resolvedValues);
-  ui.overlayTitle.textContent = t(titleKey, resolvedValues);
-  ui.overlayCopy.textContent = t(copyKey, resolvedValues);
-  ui.overlayButton.textContent = t(buttonKey, resolvedValues);
-  ui.overlayButton.onclick = handler;
-  ui.overlay.classList.toggle('grand-finale', options.variant === 'grand-finale');
-  ui.overlay.classList.toggle('confirmation', options.variant === 'confirmation');
-  ui.overlay.classList.toggle('level-intro', options.variant === 'level-intro');
-  ui.overlayCelebration.hidden = options.variant !== 'grand-finale';
-  ui.controlIntro.hidden = !options.showControls;
-  ui.overlaySecondaryButton.hidden = !options.secondaryKey;
-  ui.overlaySecondaryButton.textContent = options.secondaryKey ? t(options.secondaryKey, resolvedValues) : '';
-  ui.overlaySecondaryButton.onclick = options.secondaryHandler ?? null;
+  uiSession.patch('overlay', {
+    open: true,
+    kicker: t(kickerKey, resolvedValues),
+    title: t(titleKey, resolvedValues),
+    copy: t(copyKey, resolvedValues),
+    button: t(buttonKey, resolvedValues),
+    secondaryButton: options.secondaryKey ? t(options.secondaryKey, resolvedValues) : '',
+    variant: options.variant ?? '',
+    showControls: Boolean(options.showControls),
+    controlHint: isMobileGameLayout() ? t('controlIntroHint') : t('controlMenuHint'),
+    keyHint: t('keyHint'),
+  });
 }
 
 function hideOverlay() {
-  ui.overlay.classList.add('hidden');
-  ui.overlay.setAttribute('aria-hidden', 'true');
-  ui.overlay.inert = true;
-  ui.overlay.hidden = true;
   currentOverlay = null;
+  uiSession.patch('overlay', { open: false });
+}
+
+function activateOverlayPrimary() {
+  currentOverlay?.handler?.();
+}
+
+function activateOverlaySecondary() {
+  currentOverlay?.options?.secondaryHandler?.();
+}
+
+function syncHudView(saveStatus = null) {
+  const remainingTreats = pellets.size;
+  const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
+  const globalProgress = globalProgressPercent();
+  const mapProgress = aggregateMapProgress();
+  const item = currentLocation();
+  const locationLevel = PASSAU_LEVELS.indexOf(item) + 1;
+  const effectiveState = state === 'menu' ? settingsReturnState : state;
+  uiSession.patch('hud', {
+    score: String(score).padStart(6, '0'),
+    best: String(Math.max(score, best)).padStart(6, '0'),
+    level: String(level).padStart(2, '0'),
+    lives,
+    globalProgress,
+    mapProgress,
+    levelStatus: {
+      score: String(levelRunScore).padStart(6, '0'),
+      collected: collectedTreats,
+      total: levelTreatTotal,
+      remaining: remainingTreats,
+      lives,
+    },
+    location: {
+      level: String(locationLevel).padStart(2, '0'),
+      name: localized(item.name).toUpperCase(),
+      river: item.river,
+      coordinates: `${item.lat.toFixed(3)}° N · ${item.lon.toFixed(3)}° E`,
+      mission: localized(item.mission),
+      missionLabel: `${t('missionPrefix')} · ${String(locationLevel).padStart(2, '0')} · ${t(difficultyConfig().nameKey).toUpperCase()}`,
+    },
+    collected: collectedTreats,
+    treatTotal: levelTreatTotal,
+    eggs: unlockedEggs.size,
+    eggTotal: EASTER_EGG_COUNT,
+    paused: effectiveState === 'paused',
+    soundEnabled,
+    saveStatus: saveStatus ?? (uiSession.snapshot().hud.saveStatus || t('saveSuccess')),
+    savePulse,
+    copy: {
+      hudLabel: language === 'dialect' ? 'Gesamter Spielstand' : 'Gesamtspielstand',
+      scoreLabel: t('scoreLabel'), bestLabel: t('bestLabel'), roundLabel: t('roundLabel'),
+      livesLabel: t('livesLabel'), livesA11y: language === 'dialect' ? 'Leinen' : 'Leben',
+      globalProgressLabel: t('globalProgressLabel'), menuLabel: t('menuLabel'),
+      mapAggregateLabel: language === 'dialect' ? 'Gesamtfortschritt auf da Kartn' : 'Gesamtfortschritt auf der Karte',
+      mapAggregateLevels: t('mapAggregateLevels'), mapAggregateTreats: t('mapAggregateTreats'),
+      levelStatusLabel: language === 'dialect' ? 'Status vom aktuellen Level' : 'Status des aktuellen Levels',
+      levelScoreLabel: t('levelScoreLabel'), mapStatsTreats: t('mapStatsTreats'),
+      levelRemainingLabel: t('levelRemainingLabel'), routeOne: t('routeOne'), routeTwo: t('routeTwo'), routeThree: t('routeThree'),
+      treatProgressLabel: t('treatProgressLabel'), secretsLabel: t('secretsLabel'), guideLabel: t('guideLabel'),
+      treatTitle: t('treatTitle'), treatCopy: t('treatCopy'), powerTitle: t('powerTitle'), powerCopy: t('powerCopy'),
+      catTitle: t('catTitle'), catCopy: t('catCopy'), controlsLabel: t('controlsLabel'), orLabel: t('orLabel'),
+      pauseLabel: effectiveState === 'paused' ? t('continue') : t('pause'),
+      soundLabel: soundEnabled ? t('soundOn') : t('soundOff'), mapButton: t('mapButton'),
+      flavourQuote: t('flavourQuote'), flavourByline: t('flavourByline'),
+    },
+  });
 }
 
 function updateHud() {
-  const remainingTreats = pellets.size;
-  const collectedTreats = Math.max(0, levelTreatTotal - remainingTreats);
-  const progress = levelTreatTotal > 0 ? collectedTreats / levelTreatTotal : 0;
-  const globalProgress = globalProgressPercent();
   if (runStarted) updateCurrentLevelStatsSnapshot(state === 'won');
-  const mapProgress = aggregateMapProgress();
-  ui.score.textContent = String(score).padStart(6, '0');
-  ui.best.textContent = String(Math.max(score, best)).padStart(6, '0');
-  ui.level.textContent = String(level).padStart(2, '0');
-  ui.lives.textContent = Array.from({ length: lives }, () => '●').join(' ');
-  ui.lives.setAttribute('aria-label', `${lives} ${lives === 1 ? 'Leben' : 'Leben'}`);
-  ui.treatProgress.textContent = `${collectedTreats} / ${levelTreatTotal}`;
-  ui.globalProgress.textContent = `${globalProgress}%`;
-  ui.globalProgressCopy.textContent = `${globalProgress}%`;
-  ui.globalProgressBar.style.width = `${globalProgress}%`;
-  ui.globalProgress.closest('.progress-card').classList.toggle('complete', globalProgress === 100);
-  ui.globalProgressBar.closest('.global-progress-panel').classList.toggle('complete', globalProgress === 100);
-  document.querySelectorAll('.route-dot').forEach((dot, index) => {
-    dot.classList.toggle('active', index === 0 || progress >= index / 2);
-  });
-  ui.eggs.textContent = `${unlockedEggs.size} / ${EASTER_EGG_COUNT}`;
-  ui.mapCompletedLevels.textContent = `${mapProgress.completedLevels} VON ${mapProgress.totalLevels}`;
-  ui.mapTotalTreats.textContent = `${mapProgress.treatsFound} VON ${mapProgress.treatsTotal}`;
-  ui.levelStatusScore.textContent = String(levelRunScore).padStart(6, '0');
-  ui.levelStatusTreats.textContent = `${collectedTreats} / ${levelTreatTotal}`;
-  ui.levelStatusRemaining.textContent = String(remainingTreats);
-  ui.levelStatusLives.textContent = String(lives);
+  syncHudView();
+  if (state === 'map') renderPassauMap();
 }
 
 function eventStorageKey(event) {
@@ -1760,8 +1571,7 @@ function unlockLevelEvent(event) {
   activeEasterEgg = { id: event.id, message, timer: 4.5 };
   score += event.reward;
   levelRunScore += event.reward;
-  ui.easterToastCopy.textContent = `${message} +${event.reward}`;
-  ui.easterToast.hidden = false;
+  uiSession.patch('levelOverlays', { easterToast: `${message} +${event.reward}` });
   ui.announcement.textContent = t('secretFound', { message });
   beep(820, 0.12, 0.045, 'square');
   setTimeout(() => beep(1040, 0.12, 0.04, 'square'), 120);
@@ -1789,7 +1599,7 @@ function update(dt) {
     activeEasterEgg.timer -= dt;
     if (activeEasterEgg.timer <= 0) {
       activeEasterEgg = null;
-      ui.easterToast.hidden = true;
+      uiSession.patch('levelOverlays', { easterToast: null });
     }
   }
   if (state === 'hit') {
@@ -1926,7 +1736,9 @@ function checkCollisions() {
 
 function completeLevel() {
   state = 'won';
+  audioService.setLevelMode('won');
   completedLevelIds.add(selectedLevelId);
+  concertUnlocked = completedLevelIds.size === PASSAU_LEVELS.length;
   score += 500;
   levelRunScore += 500;
   updateCurrentLevelStatsSnapshot(true);
@@ -1957,17 +1769,38 @@ function showGrandFinaleOverlay() {
     'finaleKicker',
     'finaleTitle',
     'finaleCopy',
-    'finaleButton',
-    () => {
-      openMap();
-    },
+    'winButton',
+    openMap,
     {},
     { variant: 'grand-finale' },
   );
 }
 
+function advanceMapEndgame() {
+  if (!mapEndgameActive || mapEndgamePhase !== 'reveal') return;
+  if (endgamePage < 2) {
+    endgamePage += 1;
+    playUiSound(endgamePage === 2 ? 'success' : 'confirm');
+    renderPassauMap();
+    if (endgamePage === 2) {
+      beep(523, 0.12, 0.04, 'square');
+      setTimeout(() => beep(659, 0.12, 0.04, 'square'), 130);
+      setTimeout(() => beep(784, 0.2, 0.045, 'square'), 260);
+    }
+    return;
+  }
+  concertRevealSeen = true;
+  mapEndgameActive = false;
+  clearMapEndgameTimers();
+  playUiSound('success');
+  ui.announcement.textContent = t('concertUnlockedAnnouncement');
+  renderPassauMap();
+  saveGame();
+}
+
 function finishGame() {
   state = 'over';
+  audioService.setLevelMode('over');
   best = Math.max(best, score);
   updateHud();
   showGameOverOverlay();
@@ -1986,17 +1819,7 @@ function showGameOverOverlay() {
 }
 
 function beep(frequency, duration, volume, type = 'sine') {
-  if (!soundEnabled) return;
-  audioContext ??= new AudioContext();
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = type;
-  oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(volume, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
-  oscillator.connect(gain).connect(audioContext.destination);
-  oscillator.start();
-  oscillator.stop(audioContext.currentTime + duration);
+  audioService.beep(frequency, duration, volume, type);
 }
 
 function vibrate(pattern) {
@@ -2065,39 +1888,34 @@ function render() {
 
 function launchLevelConfetti() {
   clearTimeout(confettiTimer);
-  ui.levelConfetti.replaceChildren();
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (reducedMotion) {
+    uiSession.patch('levelOverlays', { confetti: [], confettiActive: false });
+    return;
+  }
 
   const colors = ['#4ce0b3', '#f5c451', '#ff6b5f', '#55d9dd', '#f4eee0'];
-  const fragment = document.createDocumentFragment();
-  for (let index = 0; index < 72; index += 1) {
-    const piece = document.createElement('i');
-    piece.style.setProperty('--confetti-x', `${(index * 37) % 101}%`);
-    piece.style.setProperty('--confetti-drift', `${((index * 29) % 170) - 85}px`);
-    piece.style.setProperty('--confetti-delay', `${(index % 12) * 36}ms`);
-    piece.style.setProperty('--confetti-duration', `${1500 + (index % 9) * 95}ms`);
-    piece.style.setProperty('--confetti-color', colors[index % colors.length]);
-    piece.style.setProperty('--confetti-turn', `${360 + (index % 5) * 180}deg`);
-    fragment.append(piece);
-  }
-  ui.levelConfetti.append(fragment);
-  ui.levelConfetti.hidden = false;
-  requestAnimationFrame(() => ui.levelConfetti.classList.add('active'));
+  const confetti = Array.from({ length: 72 }, (_, index) => ({
+    x: `${(index * 37) % 101}%`,
+    drift: `${((index * 29) % 170) - 85}px`,
+    delay: `${(index % 12) * 36}ms`,
+    duration: `${1500 + (index % 9) * 95}ms`,
+    color: colors[index % colors.length],
+    turn: `${360 + (index % 5) * 180}deg`,
+  }));
+  uiSession.patch('levelOverlays', { confetti, confettiActive: true });
   confettiTimer = setTimeout(() => {
-    ui.levelConfetti.classList.remove('active');
-    ui.levelConfetti.hidden = true;
-    ui.levelConfetti.replaceChildren();
+    uiSession.patch('levelOverlays', { confetti: [], confettiActive: false });
   }, 2800);
 }
 
 function isCameraGameView() {
-  return ui.mapScreen.hidden && state !== 'map';
+  return state !== 'map';
 }
 
 function gameplayViewport(viewportWidth, viewportHeight) {
   if (!isCameraGameView()) return { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
   const canvasRect = canvas.getBoundingClientRect();
-  const blockers = [ui.mobileGameHeader, document.querySelector('#level-status')];
+  const blockers = [document.querySelector('#mobile-game-header'), document.querySelector('#level-status')];
   const safeTop = blockers.reduce((bottom, element) => {
     if (!element || getComputedStyle(element).display === 'none') return bottom;
     const rect = element.getBoundingClientRect();
@@ -2170,7 +1988,7 @@ function ensureCatRadarIndicators() {
 }
 
 function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport) {
-  const active = isCameraGameView() && ['playing', 'hit'].includes(state) && ui.mapScreen.hidden;
+  const active = isCameraGameView() && ['playing', 'hit'].includes(state);
   ui.catRadar.hidden = !active;
   if (!active) return;
 
@@ -2238,22 +2056,24 @@ function resizeCanvas() {
 }
 
 document.addEventListener('keydown', (event) => {
-  if (!ui.onboardingDialog.hidden) return;
-  if (!ui.settingsDialog.hidden) {
+  if (uiSession.snapshot().onboarding.open) return;
+  if (settingsOpen) {
     if (event.code === 'Escape') {
       event.preventDefault();
       closeSettings();
     }
     return;
   }
-  if (state === 'map' && !ui.mapSelection.hidden && event.code === 'Escape') {
+  if (state === 'map' && mapSelectionOpen && event.code === 'Escape') {
     event.preventDefault();
+    playUiSound('close');
     closeMapSelection(true);
     return;
   }
   if (import.meta.env.DEV && event.code === 'F7' && ['playing', 'hit', 'paused'].includes(state)) {
     event.preventDefault();
     state = 'paused';
+    audioService.setLevelMode('paused');
     setPauseButtons(true);
     hideOverlay();
     render();
@@ -2307,7 +2127,7 @@ document.addEventListener('keydown', (event) => {
     if (state === 'ready') startGame();
     else togglePause();
   }
-  if (event.code === 'Enter' && !ui.overlay.classList.contains('hidden')) ui.overlayButton.click();
+  if (event.code === 'Enter' && uiSession.snapshot().overlay.open) activateOverlayPrimary();
 });
 
 canvas.addEventListener('pointerdown', (event) => {
@@ -2346,59 +2166,68 @@ canvas.addEventListener('lostpointercapture', (event) => {
   if (swipeInput.pointerId === event.pointerId) swipeInput.cancel();
 });
 
-ui.pauseButton.addEventListener('click', togglePause);
-ui.soundButton.addEventListener('click', toggleSound);
-ui.settingsSoundButton.addEventListener('click', toggleSound);
-ui.settingsPauseButton.addEventListener('click', toggleSettingsPause);
-ui.settingsMapButton.addEventListener('click', openMap);
-ui.mapButton.addEventListener('click', openMap);
-ui.mobileGameMenuButton.addEventListener('click', openSettings);
-ui.mapStartButton.addEventListener('click', startMapSelection);
-ui.mapSelectionClose.addEventListener('click', () => closeMapSelection(true));
-ui.levelCutsceneSkip.addEventListener('click', () => {
-  if (state === 'cutscene' && levelCutscenePlayer.skip()) enterLevelPlay();
-});
-ui.mapCanvas.addEventListener('click', (event) => {
-  if (!event.target.closest('.map-marker-wrap') && !ui.mapSelection.hidden) closeMapSelection(false);
-});
-ui.settingsButton.addEventListener('click', openSettings);
-ui.settingsCloseButton.addEventListener('click', () => closeSettings());
-ui.settingsDialog.addEventListener('click', (event) => {
-  if (event.target === ui.settingsDialog) closeSettings();
-});
-ui.onboardingLoginForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  validateOnboardingLogin();
-});
-document.querySelectorAll('[data-onboarding-language]').forEach((button) => {
-  button.addEventListener('click', () => {
-    onboardingLanguage = button.dataset.onboardingLanguage;
+uiSession.registerCommands({
+  openSettings,
+  closeSettings,
+  toggleSound,
+  toggleReducedMotion,
+  togglePause: toggleSettingsPause,
+  togglePauseFromHud: togglePause,
+  openMap,
+  selectMapLocation,
+  closeMapSelection(returnFocus) {
+    playUiSound('close');
+    closeMapSelection(Boolean(returnFocus));
+  },
+  startMapSelection,
+  advanceMapEndgame,
+  activateOverlayPrimary,
+  activateOverlaySecondary,
+  skipCutscene() {
+    if (state === 'cutscene' && levelCutscenePlayer.skip()) enterLevelPlay();
+  },
+  setLanguage,
+  setDifficulty,
+  validateOnboarding: validateOnboardingLogin,
+  setOnboardingLanguage(nextLanguage) {
+    onboardingLanguage = nextLanguage;
     updateOnboardingChoices();
-  });
-});
-document.querySelectorAll('[data-onboarding-difficulty]').forEach((button) => {
-  button.addEventListener('click', () => {
-    onboardingDifficulty = button.dataset.onboardingDifficulty;
+  },
+  setOnboardingDifficulty(nextDifficulty) {
+    onboardingDifficulty = nextDifficulty;
     updateOnboardingChoices();
-  });
+  },
+  prepareOnboardingGuide,
+  moveOnboardingGuide,
+  finishOnboarding,
+  newGame() {
+    closeSettings(false);
+    showNewGameConfirmation();
+  },
+  deleteData() {
+    closeSettings(false);
+    showDeleteBrowserDataConfirmation();
+  },
 });
-ui.onboardingSetupNext.addEventListener('click', prepareOnboardingGuide);
-ui.onboardingGuideBack.addEventListener('click', () => moveOnboardingGuide(-1));
-ui.onboardingGuideNext.addEventListener('click', () => moveOnboardingGuide(1));
-ui.onboardingFinish.addEventListener('click', finishOnboarding);
-ui.newGameButton.addEventListener('click', () => {
-  closeSettings(false);
-  showNewGameConfirmation();
+
+mount(UiApp, {
+  target: document.querySelector('#svelte-ui'),
+  props: { session: uiSession },
 });
-ui.deleteBrowserDataButton.addEventListener('click', () => {
-  closeSettings(false);
-  showDeleteBrowserDataConfirmation();
-});
-document.querySelectorAll('[data-language]').forEach((button) => {
-  button.addEventListener('click', () => setLanguage(button.dataset.language));
-});
-document.querySelectorAll('[data-difficulty]').forEach((button) => {
-  button.addEventListener('click', () => setDifficulty(button.dataset.difficulty));
+mountUiSurfaces(uiSession);
+
+document.addEventListener('click', (event) => {
+  if (!(event.target instanceof Element)) return;
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  if (button.matches('#sound-button, #settings-sound-button, #settings-open-button, #mobile-game-menu-button, #settings-close-button, #settings-map-button, #new-game-button, #delete-browser-data-button, #onboarding-finish, .map-marker')) return;
+  if (button.dataset.uiSound === 'none') return;
+  const cue = button.dataset.uiSound
+    ?? (button.matches('#map-selection-close') ? 'close'
+      : button.matches('#settings-reduced-motion-button, [data-language], [data-difficulty], [data-onboarding-language], [data-onboarding-difficulty]')
+      ? 'select'
+      : button.classList.contains('primary-button') ? 'confirm' : 'press');
+  playUiSound(cue);
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -2411,17 +2240,15 @@ document.addEventListener('touchmove', (event) => {
 
 window.addEventListener('resize', () => {
   resizeCanvas();
-  positionMapMarkers();
 });
 const canvasResizeObserver = 'ResizeObserver' in window
   ? new ResizeObserver(() => resizeCanvas())
   : null;
 canvasResizeObserver?.observe(canvas);
-const mapResizeObserver = 'ResizeObserver' in window
-  ? new ResizeObserver(() => positionMapMarkers())
-  : null;
-mapResizeObserver?.observe(ui.mapCanvas);
-window.addEventListener('pagehide', () => saveGame(true));
+window.addEventListener('pagehide', () => {
+  saveGame(true);
+  audioService.destroy();
+});
 
 if (storedGame) restoreGame(storedGame);
 else {
@@ -2435,6 +2262,7 @@ resizeCanvas();
 requestAnimationFrame(frame);
 
 if (import.meta.env.DEV) {
+  window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
   window.__GASSI_DEBUG__ = () => ({
     state,
     player: { x: player.x, y: player.y, direction: player.dir.name, nextDirection: player.nextDir.name },
@@ -2448,6 +2276,11 @@ if (import.meta.env.DEV) {
     globalProgress: globalProgressPercent(),
     lives,
     difficulty,
+    soundEnabled,
+    reducedMotion,
+    settingsContext: settingsContextForState(state, settingsReturnState),
+    lastUiSoundCue: audioService.lastUiCue,
+    soundscape: audioService.soundscapeSnapshot(),
     directionHistory: [...directionHistory],
     treatsCollected: Math.max(0, levelTreatTotal - pellets.size),
     treatsTotal: levelTreatTotal,
@@ -2490,7 +2323,7 @@ if (import.meta.env.DEV) {
     hideOnboarding();
     document.body.classList.remove('map-active');
     enterMobileGameMode();
-    ui.mapScreen.hidden = true;
+    renderPassauMap();
     hideOverlay();
     runStarted = true;
     startLevelCutscene();
