@@ -14,6 +14,8 @@
     "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#c3d2c91"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "svelte": "^5.56.8",
     "vite": "^6.1.0"
   }
 }

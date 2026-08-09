@@ -1,0 +1,119 @@
+.endgame-card {
+  position: relative;
+  width: min(660px, 96%);
+  overflow: hidden;
+  border-color: #9f7c2d;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(245, 196, 81, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(76, 224, 179, 0.09), transparent 45%),
+    #091721;
+  box-shadow: inset 0 0 0 5px #1a302d, 0 0 70px rgba(245, 196, 81, 0.18), 10px 10px 0 rgba(2, 7, 12, 0.72);
+  text-align: center;
+}
+
+.endgame-card > p:not(.overlay-kicker) {
+  max-width: 52ch;
+  margin-inline: auto;
+  font-size: var(--fluid-body);
+  line-height: 1.7;
+}
+
+.endgame-passau {
+  display: grid;
+  min-height: 180px;
+  margin: 24px 0;
+  place-items: center;
+  border: 1px solid #31555b;
+  background: linear-gradient(rgba(67, 105, 107, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(67, 105, 107, 0.08) 1px, transparent 1px), #0b1c25;
+  background-size: 24px 24px;
+}
+
+.endgame-passau strong {
+  color: var(--gold);
+  font: 700 clamp(2.5rem, 9vw, 5rem)/1 'Silkscreen', monospace;
+  text-shadow: 5px 5px 0 #4d3d1b;
+}
+
+.endgame-passau > span {
+  color: var(--mint);
+  font: 700 var(--fluid-small)/1 'Silkscreen', monospace;
+  letter-spacing: 0.2em;
+}
+
+.endgame-route { display: flex; width: min(360px, 80%); align-items: center; color: var(--gold); }
+.endgame-route i { flex: 1; border-top: 2px dashed #41656a; }
+.endgame-route b { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid currentColor; background: #122b31; transform: rotate(45deg); }
+
+.endgame-certificate {
+  width: min(480px, 92%);
+  margin: 24px auto;
+  padding: clamp(24px, 5vw, 44px);
+  border: 2px solid var(--gold);
+  outline: 6px double rgba(245, 196, 81, 0.28);
+  background: #152321;
+  transform: rotate(-1deg);
+}
+
+.endgame-certificate small,
+.endgame-certificate span { display: block; color: #9eb0a8; font-size: var(--fluid-small); letter-spacing: 0.12em; }
+.endgame-certificate strong { display: block; margin: 18px 0; color: var(--mint); font: 700 clamp(1.4rem, 5vw, 2.6rem)/1.1 'Silkscreen', monospace; }
+
+.concert-ticket {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.25fr) 1fr;
+  width: min(520px, 96%);
+  min-height: 190px;
+  margin: 24px auto;
+  overflow: hidden;
+  border: 2px solid var(--gold);
+  background: #241d19;
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.38), 0 0 34px rgba(245, 196, 81, 0.18);
+  transform: rotate(1deg);
+}
+
+.concert-ticket-stub { display: grid; place-items: center; border-right: 2px dashed #9f7c2d; color: var(--mint); font: 700 var(--fluid-value)/1 'Silkscreen', monospace; writing-mode: vertical-rl; }
+.concert-ticket > div { position: relative; display: grid; padding: 22px; place-items: center; }
+.concert-ticket small { color: #c5a95f; font-size: var(--fluid-small); letter-spacing: 0.13em; }
+.concert-ticket strong { color: var(--ink); font: 700 clamp(1.35rem, 5vw, 2.7rem)/1.25 'Silkscreen', monospace; }
+.concert-ticket i { position: absolute; right: 18px; bottom: 12px; color: var(--coral); font-size: clamp(2rem, 7vw, 4rem); font-style: normal; }
+
+.endgame-progress { display: flex; justify-content: center; gap: 8px; margin: 18px 0; }
+.endgame-progress span { width: 10px; height: 10px; border: 1px solid #587176; background: #0d2029; transform: rotate(45deg); }
+.endgame-progress span.active { border-color: var(--gold); background: var(--gold); box-shadow: 0 0 10px rgba(245, 196, 81, 0.4); }
+
+.endgame-spark-field i { position: absolute; width: 4px; height: 4px; background: var(--gold); box-shadow: 0 0 10px var(--gold); transform: rotate(45deg); animation: endgame-spark 2.2s ease-in-out infinite; }
+.endgame-spark-field i:nth-child(1) { top: 10%; left: 8%; }
+.endgame-spark-field i:nth-child(2) { top: 19%; right: 9%; animation-delay: -0.5s; }
+.endgame-spark-field i:nth-child(3) { top: 55%; left: 5%; animation-delay: -1s; }
+.endgame-spark-field i:nth-child(4) { right: 7%; bottom: 22%; animation-delay: -1.5s; }
+.endgame-spark-field i:nth-child(5) { right: 22%; bottom: 6%; animation-delay: -0.8s; }
+
+.concert-unlocked-badge {
+  position: absolute;
+  z-index: 8;
+  right: clamp(18px, 2vw, 30px);
+  bottom: clamp(18px, 2vw, 30px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #a88332;
+  background: rgba(43, 35, 22, 0.94);
+  color: var(--gold);
+  box-shadow: 5px 5px 0 rgba(2, 7, 12, 0.55);
+  animation: concert-badge-arrival 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.concert-unlocked-badge span { font-size: 1.5rem; }
+.concert-unlocked-badge strong { font: 700 var(--fluid-small)/1.3 'Silkscreen', monospace; }
+
+@keyframes endgame-spark { 0%, 100% { opacity: 0.3; transform: rotate(45deg) scale(0.7); } 50% { opacity: 1; transform: rotate(45deg) scale(1.5); } }
+@keyframes concert-badge-arrival { from { opacity: 0; transform: translateY(16px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@media (max-width: 680px) {
+  .endgame-card { width: 100%; padding: 22px 17px; }
+  .endgame-passau { min-height: 145px; margin: 16px 0; }
+  .concert-ticket { min-height: 160px; margin-block: 16px; }
+  .concert-ticket > div { padding: 16px 10px; }
+  .concert-unlocked-badge { top: 104px; right: 10px; bottom: auto; max-width: calc(100% - 20px); }
+}

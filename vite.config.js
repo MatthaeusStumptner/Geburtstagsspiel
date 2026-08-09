@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { execFileSync } from 'node:child_process';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 const VERSION_BASE_COMMIT = 'b64139d850b6a587ae25fddd7b142bfe83acdebc';
 const VERSION_BASE_NUMBER = 6;
@@ -27,6 +28,7 @@ export default defineConfig({
   // Relative asset URLs keep the build working below /<repository>/ on GitHub Pages.
   base: './',
   plugins: [
+    svelte(),
     {
       name: 'app-version',
       transformIndexHtml(html) {
