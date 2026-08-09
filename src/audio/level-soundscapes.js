@@ -11,6 +11,7 @@ const createProfile = (profile) => deepFreeze({
 });
 
 export const SOUNDSCAPE_MODES = deepFreeze({
+  map: { output: 0.7, music: 0.32, ambience: 0.6, density: 0.42 },
   preview: { output: 0.72, music: 0.34, ambience: 0.58, density: 0.48 },
   transition: { output: 0.68, music: 0.24, ambience: 0.5, density: 0.36 },
   intro: { output: 0.76, music: 0.38, ambience: 0.62, density: 0.56 },
@@ -22,6 +23,13 @@ export const SOUNDSCAPE_MODES = deepFreeze({
 });
 
 export const LEVEL_SOUNDSCAPES = deepFreeze({
+  map: createProfile({
+    id: 'map', name: 'Passau bei Nacht', bpm: 74, rootMidi: 57,
+    scale: [0, 2, 4, 7, 9], waveform: 'sine', filterFrequency: 1900,
+    melody: [0, null, 2, null, 4, 2, null, 0, 5, null, 4, null, 2, 0, null, null],
+    bass: [0, 3, 2, 4], accent: 12,
+    ambience: { type: 'map-night', filter: 'bandpass', frequency: 1050, q: 0.48, noise: 0.018, drone: 0.008, lfoRate: 0.08, lfoDepth: 0.006 },
+  }),
   home: createProfile({
     id: 'home', name: 'Bramerhof bei Nacht', bpm: 78, rootMidi: 62,
     scale: [0, 2, 4, 7, 9], waveform: 'triangle', filterFrequency: 1850,

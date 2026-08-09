@@ -23,7 +23,7 @@
 
   {#if event.phase === 'boot'}
     <div class="map-event-terminal">
-      <div class="map-event-terminal-bar" aria-hidden="true"><i></i><i></i><i></i><span>F-60 // PASSAU</span></div>
+      <div class="map-event-terminal-bar" aria-hidden="true"><i></i><i></i><i></i><span>{event.terminalLabel ?? 'F-60 // PASSAU'}</span></div>
       <p class="overlay-kicker">{event.kicker}</p>
       <h2 id="map-event-title">{event.title}</h2>
       <div class="map-event-log" aria-live="polite">

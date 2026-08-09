@@ -7,7 +7,7 @@ import {
 const CROSSFADE_SECONDS = 0.62;
 const SCHEDULE_AHEAD_SECONDS = 0.18;
 const SCHEDULER_INTERVAL_MS = 45;
-const VALID_MODES = new Set(['preview', 'transition', 'intro', 'cutscene', 'playing', 'paused', 'won', 'over']);
+const VALID_MODES = new Set(['map', 'preview', 'transition', 'intro', 'cutscene', 'playing', 'paused', 'won', 'over']);
 
 function setGain(gainNode, value, time, duration = 0.24) {
   const parameter = gainNode.gain;
@@ -205,6 +205,7 @@ class ProceduralSoundscapeVoice {
 export class LevelAudioDirector {
   #isEnabled;
   #acquireContext;
+  #acquireDestination;
   #audible = true;
   #requestedLevelId = null;
   #requestedMode = 'preview';
@@ -212,9 +213,10 @@ export class LevelAudioDirector {
   #activationToken = 0;
   #cleanupTimers = new Set();
 
-  constructor({ isEnabled, acquireContext }) {
+  constructor({ isEnabled, acquireContext, acquireDestination }) {
     this.#isEnabled = isEnabled;
     this.#acquireContext = acquireContext;
+    this.#acquireDestination = acquireDestination;
   }
 
   preview(levelId) { this.setScene(levelId, 'preview'); }
@@ -286,7 +288,8 @@ export class LevelAudioDirector {
         this.#voice.setMode(mode);
         return;
       }
-      const nextVoice = new ProceduralSoundscapeVoice(context, profile, context.destination);
+      const destination = this.#acquireDestination?.(context) ?? context.destination;
+      const nextVoice = new ProceduralSoundscapeVoice(context, profile, destination);
       const previousVoice = this.#voice;
       this.#voice = nextVoice;
       nextVoice.start(mode);

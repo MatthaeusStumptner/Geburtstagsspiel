@@ -109,6 +109,21 @@
               onclick={() => command('toggleReducedMotion')}
             >{view.copy.reducedMotionLabel}</button>
           </div>
+          <div class="audio-output-setting">
+            <p>{view.copy.audioOutputLabel}</p>
+            <div class="audio-output-switch" role="group" aria-label={view.copy.audioOutputLabel}>
+              {#each view.copy.audioOutputs ?? [] as option}
+                <button
+                  type="button"
+                  class:active={view.audioOutputProfile === option.id}
+                  aria-pressed={view.audioOutputProfile === option.id}
+                  data-audio-output={option.id}
+                  onclick={() => command('setAudioOutputProfile', option.id)}
+                >{option.label}</button>
+              {/each}
+            </div>
+            <small>{view.copy.audioOutputCopy}</small>
+          </div>
           <p class="settings-control-copy">{view.copy.reducedMotionCopy}</p>
         </section>
 

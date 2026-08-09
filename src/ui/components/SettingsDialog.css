@@ -149,6 +149,41 @@ body.settings-open {
   opacity: 0.38;
 }
 
+.audio-output-setting {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid #24424b;
+}
+
+.audio-output-setting p,
+.audio-output-setting small { margin: 0; }
+.audio-output-setting p { color: var(--ink); font-size: var(--fluid-small); }
+.audio-output-setting small { color: #81989c; font-size: var(--fluid-micro); line-height: 1.45; }
+
+.audio-output-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.audio-output-switch button {
+  min-height: 40px;
+  border: 1px solid #294a53;
+  background: #0d202a;
+  color: #879fa2;
+  font-size: var(--fluid-small);
+  cursor: pointer;
+}
+
+.audio-output-switch button:hover,
+.audio-output-switch button.active,
+.audio-output-switch button:focus-visible {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+
 .settings-system-actions .delete-browser-data-button {
   grid-column: 1 / -1;
   border-color: rgba(239, 111, 93, 0.55);
@@ -179,7 +214,8 @@ body.settings-open {
   }
 
   .settings-grid,
-  .settings-system-actions {
+  .settings-system-actions,
+  .audio-output-switch {
     grid-template-columns: 1fr;
   }
 

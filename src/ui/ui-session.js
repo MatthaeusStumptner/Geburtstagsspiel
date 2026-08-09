@@ -6,6 +6,7 @@ const EMPTY_SETTINGS = {
   canPause: false,
   paused: false,
   soundEnabled: true,
+  audioOutputProfile: 'speaker',
   reducedMotion: false,
   language: 'dialect',
   difficulty: 'easy',
@@ -56,6 +57,7 @@ const EMPTY_MAP = {
   selection: null,
   concertUnlocked: false,
   endgameEvent: null,
+  startupBoot: null,
   copy: {},
 };
 

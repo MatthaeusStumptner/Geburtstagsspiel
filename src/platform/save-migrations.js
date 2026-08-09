@@ -8,6 +8,10 @@ export function migrateSave(parsed, {
     return {
       ...parsed,
       version: saveVersion,
+      audioOutputProfile: parsed.audioOutputProfile === 'headphones' ? 'headphones' : 'speaker',
+      // Older players have already reached the map; the new first-start boot
+      // must not unexpectedly replay for their established save games.
+      startupBootSeen: parsed.startupBootSeen ?? true,
     };
   }
 

@@ -20,7 +20,7 @@ test('every published level owns one valid soundscape profile', async () => {
     JSON.parse(await readFile(resolve(levelsDirectory, filename), 'utf8')).id
   )));
 
-  assert.deepEqual(Object.keys(LEVEL_SOUNDSCAPES).sort(), levelIds.sort());
+  assert.deepEqual(Object.keys(LEVEL_SOUNDSCAPES).filter((id) => id !== 'map').sort(), levelIds.sort());
   for (const [id, profile] of Object.entries(LEVEL_SOUNDSCAPES)) {
     assert.equal(profile.id, id);
     assert.deepEqual(validateSoundscapeProfile(profile), { ok: true, errors: [] });
@@ -30,8 +30,8 @@ test('every published level owns one valid soundscape profile', async () => {
   }
 });
 
-test('soundscape modes cover map preview, narrative and gameplay states', () => {
-  for (const mode of ['preview', 'transition', 'intro', 'cutscene', 'playing', 'paused', 'won', 'over']) {
+test('soundscape modes cover the unselected map, preview, narrative and gameplay states', () => {
+  for (const mode of ['map', 'preview', 'transition', 'intro', 'cutscene', 'playing', 'paused', 'won', 'over']) {
     const mix = soundscapeMix(mode);
     assert.equal(mix, SOUNDSCAPE_MODES[mode]);
     assert.ok(mix.output > 0 && mix.output <= 1);
@@ -41,6 +41,15 @@ test('soundscape modes cover map preview, narrative and gameplay states', () => 
   assert.ok(SOUNDSCAPE_MODES.playing.music > SOUNDSCAPE_MODES.preview.music);
   assert.ok(SOUNDSCAPE_MODES.cutscene.ambience > SOUNDSCAPE_MODES.cutscene.music);
   assert.ok(SOUNDSCAPE_MODES.paused.output < SOUNDSCAPE_MODES.playing.output);
+  assert.equal(soundscapeProfile('map').name, 'Passau bei Nacht');
+});
+
+test('audio director keeps the map theme requested before browser audio is unlocked', () => {
+  const director = new LevelAudioDirector({ isEnabled: () => false, acquireContext: () => null });
+  assert.equal(director.setScene('map', 'map'), true);
+  assert.equal(director.snapshot().requestedLevelId, 'map');
+  assert.equal(director.snapshot().mode, 'map');
+  director.destroy();
 });
 
 test('profile notes resolve deterministically into musical frequencies', () => {

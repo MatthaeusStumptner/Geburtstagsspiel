@@ -15,6 +15,7 @@ import {
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
+import { DEFAULT_AUDIO_OUTPUT_PROFILE, resolveAudioOutputProfile } from './audio/audio-output-profiles.js';
 import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
 import { LevelCutscenePlayer } from './game/level-cutscene-player.js';
@@ -32,6 +33,7 @@ import {
 } from './ui/endgame-sequence.js';
 import { mountUiSurfaces } from './ui/mount-ui-surfaces.js';
 import { createUiSession } from './ui/ui-session.js';
+import { STARTUP_BOOT_LINES, startupBootView } from './ui/startup-boot-sequence.js';
 import {
   resolveReducedMotionPreference,
   settingsContextForState,
@@ -61,7 +63,7 @@ const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 9;
+const SAVE_VERSION = 10;
 const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
 const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
@@ -116,6 +118,7 @@ let powerTimer = 0;
 let hitTimer = 0;
 let graceTimer = 0;
 let soundEnabled = storedGame ? Boolean(storedGame.soundEnabled) : true;
+let audioOutputProfile = resolveAudioOutputProfile(storedGame?.audioOutputProfile ?? DEFAULT_AUDIO_OUTPUT_PROFILE).id;
 let reducedMotion = resolveReducedMotionPreference(
   storedGame?.reducedMotion,
   window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
@@ -136,6 +139,7 @@ let completedLevelIds = new Set(
 let concertUnlocked = Boolean(storedGame?.concertUnlocked)
   || completedLevelIds.size === PASSAU_LEVELS.length;
 let concertRevealSeen = Boolean(storedGame?.concertRevealSeen);
+let startupBootSeen = storedGame ? storedGame.startupBootSeen !== false : false;
 let levelStats = normalizeLevelStats(storedGame?.levelStats);
 let levelRunScore = Math.max(0, Math.floor(Number(storedGame?.levelRunScore) || 0));
 let unlockedEggs = new Set();
@@ -146,6 +150,9 @@ let mapEndgameActive = false;
 let mapEndgamePhase = 'boot';
 let mapEndgameBootStep = 0;
 let mapEndgameTimers = [];
+let startupBootActive = false;
+let startupBootStep = 0;
+let startupBootTimers = [];
 let sceneTransitionToken = 0;
 let sceneTransitionActive = false;
 let directionHistory = [];
@@ -162,13 +169,14 @@ let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
+let lastCutsceneUiSignature = '';
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
 let activeLevelDocument = null;
-const audioService = new BrowserAudioService(() => soundEnabled);
+const audioService = new BrowserAudioService(() => soundEnabled, audioOutputProfile);
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -186,7 +194,7 @@ function syncLevelAudioForState(targetState = state) {
   const effectiveState = targetState === 'menu' ? settingsReturnState : targetState;
   if (effectiveState === 'map') {
     if (mapSelectionOpen) audioService.previewLevel(mapSelectionId);
-    else audioService.stopLevelSoundscape();
+    else audioService.playMap();
     return;
   }
   if (effectiveState === 'intro') audioService.playLevel(selectedLevelId, 'intro');
@@ -345,7 +353,7 @@ function finishOnboarding() {
   ui.announcement.textContent = language === 'dialect'
     ? "Servus Franz, d'Passau-Kartn is freigschoit!"
     : 'Willkommen Franz, die Passau-Karte ist freigeschaltet!';
-  requestAnimationFrame(() => document.querySelector('#settings-open-button')?.focus());
+  requestAnimationFrame(() => startStartupBootSequence());
 }
 
 function currentLocation() {
@@ -530,6 +538,7 @@ function renderPassauMap() {
     selection: mapSelectionOpen ? currentMapSelectionView() : null,
     concertUnlocked: concertUnlocked && concertRevealSeen,
     endgameEvent: currentMapEndgameView(),
+    startupBoot: startupBootActive ? startupBootView(startupBootStep, (key) => t(key)) : null,
     copy: {
       kicker: t('mapKicker'),
       title: t('mapTitle'),
@@ -562,7 +571,7 @@ function showMapSelection() {
 function closeMapSelection(returnFocus = false, keepAudio = false) {
   const focusId = mapSelectionId;
   mapSelectionOpen = false;
-  if (!keepAudio && state === 'map') audioService.stopLevelSoundscape();
+  if (!keepAudio && state === 'map') audioService.playMap();
   renderPassauMap();
   if (returnFocus) requestAnimationFrame(() => {
     document.querySelector(`[data-level-id="${focusId}"] .map-marker`)?.focus();
@@ -650,6 +659,42 @@ function clearMapEndgameTimers() {
   mapEndgameTimers = [];
 }
 
+function clearStartupBootTimers() {
+  startupBootTimers.forEach((timer) => clearTimeout(timer));
+  startupBootTimers = [];
+}
+
+function startStartupBootSequence() {
+  if (state !== 'map' || startupBootSeen || startupBootActive) return;
+  audioService.playMap();
+  clearStartupBootTimers();
+  closeMapSelection(false);
+  startupBootActive = true;
+  startupBootStep = 0;
+  ui.announcement.textContent = t('startupBootTitle');
+  renderPassauMap();
+
+  const stepDuration = reducedMotion ? 45 : 540;
+  for (let step = 1; step < STARTUP_BOOT_LINES.length; step += 1) {
+    startupBootTimers.push(setTimeout(() => {
+      startupBootStep = step;
+      playUiSound('select');
+      renderPassauMap();
+    }, step * stepDuration));
+  }
+  startupBootTimers.push(setTimeout(() => {
+    startupBootActive = false;
+    startupBootSeen = true;
+    playUiSound('success');
+    ui.announcement.textContent = language === 'dialect'
+      ? "Servus Franz, d'Passau-Kartn is freigschoit!"
+      : 'Willkommen Franz, die Passau-Karte ist freigeschaltet!';
+    renderPassauMap();
+    saveGame();
+    requestAnimationFrame(() => document.querySelector('#settings-open-button')?.focus());
+  }, STARTUP_BOOT_LINES.length * stepDuration + (reducedMotion ? 30 : 320)));
+}
+
 function startMapEndgameSequence() {
   if (state !== 'map' || !concertUnlocked || concertRevealSeen || mapEndgameActive) return;
   clearMapEndgameTimers();
@@ -704,7 +749,6 @@ async function transitionFromMapToLevel() {
 
 function openMap() {
   clearCutscenePresentation();
-  audioService.stopLevelSoundscape();
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   leaveMobileGameMode(true);
@@ -712,6 +756,8 @@ function openMap() {
   closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  if (onboardingComplete) audioService.playMap();
+  else audioService.stopLevelSoundscape();
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
   hideOverlay();
@@ -720,6 +766,8 @@ function openMap() {
   saveGame();
   if (concertUnlocked && !concertRevealSeen && !mapEndgameActive) {
     requestAnimationFrame(() => requestAnimationFrame(startMapEndgameSequence));
+  } else if (onboardingComplete && !startupBootSeen && !startupBootActive) {
+    requestAnimationFrame(() => requestAnimationFrame(startStartupBootSequence));
   }
 }
 
@@ -770,6 +818,7 @@ function showLevelIntro(resumable = false) {
 }
 
 function hideLevelCutsceneUi() {
+  lastCutsceneUiSignature = '';
   uiSession.patch('levelOverlays', { cutscene: null });
 }
 
@@ -795,16 +844,20 @@ function revealGameUiAfterCutscene() {
 
 function syncLevelCutsceneUi(snapshot = levelCutscenePlayer.snapshot()) {
   if (!snapshot || !levelCutscenePlayer.cutscene) { hideLevelCutsceneUi(); return; }
+  const cutsceneView = {
+    title: localized(levelCutscenePlayer.cutscene.name).toUpperCase(),
+    skippable: Boolean(levelCutscenePlayer.cutscene.skippable),
+    skipLabel: t('cutsceneSkip'),
+    dialogue: snapshot.dialogue ? {
+      speaker: snapshot.dialogue.speaker,
+      text: snapshot.dialogue.text,
+    } : null,
+  };
+  const signature = JSON.stringify(cutsceneView);
+  if (signature === lastCutsceneUiSignature) return;
+  lastCutsceneUiSignature = signature;
   uiSession.patch('levelOverlays', {
-    cutscene: {
-      title: localized(levelCutscenePlayer.cutscene.name).toUpperCase(),
-      skippable: Boolean(levelCutscenePlayer.cutscene.skippable),
-      skipLabel: t('cutsceneSkip'),
-      dialogue: snapshot.dialogue ? {
-        speaker: snapshot.dialogue.speaker,
-        text: snapshot.dialogue.text,
-      } : null,
-    },
+    cutscene: cutsceneView,
   });
 }
 
@@ -835,7 +888,6 @@ function enterLevelPlay() {
 
 function updateLevelCutscene(dt) {
   if (levelCutscenePlayer.advance(dt)) enterLevelPlay();
-  else syncLevelCutsceneUi();
 }
 
 function resetGameProgress() {
@@ -978,7 +1030,7 @@ function loadGame() {
   const parsed = saveStore.readJson(SAVE_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
   if (parsed.version === SAVE_VERSION) return parsed;
-  if ([2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return migrateLegacySave(parsed);
+  if ([2, 3, 4, 5, 6, 7, 8, 9].includes(parsed.version)) return migrateLegacySave(parsed);
   return null;
 }
 
@@ -999,6 +1051,7 @@ function saveGame(quiet = false) {
     hitTimer,
     graceTimer,
     soundEnabled,
+    audioOutputProfile,
     reducedMotion,
     language,
     difficulty,
@@ -1010,6 +1063,7 @@ function saveGame(quiet = false) {
     completedLevelIds: [...completedLevelIds],
     concertUnlocked,
     concertRevealSeen,
+    startupBootSeen,
     unlockedEggs: [...unlockedEggs],
     pellets: [...pellets],
     powerPellets: [...powerPellets],
@@ -1159,6 +1213,8 @@ function restoreGame(save) {
     ? Math.max(0, Math.min(difficultyConfig().lives, Math.floor(savedLives)))
     : difficultyConfig().lives;
   soundEnabled = Boolean(save.soundEnabled);
+  audioOutputProfile = resolveAudioOutputProfile(save.audioOutputProfile).id;
+  audioService.setOutputProfile(audioOutputProfile);
   reducedMotion = resolveReducedMotionPreference(
     save.reducedMotion,
     window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false,
@@ -1166,6 +1222,7 @@ function restoreGame(save) {
   concertUnlocked = Boolean(save.concertUnlocked)
     || completedLevelIds.size === PASSAU_LEVELS.length;
   concertRevealSeen = Boolean(save.concertRevealSeen);
+  startupBootSeen = save.startupBootSeen !== false;
   runStarted = Boolean(save.runStarted);
   unlockedEggs = new Set(
     Array.isArray(save.unlockedEggs)
@@ -1367,6 +1424,7 @@ function syncSettingsMenu() {
     canPause,
     paused,
     soundEnabled,
+    audioOutputProfile,
     reducedMotion,
     language,
     difficulty,
@@ -1393,6 +1451,12 @@ function syncSettingsMenu() {
       controlHint: t('controlMenuHint'),
       comfortLabel: t('settingsComfortLabel'),
       soundLabel: soundEnabled ? t('soundOn') : t('soundOff'),
+      audioOutputLabel: t('audioOutputLabel'),
+      audioOutputs: [
+        { id: 'speaker', label: t('audioOutputSpeaker') },
+        { id: 'headphones', label: t('audioOutputHeadphones') },
+      ],
+      audioOutputCopy: t('audioOutputCopy'),
       reducedMotionLabel: reducedMotion ? t('reducedMotionOn') : t('reducedMotionOff'),
       reducedMotionCopy: t('reducedMotionCopy'),
       roundLabel: t('settingsRoundLabel'),
@@ -1449,6 +1513,15 @@ function toggleSound() {
   audioService.setEnabled(soundEnabled);
   syncSoundButtons();
   if (soundEnabled) playUiSound('confirm');
+  saveGame();
+}
+
+function chooseAudioOutputProfile(profileId) {
+  const resolved = resolveAudioOutputProfile(profileId).id;
+  if (resolved === audioOutputProfile) return;
+  audioOutputProfile = audioService.setOutputProfile(resolved);
+  syncSettingsMenu();
+  playUiSound('confirm');
   saveGame();
 }
 
@@ -1842,6 +1915,7 @@ function render() {
   const viewportHeight = Math.max(1, canvas.clientHeight);
   const playViewport = gameplayViewport(viewportWidth, viewportHeight);
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
+  if (cutsceneSnapshot) syncLevelCutsceneUi(cutsceneSnapshot);
   const renderState = pixelRenderer.render(cutsceneSnapshot ? {
     level: activeLevelDocument,
     player: cutsceneSnapshot.player,
@@ -2183,6 +2257,7 @@ uiSession.registerCommands({
   openSettings,
   closeSettings,
   toggleSound,
+  setAudioOutputProfile: chooseAudioOutputProfile,
   toggleReducedMotion,
   togglePause: toggleSettingsPause,
   togglePauseFromHud: togglePause,
@@ -2237,7 +2312,7 @@ document.addEventListener('click', (event) => {
   if (button.dataset.uiSound === 'none') return;
   const cue = button.dataset.uiSound
     ?? (button.matches('#map-selection-close') ? 'close'
-      : button.matches('#settings-reduced-motion-button, [data-language], [data-difficulty], [data-onboarding-language], [data-onboarding-difficulty]')
+      : button.matches('#settings-reduced-motion-button, [data-audio-output], [data-language], [data-difficulty], [data-onboarding-language], [data-onboarding-difficulty]')
       ? 'select'
       : button.classList.contains('primary-button') ? 'confirm' : 'press');
   playUiSound(cue);
@@ -2259,6 +2334,7 @@ const canvasResizeObserver = 'ResizeObserver' in window
   : null;
 canvasResizeObserver?.observe(canvas);
 window.addEventListener('pagehide', () => {
+  clearStartupBootTimers();
   saveGame(true);
   audioService.destroy();
   pixelRenderer?.destroy();
@@ -2298,6 +2374,7 @@ if (import.meta.env.DEV) {
     lives,
     difficulty,
     soundEnabled,
+    audioOutputProfile,
     reducedMotion,
     settingsContext: settingsContextForState(state, settingsReturnState),
     lastUiSoundCue: audioService.lastUiCue,

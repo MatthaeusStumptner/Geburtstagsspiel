@@ -127,6 +127,10 @@
       <MapEndgameEvent event={view.endgameEvent} {command} />
     {/if}
 
+    {#if view.startupBoot}
+      <MapEndgameEvent event={view.startupBoot} {command} />
+    {/if}
+
     {#if view.concertUnlocked}
       <div class="concert-unlocked-badge" role="status">
         <span aria-hidden="true">♪</span>
