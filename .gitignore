@@ -4,5 +4,6 @@ dist/
 output/
 .playwright-cli/
 .codex-*/
+.worktrees/
 Pacman_clone_level_editor/
 *.log
