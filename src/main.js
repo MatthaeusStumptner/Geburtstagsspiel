@@ -5,6 +5,7 @@ import {
   DirectionalSwipeInput,
   FixedStepLoop,
   PassauPixelRenderer,
+  PresentationFramePacer,
   chooseCatDirection as chooseSharedCatDirection,
   compileWallGrid,
   createLevelDocument,
@@ -12,6 +13,7 @@ import {
   movePlayerActor,
   queuePlayerDirection,
   reachableTileKeys,
+  recommendedPresentationRate,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
@@ -50,6 +52,7 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   powerPreference: 'high-performance',
 });
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
+const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
 const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
 
@@ -162,6 +165,8 @@ let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
+let gameplayViewportCache = null;
+let lastRadarPaint = Number.NEGATIVE_INFINITY;
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
@@ -1836,8 +1841,10 @@ function vibrate(pattern) {
   if ('vibrate' in navigator) navigator.vibrate(pattern);
 }
 
-function render() {
+function render(frameTimestamp) {
   if (!activeLevelDocument || !player) return;
+  const forceRadarPaint = !Number.isFinite(frameTimestamp);
+  const paintTimestamp = forceRadarPaint ? performance.now() : frameTimestamp;
   const viewportWidth = Math.max(1, canvas.clientWidth);
   const viewportHeight = Math.max(1, canvas.clientHeight);
   const playViewport = gameplayViewport(viewportWidth, viewportHeight);
@@ -1890,13 +1897,16 @@ function render() {
   canvas.dataset.cutsceneTime = state === 'cutscene' ? levelCutscenePlayer.time.toFixed(3) : '';
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  updateCatRadar(
-    renderState.camera.source.x,
-    renderState.camera.source.y,
-    renderState.camera.source.width,
-    renderState.camera.source.height,
-    playViewport,
-  );
+  if (forceRadarPaint || paintTimestamp - lastRadarPaint >= 50) {
+    updateCatRadar(
+      renderState.camera.source.x,
+      renderState.camera.source.y,
+      renderState.camera.source.width,
+      renderState.camera.source.height,
+      playViewport,
+    );
+    lastRadarPaint = paintTimestamp;
+  }
 }
 
 function launchLevelConfetti() {
@@ -1926,7 +1936,14 @@ function isCameraGameView() {
 }
 
 function gameplayViewport(viewportWidth, viewportHeight) {
-  if (!isCameraGameView()) return { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
+  const cameraView = isCameraGameView();
+  const layoutKey = `${viewportWidth}|${viewportHeight}|${cameraView}|${state}|${settingsOpen}|${language}|${document.body.className}`;
+  if (gameplayViewportCache?.key === layoutKey) return gameplayViewportCache.viewport;
+  if (!cameraView) {
+    const viewport = { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
+    gameplayViewportCache = { key: layoutKey, viewport };
+    return viewport;
+  }
   const canvasRect = canvas.getBoundingClientRect();
   const blockers = [document.querySelector('#mobile-game-header'), document.querySelector('#level-status')];
   const safeTop = blockers.reduce((bottom, element) => {
@@ -1935,7 +1952,9 @@ function gameplayViewport(viewportWidth, viewportHeight) {
     return Math.max(bottom, rect.bottom - canvasRect.top + 8);
   }, 0);
   const y = Math.min(Math.max(0, safeTop), Math.max(0, viewportHeight - 120));
-  return { x: 0, y, width: viewportWidth, height: Math.max(120, viewportHeight - y) };
+  const viewport = { x: 0, y, width: viewportWidth, height: Math.max(120, viewportHeight - y) };
+  gameplayViewportCache = { key: layoutKey, viewport };
+  return viewport;
 }
 
 function presentScene() {
@@ -2060,11 +2079,12 @@ function frame(now) {
     autoSaveElapsed += dt;
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
   });
-  render();
+  if (presentationPacer.shouldPresent(now)) render(now);
   requestAnimationFrame(frame);
 }
 
 function resizeCanvas() {
+  gameplayViewportCache = null;
   pixelRenderer?.resize();
 }
 
@@ -2245,6 +2265,10 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
+  if (!document.hidden) {
+    simulationLoop.reset();
+    presentationPacer.reset();
+  }
 });
 
 document.addEventListener('touchmove', (event) => {
@@ -2266,6 +2290,8 @@ window.addEventListener('pagehide', () => {
 
 pixelRendererReady.then((renderer) => {
   pixelRenderer = renderer;
+  presentationPacer.setFramesPerSecond(recommendedPresentationRate(renderer.rendererInfo().quality));
+  presentationPacer.reset();
   if (storedGame) restoreGame(storedGame);
   else {
     buildLevel();
