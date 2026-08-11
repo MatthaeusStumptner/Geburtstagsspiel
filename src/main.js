@@ -38,6 +38,8 @@ import {
   resolveReducedMotionPreference,
   settingsContextForState,
 } from './ui/ui-preferences.js';
+import { renderPolicyForState } from './render/render-policy.js';
+import { createRenderScheduler } from './render/render-scheduler.js';
 
 const canvas = document.querySelector('#game');
 const rendererBackendParameter = new URLSearchParams(location.search).get('renderer');
@@ -53,6 +55,10 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
 });
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
 const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
+const renderScheduler = createRenderScheduler({
+  render: (_reason, timestamp) => render(timestamp),
+  pacer: presentationPacer,
+});
 const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
 
@@ -173,7 +179,21 @@ let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
 let activeLevelDocument = null;
+let staticWorldRevision = 0;
 const audioService = new BrowserAudioService(() => soundEnabled);
+
+function requestRender(reason) {
+  renderScheduler.request(reason);
+}
+
+function invalidateStaticWorld(reason) {
+  staticWorldRevision += 1;
+  requestRender(`world:${reason}`);
+}
+
+function currentRenderPolicy() {
+  return renderPolicyForState(state, settingsReturnState, uiSession.snapshot().onboarding.open);
+}
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -216,6 +236,7 @@ function applyReducedMotion() {
 function toggleReducedMotion() {
   reducedMotion = !reducedMotion;
   applyReducedMotion();
+  requestRender('settings:reduced-motion');
   saveGame();
 }
 
@@ -243,12 +264,14 @@ function showOnboarding() {
   });
   ui.appShell.inert = true;
   document.body.classList.add('onboarding-open');
+  requestRender('onboarding:open');
 }
 
 function hideOnboarding() {
   uiSession.patch('onboarding', { open: false });
   ui.appShell.inert = false;
   document.body.classList.remove('onboarding-open');
+  requestRender('onboarding:close');
 }
 
 function validateOnboardingLogin(nameValue, ageValue) {
@@ -318,6 +341,7 @@ function moveOnboardingGuide(direction) {
 }
 
 function prepareOnboardingGuide() {
+  const languageChanged = language !== onboardingLanguage;
   language = onboardingLanguage;
   difficulty = onboardingDifficulty;
   lives = difficultyConfig().lives;
@@ -325,6 +349,7 @@ function prepareOnboardingGuide() {
   levelRunScore = 0;
   rebaseLevelStatsForDifficulty();
   buildLevel();
+  if (languageChanged) invalidateStaticWorld('language');
   runStarted = false;
   applyLanguage();
   updateLocationUi();
@@ -476,6 +501,7 @@ function setDifficulty(nextDifficulty) {
     hitTimer = 0;
     if (state === 'menu' && settingsReturnState === 'hit') settingsReturnState = 'playing';
     else if (state === 'hit') state = 'playing';
+    requestRender('state:playing');
   }
   applyDifficultyUi();
   updateLocationUi();
@@ -609,6 +635,7 @@ function applyLanguage() {
 function setLanguage(nextLanguage) {
   if (!TEXT[nextLanguage] || nextLanguage === language) return;
   language = nextLanguage;
+  invalidateStaticWorld('language');
   applyLanguage();
   saveGame();
 }
@@ -627,7 +654,7 @@ function enterMobileGameMode() {
     document.body.style.top = `-${mobileScrollPosition}px`;
     document.body.classList.add('mobile-game-active');
   }
-  resizeCanvas();
+  resizeCanvas('layout:mobile-enter');
   return !alreadyActive;
 }
 
@@ -635,7 +662,7 @@ function leaveMobileGameMode(returnToBoard = false) {
   const wasActive = document.body.classList.contains('mobile-game-active');
   document.body.classList.remove('mobile-game-active');
   document.body.style.top = '';
-  resizeCanvas();
+  resizeCanvas('layout:mobile-leave');
 
   if (wasActive) {
     requestAnimationFrame(() => {
@@ -717,6 +744,7 @@ function openMap() {
   closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  requestRender('state:map');
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
   hideOverlay();
@@ -744,6 +772,7 @@ function commitMapSelectionStart() {
   }
   runStarted = true;
   state = 'intro';
+  requestRender('state:intro');
   audioService.playLevel(selectedLevelId, 'intro');
   renderPassauMap();
   setPauseButtons(false);
@@ -816,6 +845,7 @@ function syncLevelCutsceneUi(snapshot = levelCutscenePlayer.snapshot()) {
 function startLevelCutscene() {
   if (!levelCutscenePlayer.start(activeLevelDocument, { id: 'intro', language })) return false;
   state = 'cutscene';
+  requestRender('state:cutscene');
   audioService.playLevel(selectedLevelId, 'cutscene');
   beginCutscenePresentation();
   setPauseButtons(false);
@@ -832,6 +862,7 @@ function enterLevelPlay() {
   state = 'playing';
   setPauseButtons(false);
   hideOverlay();
+  requestRender('state:playing');
   if (leavingCutscene) revealGameUiAfterCutscene();
   else clearCutscenePresentation();
   ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(currentLocation().name)}`;
@@ -851,6 +882,7 @@ function resetGameProgress() {
   leaveMobileGameMode(true);
   document.body.classList.add('map-active');
   state = 'map';
+  requestRender('state:map');
   score = 0;
   best = 0;
   level = 1;
@@ -894,6 +926,7 @@ function showNewGameConfirmation() {
   if (state === 'playing' || state === 'hit') {
     state = 'paused';
     setPauseButtons(true);
+    requestRender('state:paused');
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
@@ -904,6 +937,7 @@ function showNewGameConfirmation() {
       hideOverlay();
     }
     setPauseButtons(state === 'paused');
+    requestRender(`state:${state}`);
   };
   showOverlay(
     'newGameKicker',
@@ -944,6 +978,7 @@ function showDeleteBrowserDataConfirmation() {
   if (state === 'playing' || state === 'hit') {
     state = 'paused';
     setPauseButtons(true);
+    requestRender('state:paused');
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
@@ -954,6 +989,7 @@ function showDeleteBrowserDataConfirmation() {
       hideOverlay();
     }
     setPauseButtons(state === 'paused');
+    requestRender(`state:${state}`);
   };
   showOverlay(
     'deleteDataKicker',
@@ -1086,6 +1122,7 @@ function buildLevel() {
   levelEventElapsed = 0;
 
   resetActors();
+  invalidateStaticWorld('build-level');
 }
 
 function reachableOpenKeys() {
@@ -1256,6 +1293,7 @@ function restoreGame(save) {
         audioService.setLevelMode('playing');
         setPauseButtons(false);
         hideOverlay();
+        requestRender('state:playing');
         saveGame();
       },
       () => ({
@@ -1267,6 +1305,7 @@ function restoreGame(save) {
     );
   }
   syncLevelAudioForState();
+  requestRender(`state:${state}`);
 }
 
 function toKey(x, y) {
@@ -1324,6 +1363,7 @@ function startGame(reset = false) {
   setPauseButtons(false);
   hideOverlay();
   updateHud();
+  requestRender('state:playing');
   ui.announcement.textContent = t('playAnnouncement');
   saveGame();
 }
@@ -1338,14 +1378,17 @@ function togglePause() {
       audioService.setLevelMode('playing');
       setPauseButtons(false);
       hideOverlay();
+      requestRender('state:playing');
       saveGame();
     });
+    requestRender('state:paused');
     saveGame();
   } else if (state === 'paused') {
     state = 'playing';
     audioService.setLevelMode('playing');
     setPauseButtons(false);
     hideOverlay();
+    requestRender('state:playing');
     saveGame();
   }
 }
@@ -1421,6 +1464,7 @@ function openSettings() {
   settingsOpen = true;
   syncSettingsMenu();
   document.body.classList.add('settings-open');
+  requestRender('settings:open');
 }
 
 function closeSettings(returnFocus = true) {
@@ -1438,6 +1482,7 @@ function closeSettings(returnFocus = true) {
     focusTarget?.focus();
   }
   settingsReturnFocus = null;
+  requestRender('settings:close');
 }
 
 function toggleSettingsPause() {
@@ -1445,6 +1490,7 @@ function toggleSettingsPause() {
   settingsReturnState = settingsReturnState === 'paused' ? 'playing' : 'paused';
   audioService.setLevelMode(settingsReturnState === 'paused' ? 'paused' : 'playing');
   syncSettingsMenu();
+  requestRender(`state:${settingsReturnState}`);
   saveGame();
 }
 
@@ -1489,11 +1535,13 @@ function refreshOverlay() {
     controlHint: isMobileGameLayout() ? t('controlIntroHint') : t('controlMenuHint'),
     keyHint: t('keyHint'),
   });
+  requestRender('overlay:show');
 }
 
 function hideOverlay() {
   currentOverlay = null;
   uiSession.patch('overlay', { open: false });
+  requestRender('overlay:hide');
 }
 
 function activateOverlayPrimary() {
@@ -1584,6 +1632,7 @@ function unlockLevelEvent(event) {
   const message = localized(event.message);
   unlockedEggs.add(storageKey);
   activeEasterEgg = { id: event.id, message, timer: 4.5 };
+  invalidateStaticWorld('event-unlock');
   score += event.reward;
   levelRunScore += event.reward;
   uiSession.patch('levelOverlays', { easterToast: `${message} +${event.reward}` });
@@ -1614,6 +1663,7 @@ function update(dt) {
     activeEasterEgg.timer -= dt;
     if (activeEasterEgg.timer <= 0) {
       activeEasterEgg = null;
+      invalidateStaticWorld('event-deactivate');
       uiSession.patch('levelOverlays', { easterToast: null });
     }
   }
@@ -1624,6 +1674,7 @@ function update(dt) {
       else {
         resetActors();
         state = 'playing';
+        requestRender('state:playing');
       }
     }
     return;
@@ -1702,6 +1753,7 @@ function collectTreats() {
   let collected = false;
 
   if (pellets.delete(key)) {
+    invalidateStaticWorld('pellet-collected');
     score += 10;
     levelRunScore += 10;
     collected = true;
@@ -1739,6 +1791,7 @@ function checkCollisions() {
     } else {
       lives -= 1;
       state = 'hit';
+      requestRender('state:hit');
       hitTimer = 1.1;
       beep(95, 0.32, 0.08, 'sawtooth');
       vibrate([70, 35, 100]);
@@ -1751,6 +1804,7 @@ function checkCollisions() {
 
 function completeLevel() {
   state = 'won';
+  requestRender('state:won');
   audioService.setLevelMode('won');
   completedLevelIds.add(selectedLevelId);
   concertUnlocked = completedLevelIds.size === PASSAU_LEVELS.length;
@@ -1815,6 +1869,7 @@ function advanceMapEndgame() {
 
 function finishGame() {
   state = 'over';
+  requestRender('state:over');
   audioService.setLevelMode('over');
   best = Math.max(best, score);
   updateHud();
@@ -1884,6 +1939,7 @@ function render(frameTimestamp) {
     } : undefined,
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
     reducedMotion,
+    staticRevision: staticWorldRevision,
   });
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
@@ -2079,13 +2135,14 @@ function frame(now) {
     autoSaveElapsed += dt;
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
   });
-  if (presentationPacer.shouldPresent(now)) render(now);
+  renderScheduler.frame(now, currentRenderPolicy());
   requestAnimationFrame(frame);
 }
 
-function resizeCanvas() {
+function resizeCanvas(reason = 'layout:resize') {
   gameplayViewportCache = null;
   pixelRenderer?.resize();
+  requestRender(reason);
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2109,7 +2166,7 @@ document.addEventListener('keydown', (event) => {
     audioService.setLevelMode('paused');
     setPauseButtons(true);
     hideOverlay();
-    render();
+    requestRender('state:paused');
     return;
   }
   if (import.meta.env.DEV && event.code === 'F6' && ['playing', 'paused'].includes(state)) {
@@ -2128,7 +2185,7 @@ document.addEventListener('keydown', (event) => {
     state = 'paused';
     setPauseButtons(true);
     hideOverlay();
-    render();
+    requestRender('debug:camera-position');
     return;
   }
   const debugCompleteLevel = ['F8', 'F9'].includes(event.code) || (event.altKey && event.code === 'KeyL');
@@ -2139,7 +2196,10 @@ document.addEventListener('keydown', (event) => {
         .filter((item) => item.id !== selectedLevelId)
         .map((item) => item.id));
     }
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return;
@@ -2267,7 +2327,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
   if (!document.hidden) {
     simulationLoop.reset();
-    presentationPacer.reset();
+    renderScheduler.reset();
+    requestRender('visibility:return');
   }
 });
 
@@ -2276,12 +2337,13 @@ document.addEventListener('touchmove', (event) => {
 }, { passive: false });
 
 window.addEventListener('resize', () => {
-  resizeCanvas();
+  resizeCanvas('layout:window-resize');
 });
 const canvasResizeObserver = 'ResizeObserver' in window
-  ? new ResizeObserver(() => resizeCanvas())
+  ? new ResizeObserver(() => resizeCanvas('layout:resize-observer'))
   : null;
 canvasResizeObserver?.observe(canvas);
+canvas.addEventListener('webglcontextrestored', () => requestRender('context:restored'));
 window.addEventListener('pagehide', () => {
   saveGame(true);
   audioService.destroy();
@@ -2291,7 +2353,7 @@ window.addEventListener('pagehide', () => {
 pixelRendererReady.then((renderer) => {
   pixelRenderer = renderer;
   presentationPacer.setFramesPerSecond(recommendedPresentationRate(renderer.rendererInfo().quality));
-  presentationPacer.reset();
+  renderScheduler.reset();
   if (storedGame) restoreGame(storedGame);
   else {
     buildLevel();
@@ -2300,7 +2362,7 @@ pixelRendererReady.then((renderer) => {
     openMap();
   }
   if (requiresOnboarding) showOnboarding();
-  resizeCanvas();
+  resizeCanvas('layout:renderer-ready');
   requestAnimationFrame(frame);
 }).catch((error) => {
   console.error('Renderer konnte nicht initialisiert werden.', error);
@@ -2309,7 +2371,12 @@ pixelRendererReady.then((renderer) => {
 
 if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
-  window.__GASSI_RENDERER_DEBUG__ = () => pixelRenderer?.rendererInfo() ?? { backend: 'initializing' };
+  window.__GASSI_RENDERER_DEBUG__ = () => ({
+    ...(pixelRenderer?.rendererInfo() ?? { backend: 'initializing' }),
+    scheduler: renderScheduler.snapshot(),
+    staticWorldRevision,
+    renderPolicy: currentRenderPolicy(),
+  });
   window.__GASSI_DEBUG__ = () => ({
     state,
     player: { x: player.x, y: player.y, direction: player.dir.name, nextDirection: player.nextDir.name },
@@ -2337,7 +2404,7 @@ if (import.meta.env.DEV) {
   window.__GASSI_DEBUG_STEP__ = (seconds) => {
     const steps = Math.max(0, Math.round(seconds * 60));
     for (let index = 0; index < steps; index += 1) update(1 / 60);
-    render();
+    requestRender('debug:step');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_SET_PLAYER__ = (x, y) => {
@@ -2346,11 +2413,14 @@ if (import.meta.env.DEV) {
     player.dir = DIRECTIONS.none;
     player.nextDir = DIRECTIONS.none;
     checkLocationEasterEggs();
-    render();
+    requestRender('debug:player-position');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_COMPLETE__ = () => {
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return window.__GASSI_DEBUG__();
@@ -2359,7 +2429,10 @@ if (import.meta.env.DEV) {
     completedLevelIds = new Set(PASSAU_LEVELS
       .filter((item) => item.id !== selectedLevelId)
       .map((item) => item.id));
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return window.__GASSI_DEBUG__();
@@ -2367,6 +2440,7 @@ if (import.meta.env.DEV) {
   window.__GASSI_DEBUG_CUTSCENE__ = (cutscene) => {
     activeLevelDocument = createLevelDocument({ ...activeLevelDocument, cutscenes: [cutscene] });
     pixelRenderer.setLevel(activeLevelDocument);
+    invalidateStaticWorld('debug-content-import');
     hideOnboarding();
     document.body.classList.remove('map-active');
     enterMobileGameMode();
@@ -2374,7 +2448,7 @@ if (import.meta.env.DEV) {
     hideOverlay();
     runStarted = true;
     startLevelCutscene();
-    render();
+    requestRender('debug:cutscene');
     return window.__GASSI_DEBUG__();
   };
 }
