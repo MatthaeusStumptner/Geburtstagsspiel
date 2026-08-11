@@ -159,9 +159,10 @@ Für WebGL2 und Canvas2D werden Referenzscreenshots erzeugt. Kurze Videos decken
 Der geprüfte Spielstand basiert auf Renderer-Commit
 `925b1708dd8cd60f9cf4b0168d7674d8656ebdf2`. `npm ci` installierte 47 Pakete ohne
 gemeldete Schwachstelle; das anschließende Gate bestand 93/93 Node-Tests, den
-Produktions-Build und 8/8 Browserfälle. Nach dem im Audit gefundenen CLS-Fix bestand das finale Branch-Gate 96/96 Node-Tests,
-den Produktions-Build und 8/8 Browserfälle
-(`run-2026-08-11T07-51-04-608Z`).
+Produktions-Build und 8/8 Browserfälle. Nach dem ersten CLS-Fix bestand der damalige
+Bestand 96/96 Node-Tests. Das Review-Fix-Gate für Save-Kanonisierung und Font-Preload
+bestand 98/98 Node-Tests, den Produktions-Build und 8/8 Browserfälle
+(`run-2026-08-11T08-21-15-592Z`).
 
 Der primäre Chrome-DevTools-Trace verwendete Chromium 151.0.7922.34, einen neuen
 isolierten Browser-Context ohne Spielstand oder warmen Cache, 412 × 915 CSS-Pixel,
@@ -175,22 +176,32 @@ für die lokale URL nicht verfügbar und werden nicht behauptet.
 
 | Messwert | Ergebnis | Abnahme |
 | --- | ---: | --- |
-| TTFB | 3 ms | gut |
-| FCP | 1.168 ms | gut |
-| LCP | 1.794 ms | ≤ 2.500 ms, bestanden |
-| CLS | 0,00 | ≤ 0,10, bestanden |
-| TBT / Long Tasks | 0 ms / 0 | bestanden |
+| TTFB | 2,3 ms | gut |
+| FCP | 1.212 ms | gut |
+| LCP | 1.928 ms | ≤ 2.500 ms, bestanden |
+| CLS | 0,0023 | ≤ 0,10, bestanden |
+| TBT-Näherung / Long Tasks | 411 ms / 3 gesamt | 2 nach FCP, transparent ausgewiesen |
 
-Das LCP-Element war ein Kartenmarkertext. Seine 1.791 ms Renderverzögerung enthält die
-gedrosselte Modul-, Renderer- und Fontinitialisierung; DevTools schätzte für die
-renderblockierenden Ressourcen keine LCP-Ersparnis. Der Trace meldete 222 ms gebündelte
-Startup-Reflowzeit bei der initialen DOM-/Kartenmontage, aber keinen entsprechenden
-Insight und keine Long Tasks in den fünfsekündigen stabilen Laufzeitzuständen.
+Der passive Observer-Lauf enthielt einen 229-ms-Long-Task vor FCP sowie 428 ms und
+83 ms lange Tasks nach FCP. Die TBT-Näherung summiert für die beiden späteren Tasks nur
+den Anteil oberhalb von jeweils 50 ms: `(428 - 50) + (83 - 50) = 411 ms`. Das Tool
+lieferte keinen Lighthouse-Performance-Score oder TTI-Wert; deshalb wird diese
+Long-Tasks-API-Näherung nicht als erfundener Lighthouse-TBT ausgegeben. Die separaten
+fünfsekündigen stabilen Laufzeitzustände enthielten keine Long Tasks.
 
-Dokument plus sechs Ressourcen übertrugen lokal 484.221 Byte: ein JavaScript-Bundle,
-ein Stylesheet, drei lokal gebündelte WOFF2-Dateien und das Favicon. Die längste
-kritische Kette `HTML → CSS → Font` dauerte 1.661 ms unter Fast 4G. DM Mono und
-Silkscreen waren nach dem Load vollständig verfügbar; es gab keine Drittanbieter-Font-
+Vor dem Font-Fix lag FCP bei 1.136 ms, während der sichtbare Silkscreen-700-Schnitt noch
+im Status `loading` war und erst bei 1.303 ms `loadingdone` erreichte. Das belegte einen
+sichtbaren Fallback-Frame. Der neue Source-Asset-Preload startete im finalen passiven
+Lauf bei 225 ms und endete bei 411 ms; Vite schreibt ihn beim Build in einen gehashten
+relativen Assetpfad um. Eine separate Font-Timeline prüfte die verwendeten Schnitte an
+den tatsächlich gezeichneten Frames: Silkscreen 700 war beim ersten Textframe geladen;
+DM Mono 400 und Silkscreen 400 waren bei der späteren Map-/Onboarding-Einblendung
+ebenfalls geladen. Die Timeline-Instrumentierung wird nicht für Web-Vitals verwendet.
+
+Dokument plus sechs Page-Ressourcen übertrugen lokal 485.853 Byte: ein
+JavaScript-Bundle, ein Stylesheet, drei lokale WOFF2-Einträge und das Favicon.
+Hintergrundabrufe der Service-Worker-Installation sind in dieser
+PerformanceResourceTiming-Summe nicht enthalten. Es gab keine Drittanbieter-Font-
 Anfrage. Der versionierte Service Worker übernahm anschließend die Seite, sein
 Asset-Allowlisting enthält ausschließlich die erzeugten `/assets/`-Dateien.
 
@@ -198,21 +209,23 @@ Vor dem Fix lag CLS reproduzierbar bei 0,1519: `map-active` wurde erst nach
 Renderer-Initialisierung gesetzt und verschob Board und HUD in den Vollviewport. Ein
 PerformanceObserver belegte den zustandsabhängigen Klassenwechsel als Quelle. Der
 synchronisierte Bootstrap senkte denselben frischen Trace auf CLS 0,00; Tests decken
-frischen Besuch, Map-Save, mobilen und Desktop-Gameplay-Save sowie defektes Save-JSON ab.
+frischen Besuch, Map-Save, mobile und Desktop-Gameplay-Saves, defektes JSON, parsebare
+unzulässige Typen und nicht unterstützte Save-Versionen ab. Ein kalter mobiler v10-Fall
+blieb bei `map-active onboarding-open` und CLS 0.
 
 ### Fünfsekündige Laufzeitmatrix
 
 | Backend / Zustand | Dauer | Präsentationen | Upload-Bytes | Textur-Reallokationen | Static-World-Builds | Long Tasks / CLS |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| WebGL2 / Karte | 5,003 s | 0 | 0 | 0 | 0 | 0 / 0 |
-| WebGL2 / aktiv | 5,049 s | 233 | 162.242.636 | 0 | 0 | 0 / 0 |
-| WebGL2 / Pause | 5,016 s | 0 | 0 | 0 | 0 | 0 / 0 |
-| Canvas2D / Karte | 5,003 s | 0 | n/a | n/a | 0 | 0 / 0 |
-| Canvas2D / aktiv | 5,016 s | 301 | n/a | n/a | 0 | 0 / 0 |
-| Canvas2D / Pause | 5,004 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| WebGL2 / Karte | 5,001 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| WebGL2 / aktiv | 5,024 s | 214 | 149.012.552 | 0 | 0 | 0 / 0 |
+| WebGL2 / Pause | 5,011 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| Canvas2D / Karte | 5,002 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / aktiv | 5,003 s | 300 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / Pause | 5,009 s | 0 | n/a | n/a | 0 | 0 / 0 |
 
-WebGL2 präsentierte damit rund 46,1 FPS im headless Prüflauf; Canvas2D lag mit einem
-Intervall-Grenzframe bei rund 60,0 FPS. Beide blieben innerhalb des 60-FPS-Vertrags.
+WebGL2 präsentierte damit rund 42,6 FPS im headless Prüflauf; Canvas2D lag bei rund
+60,0 FPS. Beide blieben innerhalb des 60-FPS-Vertrags.
 Die WebGL2-Szenenuploads während aktiver Bewegung sind beabsichtigt; statische Weltlayer
 wurden nicht neu gebaut. Karte und Pause blieben nach dem Settle vollständig schlafen.
 Canvas2D besitzt keinen GPU-Upload- oder Textur-Reallokationspfad, daher sind diese

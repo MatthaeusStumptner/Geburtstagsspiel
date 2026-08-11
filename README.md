@@ -86,21 +86,32 @@ läuft das Spiel weiterhin online ohne Offline-Cache.
 
 ## Performance und Diagnose
 
-Der Audit vom 11. August 2026 lief mit Chromium 151 auf einem kalten mobilen Context bei
-412 × 915 CSS-Pixeln, DPR 2,625, Fast 4G und vierfacher CPU-Drosselung. Gemessen wurden
-TTFB 3 ms, FCP 1.168 ms, LCP 1.794 ms, CLS 0,00 und TBT 0 ms. Das ist eine lokale
-Labormessung ohne CrUX-Felddaten; der lokale Prüfserver komprimiert Antworten bewusst
-nicht und übertrug für Dokument plus sechs Ressourcen 484.221 Byte.
+Der Audit vom 11. August 2026 lief mit Chromium 151 in einem kalten mobilen Kontext bei
+412 × 915 CSS-Pixeln, DPR 2,625, Fast 4G und vierfacher CPU-Drosselung. Der passive Lauf
+maß TTFB 2,3 ms, FCP 1.212 ms, LCP 1.928 ms und CLS 0,0023. Zwei Long Tasks nach FCP
+ergaben über ihre jeweilige 50-ms-Grenze eine TBT-Näherung von 411 ms; ein weiterer
+229-ms-Task lag vor FCP. LCP ≤ 2.500 ms und CLS ≤ 0,10 sind bestanden. Das ist eine
+lokale Labormessung ohne CrUX-Felddaten oder Lighthouse-Performance-Score; der lokale
+Prüfserver komprimiert Antworten bewusst nicht. Dokument plus sechs Page-Ressourcen
+übertrugen 485.853 Byte, ohne Hintergrundverkehr der Service-Worker-Installation.
+
+Der ursprünglich sichtbare Silkscreen-700-Fallback wurde belegt und behoben: Vor dem
+Fix lag FCP bei 1.136 ms, während der Font noch bis 1.303 ms lud. Der quellstabile
+Preload wird von Vite auf einen gehashten relativen Assetpfad umgeschrieben und endete
+im finalen Lauf bei 411 ms, deutlich vor dem ersten sichtbaren Text. Eine separate
+Font-Timeline zeigte beim ersten und bei allen später eingeblendeten Textframes keine
+noch fehlende verwendete Schrift.
 
 In der realen Fünf-Sekunden-Matrix schliefen Karte und Pause auf WebGL2 und Canvas2D
 vollständig: beide erzeugten 0 zusätzliche Präsentationen, WebGL2 zusätzlich 0
 Upload-Bytes und 0 Textur-Reallokationen. Canvas2D besitzt keine GPU-Upload- oder
-Textur-Reallokationszähler; diese Werte sind dort nicht anwendbar. Aktives WebGL2
-präsentierte 233 Frames in 5,049 Sekunden bei 0 Reallokationen, Canvas2D 301 Frames in
-5,016 Sekunden. Beide blieben ohne Long Task, Context Loss oder Backend-Fallback. Bei
-412 × 915 und Qualitätsprofil misst das Spiel nach dem HUD ein Canvas von 412 × 727
-CSS-Pixeln. Der tatsächliche DPR bleibt 2,625, der auf 2 begrenzte Renderer-DPR erzeugt
-einen Backbuffer von 824 × 1.454 Pixeln.
+Textur-Reallokationszähler; diese Rohwerte bleiben dort `null` beziehungsweise nicht
+anwendbar. Aktives WebGL2 präsentierte 214 Frames in 5,024 Sekunden bei 0
+Reallokationen, Canvas2D 300 Frames in 5,003 Sekunden. Beide blieben in diesen stabilen
+Messfenstern ohne Long Task, Context Loss oder Backend-Fallback. Bei 412 × 915 und
+Qualitätsprofil misst das Spiel nach dem HUD ein Canvas von 412 × 727 CSS-Pixeln. Der
+tatsächliche DPR bleibt 2,625, der auf 2 begrenzte Renderer-DPR erzeugt einen Backbuffer
+von 824 × 1.454 Pixeln.
 
 In einem lokalen Entwicklungsserver stehen zwei read-only Diagnosefunktionen bereit:
 
