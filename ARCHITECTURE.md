@@ -1,44 +1,36 @@
 # Architektur · Franz & Lola
 
-Das Projekt besteht aus drei bewusst getrennten Repositories:
+`Geburtstagsspiel` ist das kanonische Monorepo. Ein Root-Lockfile und ein Root-Verifikationsgate halten Spiel, Studio, Publisher und interne Pakete auf demselben Stand.
 
-1. **Geburtstagsspiel** enthält Spielregeln, UI, Texte, Fortschritt und Browser-Persistenz.
-2. **Pacman_clone_renderer** enthält ausschließlich das Level-Zwischenformat, Validierung, Kamera und Canvas-Pixelrenderer.
-3. **Pacman_clone_level_editor** ist eine statische No-Code-Anwendung, die Level im gemeinsamen Format importiert und exportiert.
+## Workspaces und Inhalte
+
+- `apps/game` enthält Browser-Orchestrierung, Svelte-UI, Audio, Rendering-Adapter und LocalStorage-Persistenz.
+- `apps/studio` enthält die statische Levelwerkstatt und ihr Testspiel.
+- `apps/publisher` enthält den Cloudflare Worker, D1-Zugriff und GitHub-Veröffentlichung.
+- `packages/content-model` besitzt Level-/Content-Schemas, Migrationen, kanonische Pfade, Validierung und Referenzauflösung.
+- `packages/game-core` besitzt deterministische Simulation, Spielregeln, Cutscene-Sampling, Fixed-Step-Schleife und reproduzierbaren Zufall. Es verwendet weder DOM, Canvas, Storage noch Wanduhr.
+- `packages/pixel-renderer` besitzt Kamera, Painter, Canvas-/GPU-Backends und Präsentationslogik. Es reexportiert keine Simulationsbesitzer aus `game-core`.
+- `packages/testkit` enthält gemeinsame unveränderliche Fixtures und Cross-App-Verträge.
+- `content/*` ist die einzige kanonische Quelle für veröffentlichte Level, Figuren, Tilesets, Blöcke, Animationen, Cutscenes, Objekte und Events.
+
+Direkte Imports zwischen Anwendungen sind verboten. Gemeinsames Verhalten wird über `@franz-lola/*`-Pakete konsumiert; Renderer und Game Core sind lokale Workspace-Abhängigkeiten statt externer Git-Pins.
 
 ## Laufzeitgrenzen
 
-- `src/core/fixed-step-loop.js` entkoppelt die Simulation vom Bildschirmtakt. Die Logik läuft mit 120 Hz, der Renderer interpoliert zwischen zwei Simulationsständen.
-- `src/game/grid-motion.js` bewegt Figuren exakt von Kreuzung zu Kreuzung und verhindert übersprungene Abbiegungen.
-- `src/game/progress-system.js` besitzt die kanonische globale Skala von 70 Guttis je Ort, unabhängig von der gewählten Schwierigkeit.
-- `src/main.js` ist der Laufzeit-Orchestrator: Er verbindet Spielzustand, Canvas-Engine und UI-Befehle, besitzt aber kein Markup der migrierten Oberflächen mehr.
-- Das Renderer-Paket kennt keine Spielstände, Punkte, Schwierigkeit oder `localStorage`.
-- Das Level-JSON kennt keine UI. Es kann daher vom Editor erzeugt und vom Spiel direkt konsumiert werden.
+`createGameSession` in `game-core` validiert das Level, verarbeitet Eingaben ausschließlich über `queueInput` und wird ausschließlich mit `step(dt)` fortgeschrieben. Sein serialisierbarer Savestate umfasst neben sichtbarem Spielzustand auch Richtungsverlauf, internen PRNG-Zustand und Fixed-Step-Rest. Dadurch setzt eine wiederhergestellte Session bei identischen Eingaben und Deltas exakt wie eine ununterbrochene Session fort. Öffentliche Snapshots und Savestates sind tief unveränderlich.
 
-## UI-Schicht
+`apps/game/src/main.js` verbindet diese browserfreie Session mit Renderer, UI, Audio und Persistenz. Neue Saves enthalten optional den Core-Savestate; Saves ohne dieses Feld verwenden weiterhin den bisherigen positions- und fortschrittsbasierten Restore-Pfad. Der bestehende Save-Key und Versionsbereich bleiben erhalten.
 
-- Svelte wird ausschließlich für Oberfläche und Bedienabläufe verwendet. Der Canvas-Renderer und die deterministische Spielschleife bleiben Framework-unabhängig.
-- `src/ui/ui-session.js` ist die einzige Brücke zwischen beiden Welten. Die Engine veröffentlicht kleine unveränderliche Snapshots; Svelte sendet benannte Befehle zurück.
-- Onboarding, Einstellungen, Karte, HUD-Flächen, Seitenleiste, Spielmeldungen, Cutscene-Texte und Endgame sind eigenständige Svelte-Komponenten. `src/ui/mount-ui-surfaces.js` setzt sie an die für Canvas und Vollbild nötigen Layoutpositionen.
-- `src/ui/components/SceneTransition.svelte` deckt Szenenwechsel ab. Der Orchestrator tauscht Karte und Level erst im vollständig abgedunkelten Zustand aus; dadurch bleiben Laden, Fade-out und Fade-in unabhängig von Canvas und Karten-Markup.
-- Die Konzertfreigabe ist ein Ereignis der Karte: Der letzte Levelabschluss setzt zunächst nur den internen Fortschritt. Erst nach der Rückkehr auf die Karte führt `MapEndgameEvent.svelte` die Boot- und Enthüllungssequenz aus. Die dauerhaft sichtbare Kartenplakette erscheint erst nach der bestätigten Enthüllung.
-- Level-Cutscenes besitzen einen immersiven Präsentationszustand: Canvas, Cutscene-Titel, Dialog und Skip-Befehl bleiben sichtbar, während sämtliche Gameplay-HUD-Flächen aus dem Viewport und dem Accessibility-Baum verschwinden. Nach dem letzten Cutscene-Frame blendet der Orchestrator das HUD gestaffelt wieder ein; die bestehende Reduced-Motion-Vorgabe verkürzt diesen Übergang automatisch.
-- `src/ui/map-geometry.js` projiziert die echten geografischen Koordinaten einmalig in ein gemeinsames metrisches Kartenkoordinatensystem. Die Komponente übernimmt nur Darstellung, Fokus und responsive Positionierung.
-- Das Katzen-Radar bleibt Teil der Renderer-Integration, weil seine Positionen pro Frame aus der aktuellen Kamera berechnet werden. Dadurch gelangen keine hochfrequenten Renderdaten in den UI-Store.
-- `src/audio/browser-audio-service.js` besitzt genau einen Browser-Audiokontext für UI- und Gameplay-Töne. `src/audio/level-audio-director.js` orchestriert darauf Karten-Vorschau, Übergang, Cutscene, Gameplay, Pause und Abschluss, ohne den Track desselben Ortes neu zu starten.
-- `src/audio/level-soundscapes.js` enthält neun eigenständige `franz-lola-soundscape`-Profile. Melodie, Bass, Puls, Tempo und gefilterte Umgebung werden prozedural erzeugt; die veröffentlichte GitHub-Pages-Version benötigt deshalb keine externen oder lizenzpflichtigen Audiodateien. Ein Level referenziert die Klangwelt über seine stabile Level-ID, während der Renderer selbst audiofrei bleibt.
-- `src/content/game-copy.js`, `src/game/difficulty-config.js` und `src/platform/save-migrations.js` halten Texte, Spielkonfiguration und Persistenzregeln aus dem Orchestrator heraus.
+Svelte wird für Oberflächen und Bedienabläufe verwendet. Hochfrequente Simulations- und Renderdaten bleiben außerhalb der UI-Stores. Das Studio-Testspiel verwendet dieselbe `createGameSession`-Grenze wie das Spiel.
 
-Die globale Typografie verwendet relative `rem`-basierte `clamp()`-Tokens. Texte und Container müssen bei 320 CSS-Pixeln einspaltig reflowen; reguläre Bedienelemente sind mindestens 44 CSS-Pixel hoch. Kartenmarker bleiben als maßstäbliche Interaktion eine bewusst kompaktere Ausnahme.
+## Inhalts- und Publisher-Grenze
 
-Weitere UI-Bereiche können entlang derselben Grenze migriert werden. Spielregeln gehören dabei weder in Svelte-Komponenten noch in UI-Stores; Komponenten erhalten nur darstellungsfertige Zustände und lösen Befehle aus.
+`franz-lola-level` bleibt das ausführbare Level-Zwischenformat. Wiederverwendbare `franz-lola-content`-Dokumente verwenden Schema v2. Nur die explizite v1-Migration darf Defaults ergänzen; v2-Abhängigkeiten und -Referenzen werden streng, ohne Sortierung, Deduplizierung oder stille Korrektur validiert.
 
-## Level-Zwischenformat
-
-Jede Datei trägt `kind: "franz-lola-level"` und `schemaVersion: 1`. Enthalten sind lokalisierte Metadaten, Geokoordinaten, Raster und Wandrechtecke, Theme/Palette, Figuren-Startpunkte und Power-ups. Neue Figuren können über stabile `renderer`-Kennungen ergänzt werden.
-
-Die Formatvalidierung prüft nicht nur Datentypen, sondern auch Kollisionen mit Wänden und die Erreichbarkeit von Startpunkten und Power-ups.
+Der Publisher validiert mit `@franz-lola/content-model`, bevor er D1-Zeilen oder den Index `content_dependencies` ersetzt. GitHub-Pfade werden ausschließlich über kanonische Typ-/ID-Zuordnung unter `content/*` erzeugt.
 
 ## Browser und Hosting
 
-Alle drei Teile sind ohne Server-API nutzbar. Spiel und Editor bauen relative Assets und können über GitHub Pages bereitgestellt werden. Spielstände und Editor-Entwürfe verbleiben ausschließlich in `localStorage` des jeweiligen Browsers.
+Das Spiel und das Studio bauen relative statische Assets. Der Publisher bleibt eine separate Cloudflare-Worker-Anwendung mit bestehender D1-Datenbank. Der Foundation-Workflow baut alle Workspaces, veröffentlicht bis zum kombinierten Pages-Cutover aber bewusst nur `apps/game/dist`. Die bestehende Live-Editor-URL und Worker-Routen werden in diesem Schritt nicht umgestellt.
+
+Service Worker und LocalStorage gehören ausschließlich zur Browser-App. `content-model`, `game-core` und `pixel-renderer` greifen nicht auf Browser-Persistenz zu.

@@ -134,42 +134,49 @@ function normalizeDocument(type, input, id, name) {
   throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
 }
 
-function normalizeDependencies(value) {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set();
-  return value.flatMap((entry) => {
-    if (!SUPPORTED_CONTENT_TYPES.includes(entry?.type)) return [];
-    const id = slug(entry.id, '');
-    if (!id) return [];
-    const relation = slug(entry.relation, 'uses');
-    const key = `${entry.type}:${id}:${relation}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    return [{
-      type: entry.type,
-      id,
-      ...(Number.isInteger(entry.revision) && entry.revision > 0 ? { revision: entry.revision } : {}),
-      relation,
-    }];
-  });
+const CANONICAL_SLUG = /^[a-z0-9][a-z0-9-]*$/;
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
-function normalizeReferences(value) {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set();
-  return value.flatMap((entry) => {
-    if (!SUPPORTED_CONTENT_TYPES.includes(entry?.type)) return [];
-    const id = slug(entry.id, '');
-    if (!id) return [];
-    const key = `${entry.type}:${id}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    return [{ type: entry.type, id }];
+function validateDependencies(value) {
+  if (!Array.isArray(value)) return ['dependencies muss ein Array sein.'];
+  const errors = [];
+  value.forEach((dependency, index) => {
+    const path = `dependencies[${index}]`;
+    if (!isPlainObject(dependency)) {
+      errors.push(`${path} muss ein einfaches Objekt sein.`);
+      return;
+    }
+    if (Object.keys(dependency).some((key) => !['type', 'id', 'revision', 'relation'].includes(key))) {
+      errors.push(`${path} darf nur type, id, revision und relation enthalten.`);
+    }
+    if (!SUPPORTED_CONTENT_TYPES.includes(dependency.type)) {
+      errors.push(`${path}.type ist kein unterstützter Inhaltstyp.`);
+    }
+    if (typeof dependency.id !== 'string' || !CANONICAL_SLUG.test(dependency.id)) {
+      errors.push(`${path}.id muss ein URL-tauglicher Slug sein.`);
+    }
+    if (typeof dependency.relation !== 'string' || !CANONICAL_SLUG.test(dependency.relation)) {
+      errors.push(`${path}.relation muss ein URL-tauglicher Slug sein.`);
+    }
+    if (Object.hasOwn(dependency, 'revision')
+      && (!Number.isInteger(dependency.revision) || dependency.revision < 1)) {
+      errors.push(`${path}.revision muss eine ganze Zahl ab 1 sein.`);
+    }
   });
+  return errors;
 }
 
 export function createContentDocument(type, input = {}, metadata = {}) {
   if (!SUPPORTED_CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
+  const dependencies = Object.hasOwn(metadata, 'dependencies') ? metadata.dependencies : [];
+  const references = Object.hasOwn(metadata, 'references') ? metadata.references : [];
+  const metadataErrors = [...validateDependencies(dependencies), ...validateReferences(references)];
+  if (metadataErrors.length) throw new TypeError(metadataErrors.join('\n'));
   const id = slug(metadata.id ?? input?.id, type);
   const name = text(metadata.name, localizedName(input?.name, id));
   return {
@@ -180,8 +187,8 @@ export function createContentDocument(type, input = {}, metadata = {}) {
     name,
     description: typeof metadata.description === 'string' ? metadata.description.trim() : text(input?.description, ''),
     document: normalizeDocument(type, input, id, name),
-    dependencies: normalizeDependencies(metadata.dependencies),
-    references: normalizeReferences(metadata.references),
+    dependencies: clone(dependencies),
+    references: clone(references),
   };
 }
 
@@ -190,8 +197,8 @@ function validateReferences(value) {
   const errors = [];
   value.forEach((reference, index) => {
     const path = `references[${index}]`;
-    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
-      errors.push(`${path} muss ein Objekt sein.`);
+    if (!isPlainObject(reference)) {
+      errors.push(`${path} muss ein einfaches Objekt sein.`);
       return;
     }
     if (Object.keys(reference).some((key) => !['type', 'id'].includes(key))) {
@@ -200,7 +207,7 @@ function validateReferences(value) {
     if (!SUPPORTED_CONTENT_TYPES.includes(reference.type)) {
       errors.push(`${path}.type ist kein unterstützter Inhaltstyp.`);
     }
-    if (typeof reference.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(reference.id)) {
+    if (typeof reference.id !== 'string' || !CANONICAL_SLUG.test(reference.id)) {
       errors.push(`${path}.id muss ein URL-tauglicher Slug sein.`);
     }
   });
@@ -216,11 +223,11 @@ function validateCurrentContentDocument(input) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(input?.id ?? '')) errors.push('id muss ein URL-tauglicher Slug sein.');
   if (!text(input?.name)) errors.push('name darf nicht leer sein.');
   if (!input?.document || typeof input.document !== 'object' || Array.isArray(input.document)) errors.push('document muss ein Objekt sein.');
+  errors.push(...validateDependencies(input?.dependencies));
   errors.push(...validateReferences(input?.references));
   if (errors.length) return { ok: false, errors, value: null };
   try {
     const value = createContentDocument(input.type, input.document, input);
-    value.references = clone(input.references);
     if (value.id !== input.id) errors.push('id ist nicht kanonisch.');
     if (input.type === 'level') {
       const level = validateLevelDocument(value.document);
@@ -234,7 +241,8 @@ function validateCurrentContentDocument(input) {
 
 export function validateContentDocument(input) {
   try {
-    return validateCurrentContentDocument(migrateContentDocument(input));
+    const migrated = migrateContentDocument(input);
+    return validateCurrentContentDocument(input.schemaVersion === CONTENT_SCHEMA_VERSION ? input : migrated);
   } catch (error) {
     return { ok: false, errors: [error instanceof Error ? error.message : String(error)], value: null };
   }
@@ -245,7 +253,7 @@ export function parseContentDocument(source) {
   try { input = typeof source === 'string' ? JSON.parse(source) : source; }
   catch { throw new TypeError('Das Content-Dokument enthält kein gültiges JSON.'); }
   const migrated = migrateContentDocument(input);
-  const result = validateCurrentContentDocument(migrated);
+  const result = validateCurrentContentDocument(input.schemaVersion === CONTENT_SCHEMA_VERSION ? input : migrated);
   if (!result.ok) throw new TypeError(result.errors.join('\n'));
   return result.value;
 }

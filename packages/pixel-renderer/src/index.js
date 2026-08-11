@@ -39,21 +39,3 @@ export { ACTOR_ANIMATION_STATES, actorAnimationState, animationById, animationDu
 export { applyMotionAnimation, sampleMotionAnimation } from './motion-animation.js';
 export { DirectionalSwipeInput } from './input.js';
 export { PresentationFramePacer, recommendedPresentationRate } from './presentation-frame-pacer.js';
-
-// Task 7 migration compatibility only: applications import these owners from game-core directly.
-export {
-  DEFAULT_DIFFICULTY_PROFILES,
-  DIRECTIONS,
-  FixedStepLoop,
-  LevelSimulation,
-  canMoveOnGrid,
-  chooseCatDirection,
-  cutsceneById,
-  directionByName,
-  moveCatActor,
-  moveGridActor,
-  movePlayerActor,
-  queuePlayerDirection,
-  sampleCutscene,
-  wrapGridActor,
-} from '@franz-lola/game-core';

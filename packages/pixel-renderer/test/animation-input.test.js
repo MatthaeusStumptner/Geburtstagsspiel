@@ -1,10 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DIRECTIONS,
   DirectionalSwipeInput,
   createLevelDocument,
-  queuePlayerDirection,
   sampleMotionAnimation,
   selectAppearanceFrame,
   stateAnimationId,
@@ -41,17 +39,6 @@ test('swipe input reacts during movement, rejects diagonal noise and supports co
   assert.equal(input.update({ x: 22, y: 11, pointerId: 7 }), null);
   assert.equal(input.update({ x: 22, y: 17, pointerId: 7 }), 'down');
   assert.equal(input.end({ x: 22, y: 17, pointerId: 7 }), null);
-});
-
-test('queued navigation reverses immediately but buffers perpendicular turns without teleporting', () => {
-  const actor = { x: 4.37, y: 4, dir: DIRECTIONS.right, nextDir: DIRECTIONS.right };
-  assert.equal(queuePlayerDirection(actor, DIRECTIONS.left), true);
-  assert.equal(actor.dir, DIRECTIONS.left);
-  assert.equal(actor.x, 4.37);
-  assert.equal(queuePlayerDirection(actor, DIRECTIONS.up), false);
-  assert.equal(actor.dir, DIRECTIONS.left);
-  assert.equal(actor.nextDir, DIRECTIONS.up);
-  assert.equal(actor.x, 4.37);
 });
 
 test('Zauberberg keeps stage lights as system scenery while legacy note metadata remains readable', () => {

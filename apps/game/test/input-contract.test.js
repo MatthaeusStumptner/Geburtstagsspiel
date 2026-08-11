@@ -1,10 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  DIRECTIONS,
-  DirectionalSwipeInput,
-  queuePlayerDirection,
-} from '@franz-lola/pixel-renderer';
+import { DIRECTIONS, queuePlayerDirection } from '@franz-lola/game-core';
+import { DirectionalSwipeInput } from '@franz-lola/pixel-renderer';
 
 test('game input reacts while a swipe is held and supports a corner in one gesture', () => {
   const input = new DirectionalSwipeInput({ activationDistance: 4, dominanceRatio: 1.08 });

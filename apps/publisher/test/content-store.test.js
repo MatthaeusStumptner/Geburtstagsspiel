@@ -21,13 +21,14 @@ class Statement {
 }
 
 class FakeD1 {
-  constructor() { this.items = new Map(); this.revisions = new Map(); this.dependencies = new Map(); }
+  constructor() { this.items = new Map(); this.revisions = new Map(); this.dependencies = new Map(); this.log = []; }
   prepare(sql) { return new Statement(this, sql); }
   async batch(statements) { return Promise.all(statements.map((statement) => this.execute(statement, 'run'))); }
   marker(sql) { return /\/\* ([\w-]+) \*\//.exec(sql)?.[1]; }
   key(type, id) { return `${type}:${id}`; }
   async execute(statement, mode) {
     const marker = this.marker(statement.sql); const value = statement.values;
+    this.log.push(marker);
     if (marker === 'content-by-id') {
       const row = this.items.get(this.key(value[0], value[1]));
       return row && (!statement.sql.includes('deleted_at IS NULL') || !row.deleted_at) ? { ...row } : null;
@@ -90,6 +91,27 @@ test('shared content is idempotent, revision-safe and dependency-indexed', async
   assert.equal((await listContentItems(db, { type: 'character' }))[0].name, 'Postler Franz');
 });
 
+test('invalid dependency updates fail before replacing indexed dependencies', async () => {
+  const db = new FakeD1();
+  const original = await saveContentItem(db, character(), { expectedRevision: 0, login: 'redaktion' });
+  const itemBefore = structuredClone(db.items.get('character:postler'));
+  const dependenciesBefore = structuredClone([...db.dependencies]);
+  const revisionsBefore = structuredClone([...db.revisions]);
+  const logBefore = [...db.log];
+  const invalidUpdate = {
+    ...original.content,
+    name: 'Darf nicht gespeichert werden',
+    dependencies: [{ type: 'unknown', id: 'verschwindet-sonst', relation: 'uses' }],
+  };
+  await assert.rejects(
+    saveContentItem(db, invalidUpdate, { expectedRevision: 1, login: 'redaktion' }),
+    /dependencies\[0\]\.type/,
+  );
+  assert.deepEqual(db.items.get('character:postler'), itemBefore);
+  assert.deepEqual([...db.dependencies], dependenciesBefore);
+  assert.deepEqual([...db.revisions], revisionsBefore);
+  assert.deepEqual(db.log, logBefore);
+});
 test('publication resolves exact content revisions and deletion hides items', async () => {
   const db = new FakeD1();
   await saveContentItem(db, character(), { expectedRevision: 0, login: 'redaktion' });

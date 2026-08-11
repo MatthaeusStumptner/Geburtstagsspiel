@@ -3,6 +3,8 @@ import test from 'node:test';
 import { createLevelDocument } from '@franz-lola/content-model';
 import {
   createBrowserGameSession,
+  restoreBrowserGameSession,
+  saveBrowserGameSession,
   setDebugPlayerPosition,
 } from '../src/game/game-session-adapter.js';
 
@@ -92,4 +94,14 @@ test('debug event evaluation awards a newly visited event inside the core exactl
   const next = session.step(1 / 120);
   assert.equal(next.score, 300);
   assert.deepEqual(next.events, []);
+});
+test('browser adapter round-trips the core continuation payload without storage ownership', () => {
+  const source = createBrowserGameSession({ level: adapterLevel(), difficulty: 'normal' });
+  source.queueInput('right');
+  source.step(0.005);
+  const payload = saveBrowserGameSession(source);
+  const restored = createBrowserGameSession({ level: adapterLevel(), difficulty: 'normal' });
+  restoreBrowserGameSession(restored, JSON.parse(JSON.stringify(payload)));
+  assert.deepEqual(restored.step(0.004), source.step(0.004));
+  assert.deepEqual(restored.snapshot(), source.snapshot());
 });

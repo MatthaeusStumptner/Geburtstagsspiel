@@ -20,16 +20,32 @@ const samples = {
 
 test('creates and validates every independently publishable content type', () => {
   for (const type of CONTENT_TYPES) {
-    const value = createContentDocument(type, samples[type], { dependencies: [{ type: 'object', id: 'briefkasten', relation: 'uses' }, { type: 'unknown', id: 'ignored' }] });
+    const dependencies = [
+      { type: 'object', id: 'briefkasten', relation: 'uses' },
+      { type: 'object', id: 'briefkasten', relation: 'uses' },
+    ];
+    const value = createContentDocument(type, samples[type], { dependencies });
     assert.equal(value.kind, CONTENT_DOCUMENT_KIND);
     assert.equal(value.type, type);
     assert.equal(value.document.id, samples[type].id);
-    assert.equal(value.dependencies.length, 1);
+    assert.deepEqual(value.dependencies, dependencies);
+    assert.notStrictEqual(value.dependencies, dependencies);
     assert.equal(validateContentDocument(value).ok, true, `${type}: ${validateContentDocument(value).errors.join('\n')}`);
     assert.deepEqual(parseContentDocument(JSON.stringify(value)), value);
   }
 });
 
+test('creator rejects invalid dependency metadata instead of normalizing it into schema v2', () => {
+  assert.throws(
+    () => createContentDocument('character', samples.character, {
+      dependencies: [
+        { type: 'object', id: 'Brief Kasten', relation: 'uses' },
+        { type: 'unknown', id: 'ignored', relation: 'uses' },
+      ],
+    }),
+    /dependencies\[(?:0|1)\]/,
+  );
+});
 test('uses strict, type-specific static publication paths', () => {
   assert.equal(contentPublicationPath('level', 'domplatz'), 'content/levels/domplatz.level.json');
   assert.equal(contentPublicationPath('character', 'postler'), 'content/characters/postler.character.json');

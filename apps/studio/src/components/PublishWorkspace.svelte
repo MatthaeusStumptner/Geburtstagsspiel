@@ -1,9 +1,10 @@
 <script>
   import { onMount } from 'svelte';
-  import { getPublisherClient } from '../publisher-client.js';
+  import { getPublisherClient, publisherSetupGuidance } from '../publisher-client.js';
 
   let { studio } = $props();
   const publisher = getPublisherClient();
+  const publisherSetup = publisherSetupGuidance();
   let state = $state(publisher.configured ? 'login' : 'unavailable');
   let user = $state.raw(null);
   let publication = $state.raw(null);
@@ -130,7 +131,7 @@
     </div>
 
     {#if state === 'unavailable'}
-      <article class="publish-state warning-state"><span class="state-symbol">⚙</span><h3>Einmalige Einrichtung fehlt</h3><p>Die Editor-Version kennt noch keine Publisher-Adresse. Trage in GitHub unter <b>Settings → Secrets and variables → Actions → Variables</b> die Variable <code>PUBLISHER_URL</code> mit deiner <code>workers.dev</code>-Adresse ein und starte den Pages-Workflow erneut.</p><a href="https://github.com/MatthaeusStumptner/Pacman_clone_level_editor/settings/variables/actions" target="_blank" rel="noreferrer">GitHub-Variable öffnen →</a></article>
+      <article class="publish-state warning-state"><span class="state-symbol">⚙</span><h3>Einmalige Einrichtung fehlt</h3><p>Dieser Studio-Build kennt noch keine Publisher-Adresse. Trage im Monorepo <b>{publisherSetup.repositoryName}</b> unter <b>Settings → Secrets and variables → Actions → Variables</b> die Variable <code>{publisherSetup.variableName}</code> mit deiner <code>workers.dev</code>-Adresse ein und starte den Studio-Build erneut.</p><a href={publisherSetup.settingsUrl} target="_blank" rel="noreferrer">GitHub-Variable öffnen →</a></article>
     {:else if state === 'login'}
       <article class="publish-state"><span class="state-symbol">GH</span><h3>Mit GitHub anmelden</h3><p>Die Anmeldung prüft, ob du veröffentlichen darfst. Private Schlüssel bleiben ausschließlich im Cloudflare Worker.</p>{#if error}<p class="error-copy">{error}</p>{/if}<button class="primary large-action" id="publisher-login" onclick={login}>Sicher mit GitHub verbinden</button></article>
     {:else if state === 'loading'}

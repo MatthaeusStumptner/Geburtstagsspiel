@@ -39,3 +39,16 @@ test('invalid and negative deltas cannot advance or corrupt alpha', () => {
   assert.equal(loop.advance(900, () => assert.fail('negative timestamp delta must not update')), 0);
   assert.equal(loop.interpolationAlpha, 0);
 });
+test('snapshot and restore retain only the advanceSeconds accumulator', () => {
+  const source = new FixedStepLoop({ updatesPerSecond: 10 });
+  source.advanceSeconds(0.06, () => assert.fail('partial frame must not update'));
+  const saved = source.snapshot();
+  assert.deepEqual(saved, { accumulator: 0.06 });
+  assert.equal(Object.isFrozen(saved), true);
+  const restored = new FixedStepLoop({ updatesPerSecond: 10 });
+  restored.restore(saved);
+  let updates = 0;
+  restored.advanceSeconds(0.04, () => { updates += 1; });
+  assert.equal(updates, 1);
+  assert.equal(restored.interpolationAlpha, 0);
+});

@@ -103,6 +103,52 @@ test('preserves a valid schema-v2 reference array exactly without mutating it', 
   assert.deepEqual(parseContentDocument(input).references, references);
   assert.deepEqual(input.references, references);
 });
+test('preserves valid schema-v2 dependencies exactly in an independent clone', () => {
+  const dependencies = Object.freeze([
+    Object.freeze({ type: 'animation', id: 'winken', relation: 'uses', revision: 3 }),
+    Object.freeze({ type: 'animation', id: 'winken', relation: 'uses', revision: 3 }),
+    Object.freeze({ type: 'object', id: 'briefkasten', relation: 'contains' }),
+  ]);
+  const input = Object.freeze({ ...eventV2, dependencies });
+  const validated = validateContentDocument(input);
+  assert.equal(validated.ok, true, validated.errors.join('\n'));
+  assert.deepEqual(validated.value.dependencies, dependencies);
+  assert.notStrictEqual(validated.value.dependencies, dependencies);
+  assert.notStrictEqual(validated.value.dependencies[0], dependencies[0]);
+  assert.deepEqual(parseContentDocument(input).dependencies, dependencies);
+  assert.deepEqual(input.dependencies, dependencies);
+});
+
+test('schema-v2 dependency and reference entries fail closed under the JSON schema contract', async (context) => {
+  const schema = JSON.parse(await readFile(new URL('../schema/franz-lola-content.schema.json', import.meta.url), 'utf8'));
+  assert.deepEqual(schema.properties.dependencies.items.required, ['type', 'id', 'relation']);
+  assert.equal(schema.properties.dependencies.items.additionalProperties, false);
+  assert.deepEqual(schema.properties.references.items.required, ['type', 'id']);
+  assert.equal(schema.properties.references.items.additionalProperties, false);
+  const invalidCases = [
+    ['dependencies is not an array', { dependencies: {} }, /dependencies.*Array/i],
+    ['dependency is not a plain object', { dependencies: [new Date(0)] }, /dependencies\[0\].*Objekt/i],
+    ['dependency has an extra field', { dependencies: [{ type: 'object', id: 'briefkasten', relation: 'uses', extra: true }] }, /dependencies\[0\].*nur/i],
+    ['dependency has an unknown type', { dependencies: [{ type: 'unknown', id: 'briefkasten', relation: 'uses' }] }, /dependencies\[0\]\.type/i],
+    ['dependency id is not canonical', { dependencies: [{ type: 'object', id: 'Brief Kasten', relation: 'uses' }] }, /dependencies\[0\]\.id/i],
+    ['dependency relation is not canonical', { dependencies: [{ type: 'object', id: 'briefkasten', relation: 'Uses It' }] }, /dependencies\[0\]\.relation/i],
+    ['dependency revision is below the schema minimum', { dependencies: [{ type: 'object', id: 'briefkasten', relation: 'uses', revision: 0 }] }, /dependencies\[0\]\.revision/i],
+    ['dependency revision is not an integer', { dependencies: [{ type: 'object', id: 'briefkasten', relation: 'uses', revision: 1.5 }] }, /dependencies\[0\]\.revision/i],
+    ['reference is not a plain object', { references: [new Date(0)] }, /references\[0\].*Objekt/i],
+    ['reference has an extra field', { references: [{ type: 'object', id: 'briefkasten', relation: 'uses' }] }, /references\[0\].*nur/i],
+  ];
+  for (const [name, override, pattern] of invalidCases) {
+    await context.test(name, () => {
+      const input = { ...eventV2, ...override };
+      const before = structuredClone(input);
+      const validated = validateContentDocument(input);
+      assert.equal(validated.ok, false);
+      assert.match(validated.errors.join('\n'), pattern);
+      assert.throws(() => parseContentDocument(input), pattern);
+      assert.deepEqual(input, before);
+    });
+  }
+});
 test('fails closed with version-specific issues for invalid schema versions', () => {
   for (const schemaVersion of [0, 3, 1.5, '2', null]) {
     assert.throws(

@@ -92,3 +92,49 @@ test('browser save adapters can restore a session without gaining mutable core o
   session.queueInput('up');
   assert.ok(session.step(1 / 120).elapsed > restored.elapsed);
 });
+test('save and restore continue positive wander, fixed-step remainder and direction events exactly', () => {
+  const level = structuredClone(deterministicSessionLevel);
+  level.id = 'continuation-parity';
+  level.actors.player.behavior = { controller: 'stationary' };
+  level.actors.cats = [{ x: 4, y: 4, behavior: { strategy: 'random', respawnDelay: 0, wander: 20 } }];
+  level.gameplay.treatTargets = { easy: 1, normal: 1, hard: 1 };
+  level.gameplay.difficulties.normal = {
+    ...level.gameplay.difficulties.normal,
+    catCount: 1,
+    catSpeed: 6,
+    grace: 20,
+    wander: 20,
+  };
+  level.events = [{
+    id: 'turn-code',
+    scope: 'round',
+    name: { standard: 'Code', dialect: 'Code' },
+    message: { standard: 'Gefunden', dialect: 'Gfundn' },
+    reward: 275,
+    trigger: { type: 'direction-sequence', sequence: ['right', 'up', 'left'], zones: [], seconds: 0 },
+    visual: { type: 'custom', x: 1, y: 1, label: '!' },
+  }];
+  const uninterrupted = createGameSession({ level, difficulty: 'normal', seed: 9843 });
+  const source = createGameSession({ level, difficulty: 'normal', seed: 9843 });
+  const beforeSave = [['right', 0.013], ['up', 0.194], [null, 0.005]];
+  const afterSave = [['left', 0.004], [null, 0.173], ['down', 0.087], [null, 0.231]];
+  const run = (session, script) => script.map(([input, delta]) => {
+    if (input) session.queueInput(input);
+    return session.step(delta);
+  });
+  run(uninterrupted, beforeSave);
+  run(source, beforeSave);
+  const saved = source.save();
+  assert.equal(Object.isFrozen(saved), true);
+  assert.equal(Object.isFrozen(saved.directionHistory), true);
+  assert.throws(() => saved.directionHistory.push('down'), TypeError);
+  const restored = createGameSession({ level, difficulty: 'normal', seed: 9843 });
+  restored.restore(JSON.parse(JSON.stringify(saved)));
+  const uninterruptedContinuation = run(uninterrupted, afterSave);
+  const restoredContinuation = run(restored, afterSave);
+  assert.deepEqual(restoredContinuation, uninterruptedContinuation);
+  assert.deepEqual(restored.snapshot(), uninterrupted.snapshot());
+  assert.equal(restored.snapshot().score, 275);
+  assert.deepEqual(restoredContinuation.flatMap(({ events }) => events).filter(({ type }) => type === 'level-event').map(({ id }) => id), ['turn-code']);
+  assert.equal(restored.snapshot().cats[0].lastDecision, uninterrupted.snapshot().cats[0].lastDecision);
+});

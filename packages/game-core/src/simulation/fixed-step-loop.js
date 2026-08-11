@@ -33,6 +33,19 @@ export class FixedStepLoop {
     return updates;
   }
 
+  snapshot() {
+    return Object.freeze({ accumulator: this.accumulator });
+  }
+
+  restore(state = {}) {
+    const accumulator = Number(state?.accumulator);
+    this.accumulator = Number.isFinite(accumulator) && accumulator >= 0
+      ? Math.min(accumulator, this.stepSeconds)
+      : 0;
+    this.lastTimestamp = null;
+    return this.snapshot();
+  }
+
   get interpolationAlpha() {
     return Math.min(1, Math.max(0, this.accumulator / this.stepSeconds));
   }

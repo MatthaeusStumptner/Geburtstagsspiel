@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PublisherClient, PublisherRequestError, normalizePublisherUrl } from '../src/publisher-client.js';
+import {
+  PublisherClient,
+  PublisherRequestError,
+  normalizePublisherUrl,
+  publisherSetupGuidance,
+} from '../src/publisher-client.js';
 
+test('unconfigured publisher guidance points maintainers at the monorepo build variable', () => {
+  assert.deepEqual(publisherSetupGuidance(), {
+    variableName: 'VITE_PUBLISHER_URL',
+    repositoryName: 'Geburtstagsspiel',
+    settingsUrl: 'https://github.com/MatthaeusStumptner/Geburtstagsspiel/settings/variables/actions',
+  });
+});
 test('publisher URLs require HTTPS except on local development', () => {
   assert.equal(normalizePublisherUrl('https://publisher.example/'), 'https://publisher.example');
   assert.equal(normalizePublisherUrl('http://publisher.example'), '');

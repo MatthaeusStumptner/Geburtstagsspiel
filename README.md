@@ -2,6 +2,8 @@
 
 Ein responsives Pixel-Art Maze-Chase-Spiel aus Passau. Franz und sein Maltipoo Lola sammeln auf ihrer Abendrunde Guttis und halten Abstand zu den Nachbarskatzen.
 
+Dieses Repository ist das kanonische Franz-&-Lola-Monorepo. Das Browser-Spiel liegt in `apps/game`, die Levelwerkstatt in `apps/studio`, der Cloudflare-Publisher in `apps/publisher`; gemeinsam genutzte Verträge und Laufzeitlogik liegen unter `packages/`. Veröffentlichte Inhalte werden ausschließlich aus dem kanonischen Katalog unter `content/*` gelesen.
+
 Über eine geografisch angeordnete Passau-Karte stehen neun Level zur Auswahl: Dahoam am Bramerhof, Hals & Ilz, Veste Oberhaus, Dom St. Stephan, Dreiflüsseeck, Universität & Inn, Bschüttpark, Tabakfabrik sowie Zauberberg. Die Karte ist stilisiert, ihre Markerabstände werden jedoch maßstabsgetreu aus WGS84-Ortskoordinaten projiziert. Längengrade werden dabei mit dem Passauer Breitengrad korrigiert; SVG, Marker und der 1-km-Maßstab verwenden in jedem Seitenverhältnis dieselbe Projektion. Sie bildet die vollbreite Hauptansicht der Oberfläche; Schwierigkeit, Sprache, Steuerung, Pause, Ton und das Zurücksetzen des Spielstands liegen gesammelt im Zahnrad-Dialog. Das Zuhause von Franz und Lola ist als zentraler Schauplatz umgesetzt; zum Schutz einer privaten Wohnadresse wird in der öffentlich hostbaren App keine Hausnummer veröffentlicht.
 
 Die Level besitzen eigene Themen und Pixelkulissen. Im Bschüttpark stehen Grünflächen, Streetball und Betonrampen im Mittelpunkt. Die Tabakfabrik erscheint als Backstein- und Proberaumkulisse. Im Zauberberg leuchten Bühne, Verstärker, Lautsprecher und Scheinwerfer zu Rock, Punk und Metal.
@@ -19,12 +21,12 @@ sodass sie bei späteren Besuchen übersprungen wird.
 
 ```bash
 npm install
-npm run dev
+npm run dev --workspace @franz-lola/game
 ```
 
-Der Produktions-Build wird mit `npm run build` erzeugt und landet in `dist/`.
-`npm run verify` führt zusätzlich alle Node-Tests, den Produktions-Build und die reale
-Chromium-Matrix aus.
+Die Levelwerkstatt startet mit `npm run dev --workspace @franz-lola/studio`, der Publisher mit `npm run dev --workspace @franz-lola/publisher`. Alle Befehle werden vom Repository-Root ausgeführt und verwenden das eine Root-Lockfile.
+
+`npm run build` baut Renderer, Spiel und Studio. Die App-Artefakte landen in `apps/game/dist` beziehungsweise `apps/studio/dist`; der Foundation-Pages-Workflow veröffentlicht vor dem kombinierten Cutover ausschließlich `apps/game/dist`. `npm run verify` führt alle Workspace-Tests, Builds, Renderer-Benchmarks und die reale Chromium-Matrix aus.
 
 Die Einweisung lässt sich auch in der veröffentlichten Version mit
 `?onboarding=1` erneut öffnen. Bei einem bereits vorhandenen Spielstand läuft sie dann
@@ -47,9 +49,9 @@ Beim Start eines Levels erscheint zunächst eine Ortskarte mit animierter Wisch-
 
 Die Spielwelt behält intern eine feste logische Auflösung von 600 × 600 Pixeln und wird zunächst in einen unsichtbaren Pixelpuffer gezeichnet. Das sichtbare Canvas besitzt dagegen immer die Größe des nach dem DOM-HUD verbleibenden Spielbereichs und zeigt daraus einen proportional skalierten Kameraausschnitt. Spielkoordinaten und Kollisionen müssen dadurch nicht umgebaut werden. Die Anwendung bleibt ohne Serverlogik vollständig statisch und weiterhin direkt über GitHub Pages auslieferbar.
 
-Renderer, Kamera, Figurenbewegung, Katzen-KI, Ereignissymbole und der feste 120-Tick-Simulationsschritt stammen aus dem gemeinsamen Paket `@franz-lola/pixel-renderer`. Das Spiel pinnt den geprüften Renderer unveränderlich auf Commit `925b1708dd8cd60f9cf4b0168d7674d8656ebdf2`; derselbe Kern läuft im Level-Editor. Bei 60-Hz-Displays werden meist zwei Simulationsschritte pro Bild verarbeitet, bei 120 Hz einer und bei höheren Frequenzen entsprechend verteilt; das Spieltempo folgt immer der real verstrichenen Zeit. Die Präsentation bleibt unabhängig davon auf höchstens 60 FPS begrenzt, im Performanceprofil auf 30 FPS.
+Kamera, Canvas-/GPU-Backends und Darstellung stammen aus dem lokalen Workspace-Paket `@franz-lola/pixel-renderer`. Figurenbewegung, Katzen-KI, Ereignisse, reproduzierbarer Zufall und der feste 120-Tick-Simulationsschritt gehören `@franz-lola/game-core`; Spiel und Studio-Testlauf importieren diese Besitzer direkt. Bei 60-Hz-Displays werden meist zwei Simulationsschritte pro Bild verarbeitet, bei 120 Hz einer und bei höheren Frequenzen entsprechend verteilt; das Spieltempo folgt immer der übergebenen Zeit, nicht der Wanduhr. Die Präsentation bleibt unabhängig davon auf höchstens 60 FPS begrenzt, im Performanceprofil auf 30 FPS.
 
-Die ursprünglichen Passau-Geheimnisse sind zugleich Teil des gemeinsamen Level-Formats: Eisvogel, Lolas Lieblingsplatz und Kirchenglocken besitzen dort ihre Trigger, Bonuspunkte, Standard-/Dialekttexte und Pixel-Darstellung. Damit lassen sie sich in der Levelwerkstatt vollständig anzeigen, testen und verändern.
+Die ursprünglichen Passau-Geheimnisse sind zugleich Teil des gemeinsamen Level-Formats: Eisvogel, Lolas Lieblingsplatz und Kirchenglocken besitzen dort ihre Trigger, Bonuspunkte, Standard-/Dialekttexte und Pixel-Darstellung. Damit lassen sie sich in der Levelwerkstatt vollständig anzeigen, testen und verändern. Level und wiederverwendbare Inhalte liegen kanonisch unter `content/levels`, `content/characters`, `content/tilesets`, `content/blocks`, `content/animations`, `content/cutscenes`, `content/objects` und `content/events`.
 
 Wischrichtungen werden bereits während der Fingerbewegung mit kurzer Aktivierungsdistanz verarbeitet. Dadurch lassen sich auch mehrere Richtungswechsel in einer einzigen durchgehenden Geste vorbereiten.
 
@@ -73,7 +75,7 @@ Der Workflow unter `.github/workflows/deploy.yml` baut und veröffentlicht die A
 
 1. Repository auf GitHub anlegen und diesen Ordner hochladen.
 2. Unter **Settings → Pages → Build and deployment** als Quelle **GitHub Actions** auswählen.
-3. Auf `main` pushen. Der Workflow veröffentlicht anschließend den Inhalt aus `dist/`.
+3. Auf `main` pushen. Der Workflow veröffentlicht anschließend das Spielartefakt aus `apps/game/dist`.
 
 Alle URLs sind relativ und funktionieren deshalb auch unter einer Projekt-URL wie `https://name.github.io/repository/`.
 
@@ -130,5 +132,5 @@ Diese Hooks sind absichtlich nicht Bestandteil des Produktions-Builds.
 
 - JavaScript-Module, Svelte 5 für DOM-Oberflächen und Canvas für das Spielbild
 - Vite als kleiner Build-Schritt
-- Gemeinsamer Renderer- und Simulationskern, keine externen Bildassets
+- Lokaler `pixel-renderer` und browserfreier `game-core`, keine externen Bildassets
 - HiDPI-Canvas, Touch-/Swipe-Steuerung, Tastatursteuerung und LocalStorage-Spielstand

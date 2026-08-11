@@ -23,13 +23,20 @@ function numericSeed(seed) {
 
 function seededRandom(seed) {
   let value = numericSeed(seed);
-  return () => {
+  const random = () => {
     value = (value + 0x6d2b79f5) >>> 0;
     let mixed = value;
     mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
     mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
     return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
   };
+  random.snapshot = () => value;
+  random.restore = (state) => {
+    const numeric = Number(state);
+    if (Number.isInteger(numeric) && numeric >= 0 && numeric <= 0xffffffff) value = numeric >>> 0;
+    return value;
+  };
+  return random;
 }
 
 function pelletKeys(level, difficulty) {
@@ -78,10 +85,11 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0, unlo
 
   const normalizedLevel = validation.value;
   const pellets = pelletKeys(normalizedLevel, difficulty);
+  const random = seededRandom(seed);
   const simulation = new LevelSimulation(normalizedLevel, {
     difficulty,
     pellets,
-    random: seededRandom(seed),
+    random,
     unlockedEvents,
   });
   const fixedStep = new FixedStepLoop({ updatesPerSecond: 120 });
@@ -115,8 +123,9 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0, unlo
       const x = Number(input.player.x); const y = Number(input.player.y);
       if (Number.isFinite(x)) simulation.player.x = x;
       if (Number.isFinite(y)) simulation.player.y = y;
-      simulation.player.previousX = simulation.player.x;
-      simulation.player.previousY = simulation.player.y;
+      const previousX = Number(input.player.previousX); const previousY = Number(input.player.previousY);
+      simulation.player.previousX = Number.isFinite(previousX) ? previousX : simulation.player.x;
+      simulation.player.previousY = Number.isFinite(previousY) ? previousY : simulation.player.y;
       simulation.player.dir = directionByName(input.player.direction, simulation.player.dir);
       simulation.player.nextDir = directionByName(input.player.nextDirection, simulation.player.dir);
     }
@@ -126,7 +135,9 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0, unlo
       const x = Number(saved.x); const y = Number(saved.y);
       if (Number.isFinite(x)) cat.x = x;
       if (Number.isFinite(y)) cat.y = y;
-      cat.previousX = cat.x; cat.previousY = cat.y;
+      const previousX = Number(saved.previousX); const previousY = Number(saved.previousY);
+      cat.previousX = Number.isFinite(previousX) ? previousX : cat.x;
+      cat.previousY = Number.isFinite(previousY) ? previousY : cat.y;
       cat.dir = directionByName(saved.direction, cat.dir);
       cat.lastDecision = typeof saved.lastDecision === 'string' ? saved.lastDecision : '';
       cat.respawnTimer = Number.isFinite(Number(saved.respawnTimer)) ? Math.max(0, Number(saved.respawnTimer)) : cat.respawnTimer;
@@ -142,16 +153,64 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0, unlo
     if (Object.hasOwn(input, 'activeEventId')) {
       simulation.activeEventId = typeof input.activeEventId === 'string' ? input.activeEventId : '';
     }
+    if (Array.isArray(input.directionHistory)) {
+      simulation.directionHistory = input.directionHistory.filter((entry) => typeof entry === 'string');
+    }
     simulation.events = [];
     queuedInputs.length = 0;
-    events = [];
+    if (Array.isArray(input.queuedInputs)) queuedInputs.push(...input.queuedInputs.filter((entry) => typeof entry === 'string'));
+    events = Array.isArray(input.events) ? clone(input.events) : [];
+    if (Object.hasOwn(input, 'randomState')) random.restore(input.randomState);
+    if (input.fixedStep && typeof input.fixedStep === 'object') fixedStep.restore(input.fixedStep);
+    else fixedStep.reset();
     if (evaluateEvents && simulation.state === 'playing') {
+      events = [];
       simulation.checkLevelEvents();
       events = [...simulation.events];
     }
-    fixedStep.reset();
     return snapshot();
   }
+
+  function save() {
+    const current = simulation.snapshot();
+    return deepFreeze({
+      player: {
+        x: current.player.x,
+        y: current.player.y,
+        previousX: current.player.previousX,
+        previousY: current.player.previousY,
+        direction: current.player.dir.name,
+        nextDirection: current.player.nextDir.name,
+      },
+      cats: current.cats.map((cat) => ({
+        x: cat.x,
+        y: cat.y,
+        previousX: cat.previousX,
+        previousY: cat.previousY,
+        direction: cat.dir.name,
+        lastDecision: cat.lastDecision,
+        respawnTimer: cat.respawnTimer,
+      })),
+      pellets: [...current.pellets].sort(),
+      powerUps: [...current.powerUps].sort(),
+      events: clone(events),
+      state: current.state,
+      score: current.score,
+      lives: current.lives,
+      elapsed: current.elapsed,
+      powerTimer: current.powerTimer,
+      graceTimer: current.graceTimer,
+      hitTimer: current.hitTimer,
+      unlockedEvents: [...current.unlockedEvents].sort(),
+      activeEventId: current.activeEventId,
+      activeEventTimer: current.activeEventTimer,
+      directionHistory: [...simulation.directionHistory],
+      queuedInputs: [...queuedInputs],
+      randomState: random.snapshot(),
+      fixedStep: fixedStep.snapshot(),
+    });
+  }
+
   function snapshot() {
     const current = simulation.snapshot();
     return deepFreeze({
@@ -179,5 +238,5 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0, unlo
     });
   }
 
-  return Object.freeze({ queueInput, restore, step, snapshot });
+  return Object.freeze({ queueInput, restore, save, step, snapshot });
 }

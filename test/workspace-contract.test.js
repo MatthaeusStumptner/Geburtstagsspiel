@@ -60,7 +60,7 @@ test('all content consumers declare the shared model boundary directly', async (
   assert.deepEqual(gameCore.dependencies, { '@franz-lola/content-model': '0.0.0-monorepo' });
   assert.equal(game.dependencies['@franz-lola/game-core'], '0.0.0-monorepo');
   assert.equal(studio.dependencies['@franz-lola/game-core'], '0.0.0-monorepo');
-  assert.equal(renderer.dependencies['@franz-lola/game-core'], '0.0.0-monorepo');
+  assert.equal(renderer.dependencies['@franz-lola/game-core'], undefined);
   assert.equal(publisher.dependencies['@franz-lola/pixel-renderer'], undefined);
   const topology = await checkWorkspaceContract(new URL('../', import.meta.url));
   assert.deepEqual(topology.lockfiles, ['package-lock.json']);

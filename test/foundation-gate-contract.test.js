@@ -174,3 +174,23 @@ test('CI contract rejects a nested install hidden in a shell command', async () 
   const mutated = withAdditionalJob(source, '    steps:\n      - run: cd apps/game && npm ci --ignore-scripts');
   assert.throws(() => assertCriticalCiTopology(mutated));
 });
+test('Pages deploy uploads the game workspace build and content publishing still dispatches it', async () => {
+  const [deploySource, publishSource, rootPackage, gamePackage] = await Promise.all([
+    readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/publish-content.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
+    readFile(new URL('../apps/game/package.json', import.meta.url), 'utf8').then(JSON.parse),
+  ]);
+  const deploySteps = workflowSteps(deploySource);
+  const build = deploySteps.filter(({ run }) => run === 'npm run build');
+  const upload = deploySteps.filter(({ uses }) => uses?.startsWith('actions/upload-pages-artifact@'));
+  assert.equal(build.length, 1, 'deploy must run the root build once');
+  assert.equal(upload.length, 1, 'deploy must upload one Pages artifact');
+  assert.match(rootPackage.scripts.build, /npm run build --workspace @franz-lola\/game(?:\s|$)/);
+  assert.match(gamePackage.scripts.build, /(?:^|&&\s*)vite build(?:\s|&&|$)/);
+  assert.equal(upload[0].with.path, 'apps/game/dist');
+
+  const dispatch = workflowSteps(publishSource).filter(({ run }) => String(run ?? '').includes('gh workflow run'));
+  assert.equal(dispatch.length, 1, 'content publishing must dispatch one deployment');
+  assert.equal(dispatch[0].run, 'gh workflow run deploy.yml --ref main');
+});

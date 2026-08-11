@@ -169,6 +169,14 @@ export class PublisherClient {
   }
 }
 
+export function publisherSetupGuidance() {
+  return {
+    variableName: 'VITE_PUBLISHER_URL',
+    repositoryName: 'Geburtstagsspiel',
+    settingsUrl: 'https://github.com/MatthaeusStumptner/Geburtstagsspiel/settings/variables/actions',
+  };
+}
+
 export function createPublisherClient(options = {}) {
   const configuredUrl = options.baseUrl ?? import.meta.env?.VITE_PUBLISHER_URL ?? '';
   return new PublisherClient({ ...options, baseUrl: configuredUrl });

@@ -22,6 +22,8 @@ import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
 import {
   createBrowserGameSession,
+  restoreBrowserGameSession,
+  saveBrowserGameSession,
   setDebugPlayerPosition,
 } from './game/game-session-adapter.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
@@ -1049,6 +1051,7 @@ function saveGame(quiet = false) {
     levelTreatTotal,
     levelRunScore,
     levelEventElapsed,
+    gameSession: gameSession ? saveBrowserGameSession(gameSession) : undefined,
     levelStats,
     selectedLevelId,
     completedLevelIds: [...completedLevelIds],
@@ -1215,6 +1218,9 @@ function restoreGame(save) {
   if (runStarted) updateCurrentLevelStatsSnapshot(save.mode === 'won');
 
   const restoreActors = save.mode !== 'hit';
+  const continuation = save.gameSession && typeof save.gameSession === 'object' && !Array.isArray(save.gameSession)
+    ? save.gameSession
+    : {};
   const playerStart = activeLevelDocument.actors.player;
   const restoredPlayer = restoreActors && save.player ? {
     x: clampNumber(save.player.x, -0.55, activeLevelDocument.board.columns - 0.45, playerStart.x),
@@ -1235,9 +1241,10 @@ function restoreGame(save) {
     };
   }) : undefined;
   levelEventElapsed = clampNumber(save.levelEventElapsed, 0, 3600, 0);
-  const restoredSnapshot = gameSession.restore({
-    ...(restoredPlayer ? { player: restoredPlayer } : {}),
-    ...(restoredCats ? { cats: restoredCats } : {}),
+  const restoredSnapshot = restoreBrowserGameSession(gameSession, {
+    ...continuation,
+    ...(restoredPlayer ? { player: { ...continuation.player, ...restoredPlayer } } : {}),
+    ...(restoredCats ? { cats: restoredCats.map((cat, index) => ({ ...continuation.cats?.[index], ...cat })) } : {}),
     pellets: restoredPellets,
     powerUps: restoredPowerUps,
     unlockedEvents: [...activeUnlockedEventIds()],
