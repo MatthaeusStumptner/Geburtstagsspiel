@@ -41,7 +41,7 @@ export class FixedStepLoop {
     const accumulator = state?.accumulator;
     const isReachable = typeof accumulator === 'number'
       && Number.isFinite(accumulator)
-      && accumulator > -Number.EPSILON
+      && accumulator >= -Number.EPSILON
       && accumulator <= this.stepSeconds;
     this.accumulator = isReachable ? accumulator : 0;
     this.lastTimestamp = null;

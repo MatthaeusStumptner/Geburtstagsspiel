@@ -71,10 +71,31 @@ test('restore round-trips the reachable negative epsilon residue and preserves t
   assert.deepEqual(restored.snapshot(), source.snapshot());
 });
 
+test('restore preserves the exact negative epsilon boundary produced at 120 Hz', () => {
+  const source = new FixedStepLoop({ updatesPerSecond: 120 });
+  const delta = source.stepSeconds - Number.EPSILON;
+  assert.equal(source.advanceSeconds(delta, () => {}), 1);
+  const saved = source.snapshot();
+  assert.equal(saved.accumulator, -Number.EPSILON);
+
+  const restored = new FixedStepLoop({ updatesPerSecond: 120 });
+  const restoredSnapshot = restored.restore(JSON.parse(JSON.stringify(saved)));
+  assert.equal(restoredSnapshot.accumulator, -Number.EPSILON);
+
+  let sourceUpdates = 0;
+  let restoredUpdates = 0;
+  source.advanceSeconds(delta, () => { sourceUpdates += 1; });
+  restored.advanceSeconds(delta, () => { restoredUpdates += 1; });
+  assert.equal(sourceUpdates, 0);
+  assert.equal(restoredUpdates, sourceUpdates);
+  assert.equal(restored.interpolationAlpha, source.interpolationAlpha);
+  assert.deepEqual(restored.snapshot(), source.snapshot());
+});
+
 test('restore rejects external accumulator values outside the finite reachable range', () => {
   const loop = new FixedStepLoop({ updatesPerSecond: 1, maxFrameSeconds: 2 });
   for (const accumulator of [
-    -Number.EPSILON,
+    -Number.EPSILON * 2,
     -1,
     1 + Number.EPSILON,
     Number.NaN,
