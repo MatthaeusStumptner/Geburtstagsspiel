@@ -88,26 +88,29 @@ läuft das Spiel weiterhin online ohne Offline-Cache.
 
 Der Audit vom 11. August 2026 lief mit Chromium 151 in einem kalten mobilen Kontext bei
 412 × 915 CSS-Pixeln, DPR 2,625, Fast 4G und vierfacher CPU-Drosselung. Der passive Lauf
-maß TTFB 2,3 ms, FCP 1.212 ms, LCP 1.928 ms und CLS 0,0023. Zwei Long Tasks nach FCP
-ergaben über ihre jeweilige 50-ms-Grenze eine TBT-Näherung von 411 ms; ein weiterer
-229-ms-Task lag vor FCP. LCP ≤ 2.500 ms und CLS ≤ 0,10 sind bestanden. Das ist eine
+maß TTFB 7,2 ms, FCP 1.248 ms, LCP 1.860 ms und CLS 0,0023. Zwei Long Tasks nach FCP
+ergaben über ihre jeweilige 50-ms-Grenze eine TBT-Näherung von 357 ms; ein weiterer
+221-ms-Task lag vor FCP. LCP ≤ 2.500 ms und CLS ≤ 0,10 sind bestanden. Das ist eine
 lokale Labormessung ohne CrUX-Felddaten oder Lighthouse-Performance-Score; der lokale
 Prüfserver komprimiert Antworten bewusst nicht. Dokument plus sechs Page-Ressourcen
-übertrugen 485.853 Byte, ohne Hintergrundverkehr der Service-Worker-Installation.
+übertrugen 494.774 Byte, ohne Hintergrundverkehr der Service-Worker-Installation.
 
 Der ursprünglich sichtbare Silkscreen-700-Fallback wurde belegt und behoben: Vor dem
-Fix lag FCP bei 1.136 ms, während der Font noch bis 1.303 ms lud. Der quellstabile
-Preload wird von Vite auf einen gehashten relativen Assetpfad umgeschrieben und endete
-im finalen Lauf bei 411 ms, deutlich vor dem ersten sichtbaren Text. Eine separate
+Fix lag FCP bei 1.136 ms, während der Font noch bis 1.303 ms lud. Die quellstabilen
+Preloads für beide im ersten Gameplay-Frame sichtbaren Silkscreen-Schnitte werden von
+Vite auf gehashte relative Assetpfade umgeschrieben. Im finalen mobilen Lauf endeten
+Silkscreen 400 bei 431 ms und Silkscreen 700 bei 447 ms, deutlich vor FCP. Eine separate
 Font-Timeline zeigte beim ersten und bei allen später eingeblendeten Textframes keine
-noch fehlende verwendete Schrift.
+noch fehlende verwendete Schrift. Ein zusätzlich kalter Desktop-Restore eines
+Gameplay-Saves maß FCP 1.204 ms, LCP 1.668 ms und CLS 0,00088; die verdeckte äußere
+App-Shell blieb dabei von Beginn an außerhalb des Layout-Flows.
 
 In der realen Fünf-Sekunden-Matrix schliefen Karte und Pause auf WebGL2 und Canvas2D
 vollständig: beide erzeugten 0 zusätzliche Präsentationen, WebGL2 zusätzlich 0
 Upload-Bytes und 0 Textur-Reallokationen. Canvas2D besitzt keine GPU-Upload- oder
 Textur-Reallokationszähler; diese Rohwerte bleiben dort `null` beziehungsweise nicht
-anwendbar. Aktives WebGL2 präsentierte 214 Frames in 5,024 Sekunden bei 0
-Reallokationen, Canvas2D 300 Frames in 5,003 Sekunden. Beide blieben in diesen stabilen
+anwendbar. Aktives WebGL2 präsentierte 203 Frames in 5,045 Sekunden bei 0
+Reallokationen, Canvas2D 301 Frames in 5,014 Sekunden. Beide blieben in diesen stabilen
 Messfenstern ohne Long Task, Context Loss oder Backend-Fallback. Bei 412 × 915 und
 Qualitätsprofil misst das Spiel nach dem HUD ein Canvas von 412 × 727 CSS-Pixeln. Der
 tatsächliche DPR bleibt 2,625, der auf 2 begrenzte Renderer-DPR erzeugt einen Backbuffer

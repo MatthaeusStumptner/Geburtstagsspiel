@@ -160,9 +160,11 @@ Der geprüfte Spielstand basiert auf Renderer-Commit
 `925b1708dd8cd60f9cf4b0168d7674d8656ebdf2`. `npm ci` installierte 47 Pakete ohne
 gemeldete Schwachstelle; das anschließende Gate bestand 93/93 Node-Tests, den
 Produktions-Build und 8/8 Browserfälle. Nach dem ersten CLS-Fix bestand der damalige
-Bestand 96/96 Node-Tests. Das Review-Fix-Gate für Save-Kanonisierung und Font-Preload
-bestand 98/98 Node-Tests, den Produktions-Build und 8/8 Browserfälle
-(`run-2026-08-11T08-21-15-592Z`).
+Bestand 96/96 Node-Tests. Das Review-Fix-Gate für Save-Kanonisierung und den ersten
+Font-Preload bestand 98/98 Node-Tests. Der abschließende Desktop-Restore- und
+Gameplay-Font-Fix bestand 99/99 Node-Tests, den Produktions-Build und 8/8 Browserfälle.
+Flüchtige Browser-Run-Verzeichnisse werden nur im Audit-Report geführt, damit diese
+produktnahe Spezifikation nicht durch jeden erneuten grünen Lauf veraltet.
 
 Der primäre Chrome-DevTools-Trace verwendete Chromium 151.0.7922.34, einen neuen
 isolierten Browser-Context ohne Spielstand oder warmen Cache, 412 × 915 CSS-Pixel,
@@ -176,29 +178,31 @@ für die lokale URL nicht verfügbar und werden nicht behauptet.
 
 | Messwert | Ergebnis | Abnahme |
 | --- | ---: | --- |
-| TTFB | 2,3 ms | gut |
-| FCP | 1.212 ms | gut |
-| LCP | 1.928 ms | ≤ 2.500 ms, bestanden |
+| TTFB | 7,2 ms | gut |
+| FCP | 1.248 ms | gut |
+| LCP | 1.860 ms | ≤ 2.500 ms, bestanden |
 | CLS | 0,0023 | ≤ 0,10, bestanden |
-| TBT-Näherung / Long Tasks | 411 ms / 3 gesamt | 2 nach FCP, transparent ausgewiesen |
+| TBT-Näherung / Long Tasks | 357 ms / 3 gesamt | 2 nach FCP, transparent ausgewiesen |
 
-Der passive Observer-Lauf enthielt einen 229-ms-Long-Task vor FCP sowie 428 ms und
-83 ms lange Tasks nach FCP. Die TBT-Näherung summiert für die beiden späteren Tasks nur
-den Anteil oberhalb von jeweils 50 ms: `(428 - 50) + (83 - 50) = 411 ms`. Das Tool
+Der passive Observer-Lauf enthielt einen 221-ms-Long-Task vor FCP sowie 392 ms und
+65 ms lange Tasks nach FCP. Die TBT-Näherung summiert für die beiden späteren Tasks nur
+den Anteil oberhalb von jeweils 50 ms: `(392 - 50) + (65 - 50) = 357 ms`. Das Tool
 lieferte keinen Lighthouse-Performance-Score oder TTI-Wert; deshalb wird diese
 Long-Tasks-API-Näherung nicht als erfundener Lighthouse-TBT ausgegeben. Die separaten
 fünfsekündigen stabilen Laufzeitzustände enthielten keine Long Tasks.
 
 Vor dem Font-Fix lag FCP bei 1.136 ms, während der sichtbare Silkscreen-700-Schnitt noch
 im Status `loading` war und erst bei 1.303 ms `loadingdone` erreichte. Das belegte einen
-sichtbaren Fallback-Frame. Der neue Source-Asset-Preload startete im finalen passiven
-Lauf bei 225 ms und endete bei 411 ms; Vite schreibt ihn beim Build in einen gehashten
-relativen Assetpfad um. Eine separate Font-Timeline prüfte die verwendeten Schnitte an
-den tatsächlich gezeichneten Frames: Silkscreen 700 war beim ersten Textframe geladen;
-DM Mono 400 und Silkscreen 400 waren bei der späteren Map-/Onboarding-Einblendung
-ebenfalls geladen. Die Timeline-Instrumentierung wird nicht für Web-Vitals verwendet.
+sichtbaren Fallback-Frame. Die beiden Source-Asset-Preloads für die im ersten
+Gameplay-Frame sichtbaren Silkscreen-Schnitte starteten im finalen passiven Mobile-Lauf
+bei 225 beziehungsweise 226 ms und endeten bei 431 beziehungsweise 447 ms; Vite
+schreibt sie beim Build in gehashte relative Assetpfade um. Eine separate Font-Timeline
+prüfte die verwendeten Schnitte an den tatsächlich gezeichneten Frames: Silkscreen 400
+und 700 waren beim ersten relevanten Textframe geladen; DM Mono 400 war auch bei der
+späteren Map-/Onboarding-Einblendung verfügbar. Die Timeline-Instrumentierung wird
+nicht für Web-Vitals verwendet.
 
-Dokument plus sechs Page-Ressourcen übertrugen lokal 485.853 Byte: ein
+Dokument plus sechs Page-Ressourcen übertrugen lokal 494.774 Byte: ein
 JavaScript-Bundle, ein Stylesheet, drei lokale WOFF2-Einträge und das Favicon.
 Hintergrundabrufe der Service-Worker-Installation sind in dieser
 PerformanceResourceTiming-Summe nicht enthalten. Es gab keine Drittanbieter-Font-
@@ -213,18 +217,26 @@ frischen Besuch, Map-Save, mobile und Desktop-Gameplay-Saves, defektes JSON, par
 unzulässige Typen und nicht unterstützte Save-Versionen ab. Ein kalter mobiler v10-Fall
 blieb bei `map-active onboarding-open` und CLS 0.
 
+Ein separater kalter Desktop-Restore eines unterstützten Gameplay-Saves belegte die
+Restlücke: Die synchron gesetzte Klasse war vor FCP stabil, doch die vom fixierten Board
+verdeckte äußere App-Shell blieb im Layout und erzeugte CLS 0,1786. Der Fokusmodus nimmt
+Topbar, Sidepanel und Footer nun aus dem Flow und fixiert das äußere Spiellayout von
+Beginn an. Der identische Restore-Lauf maß danach TTFB 3,4 ms, FCP 1.204 ms,
+LCP 1.668 ms und CLS 0,00088; beide Silkscreen-Schnitte und DM Mono 400 waren vor FCP
+geladen.
+
 ### Fünfsekündige Laufzeitmatrix
 
 | Backend / Zustand | Dauer | Präsentationen | Upload-Bytes | Textur-Reallokationen | Static-World-Builds | Long Tasks / CLS |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| WebGL2 / Karte | 5,001 s | 0 | 0 | 0 | 0 | 0 / 0 |
-| WebGL2 / aktiv | 5,024 s | 214 | 149.012.552 | 0 | 0 | 0 / 0 |
-| WebGL2 / Pause | 5,011 s | 0 | 0 | 0 | 0 | 0 / 0 |
-| Canvas2D / Karte | 5,002 s | 0 | n/a | n/a | 0 | 0 / 0 |
-| Canvas2D / aktiv | 5,003 s | 300 | n/a | n/a | 0 | 0 / 0 |
-| Canvas2D / Pause | 5,009 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| WebGL2 / Karte | 5,002 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| WebGL2 / aktiv | 5,045 s | 203 | 141.353.028 | 0 | 0 | 0 / 0 |
+| WebGL2 / Pause | 5,008 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| Canvas2D / Karte | 5,005 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / aktiv | 5,014 s | 301 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / Pause | 5,005 s | 0 | n/a | n/a | 0 | 0 / 0 |
 
-WebGL2 präsentierte damit rund 42,6 FPS im headless Prüflauf; Canvas2D lag bei rund
+WebGL2 präsentierte damit rund 40,2 FPS im headless Prüflauf; Canvas2D lag bei rund
 60,0 FPS. Beide blieben innerhalb des 60-FPS-Vertrags.
 Die WebGL2-Szenenuploads während aktiver Bewegung sind beabsichtigt; statische Weltlayer
 wurden nicht neu gebaut. Karte und Pause blieben nach dem Settle vollständig schlafen.
