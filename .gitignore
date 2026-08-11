@@ -8,3 +8,7 @@ output/playwright/
 .worktrees/
 Pacman_clone_level_editor/
 *.log
+apps/*/dist/
+apps/*/node_modules/
+packages/*/dist/
+packages/*/node_modules/

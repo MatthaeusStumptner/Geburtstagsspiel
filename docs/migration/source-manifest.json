@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-11",
+  "sources": {
+    "game": {
+      "repository": "https://github.com/MatthaeusStumptner/Geburtstagsspiel.git",
+      "commit": "c36a9e12137e33019082544ebe9fda9f01d1d55c"
+    },
+    "renderer": {
+      "repository": "https://github.com/MatthaeusStumptner/Pacman_clone_renderer.git",
+      "commit": "09146f9eedade56d14c441d06fc6bced82bd2323"
+    },
+    "studio": {
+      "repository": "https://github.com/MatthaeusStumptner/Pacman_clone_level_editor.git",
+      "commit": "2ef8d21be9246f9a3069b4a83a7ad008754eb748"
+    }
+  }
+}
