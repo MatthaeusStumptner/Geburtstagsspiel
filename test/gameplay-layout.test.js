@@ -129,3 +129,21 @@ test('falls back to browser DPR when device-pixel observer data is inconsistent'
 test('retains consistent device-pixel observer precision', () => {
   assert.equal(resolveObservedDevicePixelRatio({ deviceWidth: 1081.44, contentWidth: 412, browserPixelRatio: 2.625 }), 2.625);
 });
+test('resolves observer DPR at the consistency boundary and rejects invalid samples', () => {
+  const rows = [
+    [{ deviceWidth: 200.5, contentWidth: 100, browserPixelRatio: 2 }, 2.005],
+    [{ deviceWidth: 201, contentWidth: 100, browserPixelRatio: 2 }, 2.01],
+    [{ deviceWidth: 201.1, contentWidth: 100, browserPixelRatio: 2 }, 2],
+    [{ deviceWidth: 0, contentWidth: 100, browserPixelRatio: 2.625 }, 2.625],
+    [{ deviceWidth: -1, contentWidth: 100, browserPixelRatio: 2.625 }, 2.625],
+    [{ deviceWidth: Number.NaN, contentWidth: 100, browserPixelRatio: 2.625 }, 2.625],
+    [{ deviceWidth: Number.POSITIVE_INFINITY, contentWidth: 100, browserPixelRatio: 2.625 }, 2.625],
+  ];
+  for (const [input, expected] of rows) assert.equal(resolveObservedDevicePixelRatio(input), expected);
+});
+
+test('normalizes invalid browser DPR to one', () => {
+  for (const browserPixelRatio of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(resolveObservedDevicePixelRatio({ deviceWidth: 0, contentWidth: 100, browserPixelRatio }), 1);
+  }
+});

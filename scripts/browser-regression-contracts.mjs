@@ -93,7 +93,9 @@ export function assertDprContract({ browserDpr, expectedDpr, renderer, cssWidth,
   const effectiveRatio = requiredFinite(renderer.display.pixelRatio, 'display.pixelRatio', scenario);
   assert.ok(Math.abs(actualRatio - browserDpr) <= 0.01, `[${scenario}] renderer actual DPR differs from browser DPR`);
   assert.equal(rendererRatio, effectiveRatio, `[${scenario}] renderer effective DPR fields disagree`);
-  assert.ok(effectiveRatio > 0 && effectiveRatio <= cap, `[${scenario}] renderer effective DPR exceeds the ${renderer.quality} cap`);
+  const expectedEffectiveRatio = Math.min(actualRatio, cap);
+  assert.ok(Math.abs(effectiveRatio - expectedEffectiveRatio) <= 0.001,
+    `[${scenario}] renderer effective DPR must equal min(actual DPR, ${renderer.quality} cap)`);
   for (const [name, value] of [['cssWidth', cssWidth], ['cssHeight', cssHeight], ['bufferWidth', bufferWidth], ['bufferHeight', bufferHeight]]) requiredFinite(value, name, scenario);
   const displayWidth = requiredFinite(renderer.display.width, 'display.width', scenario);
   const displayHeight = requiredFinite(renderer.display.height, 'display.height', scenario);

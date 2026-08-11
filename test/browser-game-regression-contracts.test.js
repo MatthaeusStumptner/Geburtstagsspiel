@@ -76,9 +76,21 @@ test('DPR contract distinguishes browser actual DPR from quality-capped effectiv
   assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: { ...renderer, display: { ...renderer.display, actualPixelRatio: 1 } }, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'actual'), /actual DPR/);
   const wrongBuffer = { ...renderer, pixelRatio: 1, display: { ...renderer.display, pixelRatio: 1, bufferWidth: 1082, bufferHeight: 1908 } };
   assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: wrongBuffer, cssWidth: 412, cssHeight: 727, bufferWidth: 1082, bufferHeight: 1908 }, 'effective'), /effective DPR/);
+  const underCap = { ...renderer, pixelRatio: 1, display: { ...renderer.display, pixelRatio: 1, bufferWidth: 412, bufferHeight: 727 } };
+  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: underCap, cssWidth: 412, cssHeight: 727, bufferWidth: 412, bufferHeight: 727 }, 'under-cap'), /effective DPR must equal/);
   assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: { ...renderer, display: { ...renderer.display, width: 411 } }, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'css'), /display width/);
 });
 
+test('DPR contract accepts the exact effective ratio for every renderer quality cap', () => {
+  for (const [quality, effective, width, height] of [
+    ['performance', 1.25, 515, 909],
+    ['balanced', 1.6, 659, 1163],
+    ['quality', 2, 824, 1454],
+  ]) {
+    const renderer = { quality, pixelRatio: effective, display: { width: 412, height: 727, actualPixelRatio: 2.625, pixelRatio: effective, bufferWidth: width, bufferHeight: height } };
+    assert.doesNotThrow(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 727, bufferWidth: width, bufferHeight: height }, quality));
+  }
+});
 test('integration feeds captured DOM CSS size into DPR validation', async () => {
   const source = await readFile(new URL('../scripts/browser-game-regression.mjs', import.meta.url), 'utf8');
   const dprCall = source.match(/function assertGeometryDpr[\s\S]*?\n\}/)?.[0] ?? '';
