@@ -187,6 +187,45 @@ test('uses slot-based animated cadence without long-run drift', () => {
   assert.equal(new Set(timestamps).size, 61);
 });
 
+for (const baseTimestamp of [10_000_000_000, 1_000_000_000_000]) {
+  test(`keeps 30-FPS cadence at the ${baseTimestamp}-ms timestamp scale`, () => {
+    const clock = createFakeFrameClock();
+    const timestamps = [];
+    const coordinator = createRenderCoordinator(clock.adapter);
+    coordinator.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => timestamps.push(timestamp) });
+    const displayTimestamps = Array.from(
+      { length: 121 },
+      (_, index) => baseTimestamp + index * (1000 / 60),
+    );
+    for (const timestamp of displayTimestamps) clock.present(timestamp);
+    const expectedTimestamps = displayTimestamps.filter((_, index) => index % 2 === 0);
+    assert.equal(timestamps.length, 61);
+    assert.deepEqual(timestamps, expectedTimestamps);
+  });
+
+  test(`rejects materially early cadence at the ${baseTimestamp}-ms timestamp scale`, () => {
+    const continuousClock = createFakeFrameClock();
+    const continuousTimestamps = [];
+    const continuous = createRenderCoordinator(continuousClock.adapter);
+    continuous.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => continuousTimestamps.push(timestamp) });
+    continuousClock.present(baseTimestamp);
+    continuousClock.present(baseTimestamp + 1000 / 60 - 1);
+    assert.deepEqual(continuousTimestamps, [baseTimestamp]);
+    continuousClock.present(baseTimestamp + 1000 / 60);
+    assert.deepEqual(continuousTimestamps, [baseTimestamp, baseTimestamp + 1000 / 60]);
+
+    const animatedClock = createFakeFrameClock();
+    const animatedTimestamps = [];
+    const animated = createRenderCoordinator(animatedClock.adapter);
+    animated.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => animatedTimestamps.push(timestamp) });
+    animatedClock.present(baseTimestamp);
+    animatedClock.present(baseTimestamp + 1000 / 30 - 4 / 3);
+    assert.deepEqual(animatedTimestamps, [baseTimestamp]);
+    animatedClock.present(baseTimestamp + 1000 / 30);
+    assert.deepEqual(animatedTimestamps, [baseTimestamp, baseTimestamp + 1000 / 30]);
+  });
+}
+
 test('records hidden invalidations without queuing or retaining dirty work', () => {
   const clock = createFakeFrameClock();
   const renders = [];

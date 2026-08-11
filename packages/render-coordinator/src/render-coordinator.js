@@ -13,7 +13,22 @@ function cloneSurface(surface) {
   });
 }
 
-const CADENCE_TOLERANCE_MS = 1e-7;
+const CADENCE_EPSILON_MULTIPLIER = 4;
+const MAX_CADENCE_EARLY_MS = 0.25;
+const MAX_CADENCE_EARLY_INTERVAL_FRACTION = 1 / 64;
+
+function isCadenceBoundaryDue(timestamp, deadline, interval) {
+  if (timestamp >= deadline) return true;
+  // Cover floating representation noise in both absolute operands, but never a material fraction of a frame.
+  const magnitude = Math.max(Math.abs(timestamp), Math.abs(deadline));
+  const numericTolerance = magnitude * Number.EPSILON * CADENCE_EPSILON_MULTIPLIER;
+  const boundedTolerance = Math.min(
+    numericTolerance,
+    MAX_CADENCE_EARLY_MS,
+    interval * MAX_CADENCE_EARLY_INTERVAL_FRACTION,
+  );
+  return deadline - timestamp <= boundedTolerance;
+}
 
 function unknownSurface(id) {
   throw new Error(`unknown surface: ${id}`);
@@ -43,7 +58,8 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
 
   function isCadenceDue(surface, timestamp) {
     if (surface.lastPresentedAt === null || timestamp < surface.lastPresentedAt) return true;
-    return timestamp + CADENCE_TOLERANCE_MS >= surface.nextEligibleAt;
+    const interval = 1000 / surface.profile.maxFps;
+    return isCadenceBoundaryDue(timestamp, surface.nextEligibleAt, interval);
   }
 
   function shouldPresent(surface, timestamp) {
