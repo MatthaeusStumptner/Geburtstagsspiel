@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-service-worker.mjs",
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "levels:import": "node scripts/import-level-catalog.mjs"

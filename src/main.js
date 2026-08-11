@@ -29,6 +29,7 @@ import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game
 import { respawnCat } from './game/actor-respawn.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
+import { registerGameServiceWorker } from './platform/register-service-worker.js';
 import UiApp from './ui/App.svelte';
 import { createMapGeometry } from './ui/map-geometry.js';
 import {
@@ -2299,6 +2300,11 @@ mount(UiApp, {
 });
 mountUiSurfaces(uiSession);
 
+void registerGameServiceWorker({
+  navigator: window.navigator,
+  baseUrl: new URL(import.meta.env.BASE_URL, window.location.href),
+  production: import.meta.env.PROD,
+});
 document.addEventListener('click', (event) => {
   if (!(event.target instanceof Element)) return;
   const button = event.target.closest('button');
