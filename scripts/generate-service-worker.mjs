@@ -18,9 +18,24 @@ function normalizeBasePath(basePath) {
 function normalizeAssetPaths(assetPaths) {
   if (!Array.isArray(assetPaths)) throw new TypeError('Generated asset paths must be an array.');
   const normalized = assetPaths.map((assetPath) => {
-    if (typeof assetPath !== 'string' || !assetPath.startsWith('/') || !assetPath.includes('/assets/') || assetPath.includes('..') || /[?#]/.test(assetPath)) {
-      throw new TypeError(`Invalid generated asset path: ${String(assetPath)}`);
+    let decodedPath = '';
+    let unsafe = typeof assetPath !== 'string'
+      || !assetPath.startsWith('/')
+      || assetPath.startsWith('//')
+      || !assetPath.includes('/assets/')
+      || /[\\?#]/.test(assetPath)
+      || /%(?:25|2f|5c)/i.test(assetPath);
+    if (!unsafe) {
+      try {
+        decodedPath = decodeURIComponent(assetPath);
+      } catch {
+        unsafe = true;
+      }
     }
+    if (!unsafe) {
+      unsafe = decodedPath.split('/').some((segment) => segment === '.' || segment === '..');
+    }
+    if (unsafe) throw new TypeError(`Invalid generated asset path: ${String(assetPath)}`);
     return assetPath;
   });
   return [...new Set(normalized)].sort((left, right) => left.localeCompare(right));
@@ -68,6 +83,13 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const requestUrl = new URL(request.url);
+  const networkOnly = request.mode === 'navigate'
+    || request.destination === 'document'
+    || /\.(?:html?|json)$/i.test(requestUrl.pathname);
+  if (networkOnly) {
+    event.respondWith(fetch(request));
+    return;
+  }
   if (requestUrl.origin !== self.location.origin) return;
   if (!ASSET_URLS.has(requestUrl.href)) {
     event.respondWith(fetch(request));

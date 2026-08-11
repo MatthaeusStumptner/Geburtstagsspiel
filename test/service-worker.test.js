@@ -219,3 +219,88 @@ test('generated worker excludes browser-save and publisher vocabulary', () => {
   });
   assert.doesNotMatch(source, /localStorage|publisher|save|\/levels\//i);
 });
+
+test('listed navigation, document, HTML, and JSON requests bypass the asset cache', async () => {
+  const assetPaths = [
+    '/Geburtstagsspiel/assets/app.js',
+    '/Geburtstagsspiel/assets/page.html',
+    '/Geburtstagsspiel/assets/level.json',
+  ];
+  const source = buildServiceWorkerSource({ cacheName: 'franz-lola-assets-current', assetPaths });
+  const network = [];
+  let cacheOpens = 0;
+  const runtime = { listeners: new Map() };
+  const self = {
+    location: { origin: 'https://example.test' },
+    addEventListener(type, handler) { runtime.listeners.set(type, handler); },
+    skipWaiting() {},
+    clients: { claim() { return Promise.resolve(); } },
+  };
+  vm.runInNewContext(source, {
+    self, URL, Set, Promise,
+    caches: { open: async () => { cacheOpens += 1; return { match: async () => ({ cached: true }) }; } },
+    fetch: async (request) => { network.push(request.url); return { network: true }; },
+  });
+  const requests = [
+    { method: 'GET', url: 'https://example.test/Geburtstagsspiel/assets/app.js', destination: 'script', mode: 'navigate' },
+    { method: 'GET', url: 'https://example.test/Geburtstagsspiel/assets/app.js', destination: 'document', mode: 'same-origin' },
+    { method: 'GET', url: 'https://example.test/Geburtstagsspiel/assets/page.html', destination: '', mode: 'same-origin' },
+    { method: 'GET', url: 'https://example.test/Geburtstagsspiel/assets/level.json', destination: '', mode: 'same-origin' },
+  ];
+  for (const request of requests) {
+    const event = { request, respondWith(value) { this.response = value; } };
+    runtime.listeners.get('fetch')(event);
+    assert.deepEqual(await event.response, { network: true });
+  }
+  assert.equal(cacheOpens, 0);
+  assert.deepEqual(network, requests.map((request) => request.url));
+});
+
+test('rejects ambiguous and encoded generated asset paths', () => {
+  const invalidPaths = [
+    '//elsewhere.test/Geburtstagsspiel/assets/app.js',
+    '/Geburtstagsspiel/assets/./app.js',
+    '/Geburtstagsspiel/assets/%2e%2e/app.js',
+    '/Geburtstagsspiel/assets/%2E%2E/app.js',
+    '/Geburtstagsspiel/assets/%252e%252e/app.js',
+    '/Geburtstagsspiel/assets/dir%2fapp.js',
+    '/Geburtstagsspiel/assets/dir%5Capp.js',
+    '/Geburtstagsspiel/assets\\app.js',
+  ];
+  for (const assetPath of invalidPaths) {
+    assert.throws(() => buildServiceWorkerSource({
+      cacheName: 'franz-lola-assets-current',
+      assetPaths: [assetPath],
+    }), /invalid generated asset path/i, assetPath);
+  }
+});
+
+test('failed pre-cache installation rejects without activating cache cleanup', async () => {
+  const source = buildServiceWorkerSource({
+    cacheName: 'franz-lola-assets-current',
+    assetPaths: ['/Geburtstagsspiel/assets/app.js'],
+  });
+  const failure = new Error('pre-cache failed');
+  let skipWaitingCalls = 0;
+  const deleted = [];
+  const runtime = { listeners: new Map() };
+  const self = {
+    location: { origin: 'https://example.test' },
+    addEventListener(type, handler) { runtime.listeners.set(type, handler); },
+    skipWaiting() { skipWaitingCalls += 1; },
+    clients: { claim() { return Promise.resolve(); } },
+  };
+  vm.runInNewContext(source, {
+    self, URL, Set, Promise,
+    caches: {
+      open: async () => ({ addAll: async () => { throw failure; } }),
+      keys: async () => ['franz-lola-assets-old'],
+      delete: async (name) => deleted.push(name),
+    },
+  });
+  const event = { waitUntil(value) { this.wait = value; } };
+  runtime.listeners.get('install')(event);
+  await assert.rejects(event.wait, failure);
+  assert.equal(skipWaitingCalls, 0);
+  assert.deepEqual(deleted, []);
+});
