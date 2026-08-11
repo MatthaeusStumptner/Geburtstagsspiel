@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PresentationFramePacer, recommendedPresentationRate } from '@franz-lola/pixel-renderer';
+import { PresentationFramePacer, recommendedPresentationRate, snapCameraToTexels } from '@franz-lola/pixel-renderer';
 
 function renderCount(displayRate, seconds = 2) {
   const pacer = new PresentationFramePacer({ framesPerSecond: 60 });
@@ -21,4 +21,9 @@ test('game uses 30 FPS only for the constrained renderer profile', () => {
   assert.equal(recommendedPresentationRate('performance'), 30);
   assert.equal(recommendedPresentationRate('balanced'), 60);
   assert.equal(recommendedPresentationRate('quality'), 60);
+});
+
+
+test('game renderer dependency exposes stable camera sampling', () => {
+  assert.equal(typeof snapCameraToTexels, 'function');
 });
