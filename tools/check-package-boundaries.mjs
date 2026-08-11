@@ -31,19 +31,44 @@ async function filesBelow(directory) {
   return files;
 }
 
-function scripts(file, source) {
-  if (path.extname(file) !== '.svelte') return [source];
+function constantSpecifier(node) {
+  if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
+  if (node?.type === 'TemplateLiteral' && node.expressions.length === 0 && node.quasis.length === 1) {
+    return node.quasis[0].value.cooked ?? node.quasis[0].value.raw;
+  }
+  return null;
+}
+
+function walkAst(node, visit, seen = new WeakSet()) {
+  if (!node || typeof node !== 'object' || seen.has(node)) return;
+  seen.add(node);
+  if (typeof node.type === 'string') visit(node);
+  for (const child of Object.values(node)) {
+    if (Array.isArray(child)) child.forEach((item) => walkAst(item, visit, seen));
+    else walkAst(child, visit, seen);
+  }
+}
+
+function svelteImportSpecifiers(file, source) {
   const parsed = parseSvelte(source, { filename: file });
-  return [parsed.module, parsed.instance]
-    .filter(Boolean)
-    .map(({ content: script }) => source.slice(script.start, script.end));
+  const specifiers = [];
+  for (const script of [parsed.module, parsed.instance].filter(Boolean)) {
+    walkAst(script.content, (node) => {
+      const hasStaticSource = node.type === 'ImportDeclaration'
+        || node.type === 'ExportNamedDeclaration'
+        || node.type === 'ExportAllDeclaration';
+      if (!hasStaticSource && node.type !== 'ImportExpression') return;
+      const specifier = constantSpecifier(node.source);
+      if (specifier !== null) specifiers.push(specifier);
+    });
+  }
+  return specifiers;
 }
 
 function importSpecifiers(file, source) {
-  return scripts(file, source).flatMap((script) => {
-    const [imports] = parseImports(script);
-    return imports.map(({ n }) => n).filter((specifier) => typeof specifier === 'string');
-  });
+  if (path.extname(file) === '.svelte') return svelteImportSpecifiers(file, source);
+  const [imports] = parseImports(source);
+  return imports.map(({ n }) => n).filter((specifier) => typeof specifier === 'string');
 }
 
 async function applicationPackages(appsRoot) {

@@ -96,3 +96,44 @@ test('scanner rejects every foreign application root and classifies portable suf
     ]);
   });
 });
+
+test('scanner rejects TypeScript type re-exports from a foreign app in a Svelte module script', async () => {
+  await withWorkspace({
+    'apps/game/src/module.svelte': `<script module lang="ts">
+  export type { StudioLevel } from '../../studio/src/types.js';
+</script>
+`,
+  }, async (rootUrl) => {
+    assert.deepEqual(await checkPackageBoundaries(rootUrl), [
+      'apps/game/src/module.svelte: imports another application source tree: apps/studio/src/types.js',
+    ]);
+  });
+});
+
+test('scanner rejects suffixed TypeScript type re-exports from an app package in a Svelte instance script', async () => {
+  await withWorkspace({
+    'apps/studio/package.json': '{"name":"@franz-lola/studio"}\n',
+    'apps/game/src/instance.svelte': `<script lang="ts">
+  export type { StudioApi } from '@franz-lola/studio?types';
+</script>
+`,
+  }, async (rootUrl) => {
+    assert.deepEqual(await checkPackageBoundaries(rootUrl), [
+      'apps/game/src/instance.svelte: imports another application package: @franz-lola/studio?types',
+    ]);
+  });
+});
+test('scanner retains literal and constant-template dynamic imports from both Svelte scripts', async () => {
+  await withWorkspace({
+    'apps/game/src/module-dynamic.svelte': "<script module>\n  const lazy = import(`../../studio/src/lazy.js`);\n</script>\n",
+    'apps/game/src/instance-dynamic.svelte': `<script>
+  const lazy = import('../../publisher/src/lazy.js');
+</script>
+`,
+  }, async (rootUrl) => {
+    assert.deepEqual(await checkPackageBoundaries(rootUrl), [
+      'apps/game/src/instance-dynamic.svelte: imports another application source tree: apps/publisher/src/lazy.js',
+      'apps/game/src/module-dynamic.svelte: imports another application source tree: apps/studio/src/lazy.js',
+    ]);
+  });
+});
