@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Franz & Lola · Renderer Benchmark</title>
+    <style>
+      :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background: #030b10; color: #d9f7ee; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #12303a, #030b10 60%); }
+      main { width: min(100%, 980px); padding: 18px; display: grid; gap: 14px; }
+      header { display: flex; justify-content: space-between; gap: 20px; align-items: end; }
+      h1 { margin: 0; color: #f5c451; font-size: clamp(1rem, 3vw, 1.65rem); letter-spacing: .1em; }
+      p { margin: 0; color: #8fb3b5; font-size: .78rem; }
+      canvas { width: 100%; height: min(72vh, 660px); border: 1px solid #2d6871; background: #071016; image-rendering: pixelated; box-shadow: 0 0 36px rgba(85,217,221,.14); }
+      output { min-height: 3rem; padding: 10px 12px; border-left: 3px solid #55d9dd; background: #071016; white-space: pre-wrap; font-size: .75rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><div><p>GPU-DIAGNOSE · VORGANG 60</p><h1>RENDERSTRECKE PASSAU</h1></div><p id="backend">INITIALISIERT …</p></header>
+      <canvas id="benchmark" data-renderer-backend="pending" aria-label="Animierte Renderer-Benchmarkszene"></canvas>
+      <output id="result">Messung wird vorbereitet …</output>
+    </main>
+    <script type="module" src="/benchmark/main.js"></script>
+  </body>
+</html>

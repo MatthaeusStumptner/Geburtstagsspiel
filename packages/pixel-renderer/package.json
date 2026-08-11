@@ -1,0 +1,35 @@
+{
+  "name": "@franz-lola/pixel-renderer",
+  "version": "0.0.0-monorepo",
+  "description": "Shared pixel-art renderer and level format for Franz & Lola games and tools.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.js",
+    "./schema/franz-lola-level.schema.json": "./schema/franz-lola-level.schema.json",
+    "./schema/franz-lola-content.schema.json": "./schema/franz-lola-content.schema.json"
+  },
+  "files": [
+    "src",
+    "schema",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "test": "node --test",
+    "benchmark": "node scripts/render-benchmark.mjs",
+    "benchmark:assert": "node scripts/render-benchmark.mjs --assert",
+    "test:browser": "node scripts/browser-regression.mjs",
+    "verify": "npm test && npm run build && npm run benchmark:assert && npm run test:browser"
+  },
+  "devDependencies": {
+    "playwright": "^1.54.2",
+    "vite": "^6.4.3"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "dependencies": {
+    "@chenglou/pretext": "^0.0.8"
+  }
+}
