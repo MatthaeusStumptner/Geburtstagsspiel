@@ -43,3 +43,37 @@ test('rejects malformed inputs and forged frame lookalikes', () => {
   assert.throws(() => createPresentationFrame({ ...input, camera: { ...input.camera, source: {} } }), /camera.source.x muss endlich sein/);
   assert.equal(isPresentationFrame({ kind: 'franz-lola-presentation-frame', frameId: 1, presentationTime: 1 }), false);
 });
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.values(value).forEach(deepFreeze);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+test('rejects incomplete public display renderer and entity metadata', () => {
+  const input = sampleInput();
+  const invalidInputs = [
+    { ...input, camera: { ...input.camera, source: { ...input.camera.source, width: 0 } } },
+    { ...input, display: { ...input.display, width: Infinity } },
+    { ...input, display: { ...input.display, bufferWidth: 800.5 } },
+    { ...input, renderer: { ...input.renderer, requestedBackend: '' } },
+    { ...input, renderer: { ...input.renderer, fallbackReason: 1 } },
+    { ...input, renderer: { ...input.renderer, contextLost: 'false' } },
+    { ...input, player: { ...input.player, id: ' ' } },
+    { ...input, characters: [{ id: '', world: { x: 1, y: 2 }, screen: { x: 3, y: 4 } }] },
+    { ...input, cats: [{ ...input.cats[0], onScreen: 'false' }] },
+    { ...input, cats: [{ ...input.cats[0], distance: -1 }] },
+    { ...input, cats: [{ ...input.cats[0], color: ' #ff00ff' }] },
+    { ...input, cats: [{ ...input.cats[0], respawnTimer: NaN }] },
+  ];
+
+  invalidInputs.forEach((invalid) => assert.throws(() => createPresentationFrame(invalid), TypeError));
+  const forged = deepFreeze({
+    ...input,
+    kind: 'franz-lola-presentation-frame',
+    display: { ...input.display, height: 0 },
+  });
+  assert.equal(isPresentationFrame(forged), false);
+});

@@ -133,6 +133,20 @@ test('returns one immutable presentation frame per render with legacy aliases', 
   assert.throws(() => { first.cats[0].world.x = 1; }, TypeError);
 });
 
+test('keeps frame IDs private and independent from public writes', () => {
+  const firstRenderer = createTestRenderer();
+  const secondRenderer = createTestRenderer();
+  const firstSnapshot = { level: sampleLevel() };
+  const secondSnapshot = { level: sampleLevel() };
+  firstRenderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+  secondRenderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+
+  assert.equal(Object.hasOwn(firstRenderer, 'frameId'), false);
+  firstRenderer.frameId = 100;
+  assert.equal(firstRenderer.render(firstSnapshot).frameId, 1);
+  assert.equal(secondRenderer.render(secondSnapshot).frameId, 1);
+  assert.equal(firstRenderer.render(firstSnapshot).frameId, 2);
+});
 test('skips backend resize for unchanged externally measured display metrics', () => {
   const backend = fakePresentationBackend();
   const renderer = new PassauPixelRenderer(fakeCanvas({ width: 412, height: 712 }), { presentationBackend: backend });

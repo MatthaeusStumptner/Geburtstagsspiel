@@ -29,6 +29,7 @@ const isStaticWorldDecoration = (item, frameControlled = false) => !frameControl
   && (!item.animation?.type || item.animation.type === 'none')
   && !item.effects?.length;
 const collectionSize = (items) => items?.size ?? items?.length ?? 0;
+const isCanonicalString = (value) => typeof value === 'string' && value.length > 0 && value.trim() === value;
 const environmentCadenceFrame = (backend, quality, elapsed) => {
   if (backend !== 'canvas2d') return 0;
   const framesPerSecond = quality === 'performance' ? 8 : quality === 'balanced' ? 15 : 20;
@@ -50,6 +51,7 @@ function drawScaledActor(context, actor, tileSize, draw) {
 }
 
 export class PassauPixelRenderer {
+  #frameId = 0;
   static async create(canvas, options = {}) {
     const presentationBackend = await createPresentationBackend(canvas, options);
     return new PassauPixelRenderer(canvas, { ...options, presentationBackend });
@@ -88,7 +90,7 @@ export class PassauPixelRenderer {
     this.overlayCache = { decorations: null, language: '', width: 0, height: 0, source: null, viewport: null, hasOverlay: false };
     this.gpuCropResizes = 0;
     this.gpuCropSignature = '';
-    this.pixelRatio = clampRatio(pixelRatio ?? globalThis.devicePixelRatio, this.pixelRatioLimit); this.displayMetrics = null; this.frameId = 0; this.zoom = zoom; this.level = null; this.grid = null;
+    this.pixelRatio = clampRatio(pixelRatio ?? globalThis.devicePixelRatio, this.pixelRatioLimit); this.displayMetrics = null; this.zoom = zoom; this.level = null; this.grid = null;
   }
 
   setLevel(levelInput) {
@@ -137,7 +139,7 @@ export class PassauPixelRenderer {
   }
 
   render(snapshot, options = {}) {
-    const frameId = this.frameId += 1;
+    const frameId = this.#frameId += 1;
     const level = snapshot.level ? this.setLevelIfChanged(snapshot.level) : this.level;
     if (!level) throw new Error('Vor dem Rendern muss ein Level gesetzt sein.');
     const alpha = Math.min(1, Math.max(0, Number(options.alpha) || 0));
@@ -177,7 +179,8 @@ export class PassauPixelRenderer {
       scene.fillStyle = color;
       scene.fillRect(x * level.board.tileSize + 2, y * level.board.tileSize + 2, width * level.board.tileSize - 4, height * level.board.tileSize - 4);
     }
-    const display = this.displayMetrics ?? this.resize(); const viewport = options.viewport ?? { x: 0, y: 0, width: display.width, height: display.height };
+    if (!this.displayMetrics) this.resize();
+    const display = this.displayMetrics; const viewport = options.viewport ?? { x: 0, y: 0, width: display.width, height: display.height };
     const cameraTarget = options.cameraTarget ?? { x: player.x * level.board.tileSize + level.board.tileSize / 2, y: player.y * level.board.tileSize + level.board.tileSize / 2 };
     const calculatedCamera = calculateCamera({ worldWidth, worldHeight, viewport, target: cameraTarget, zoom: options.zoom ?? this.zoom, enabled: options.cameraEnabled !== false });
     const camera = snapCameraToTexels(calculatedCamera, this.sceneScale, worldWidth, worldHeight);
@@ -230,8 +233,8 @@ export class PassauPixelRenderer {
         screen: projectWorldPoint(camera, world),
         onScreen: onScreen(world),
         distance: Math.hypot(player.x - cat.x, player.y - cat.y),
-        color: cat.color,
-        respawnTimer: cat.respawnTimer ?? 0,
+        color: isCanonicalString(cat.color) ? cat.color : '#ff6b5f',
+        respawnTimer: Number.isFinite(cat.respawnTimer) ? Math.max(0, cat.respawnTimer) : 0,
       };
     });
     const characterPresentations = characters.map((character, index) => {
@@ -246,6 +249,7 @@ export class PassauPixelRenderer {
         color: character.color,
       };
     });
+    const rendererInfo = this.rendererInfo();
     const frame = createPresentationFrame({
       frameId,
       presentationTime,
@@ -254,7 +258,13 @@ export class PassauPixelRenderer {
       cats: catPresentations,
       characters: characterPresentations,
       display,
-      renderer: this.rendererInfo(),
+      renderer: {
+        ...rendererInfo,
+        requestedBackend: rendererInfo.requestedBackend ?? this.presentation.kind,
+        backend: rendererInfo.backend ?? this.presentation.kind,
+        fallbackReason: rendererInfo.fallbackReason ?? null,
+        contextLost: rendererInfo.contextLost ?? false,
+      },
     });
     return Object.freeze({
       ...frame,
