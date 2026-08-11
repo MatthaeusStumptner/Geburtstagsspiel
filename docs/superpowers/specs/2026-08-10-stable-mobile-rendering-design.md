@@ -1,6 +1,6 @@
 # Stabiles Mobile-Rendering und Web-Performance
 
-**Status:** Freigegeben am 10. August 2026
+**Status:** Freigegeben am 10. August 2026 · verifiziert am 11. August 2026
 
 ## Ziel
 
@@ -74,6 +74,10 @@ Im mobilen Spiel ist das Board in zwei Bereiche geteilt:
 
 Overlays, Cutscenes und Radar verwenden dieselbe Spielfeldgeometrie. Safe-Area-Insets und Wechsel zwischen Portrait, Landscape und Browser-Vollbild lösen genau eine atomare Layoutaktualisierung aus.
 
+Ein synchroner Bootstrap setzt vor dem ersten App-Paint anhand des gespeicherten Modus
+die initiale Map- oder Mobile-Game-Klasse. Dadurch springt ein frischer Besuch nicht
+erst nach der asynchronen Renderer-Initialisierung vom Dokumentlayout in die Vollkarte.
+
 ### Passau-Karte
 
 Das bewegte Raster wird auf einem eigenen Pseudo-Element über `transform` verschoben. Marker-Glow verwendet Opacity und Transform statt eines animierten Filters. Fluss- und Straßenlichter werden als wenige transformierte Glints umgesetzt, nicht als dauerhaft animierter `stroke-dashoffset` über komplette SVG-Pfade.
@@ -82,7 +86,7 @@ Kartenanimationen pausieren, wenn Auswahlmodal, Onboarding oder ein anderer Bild
 
 ### Fonts, Cache und Accessibility
 
-Silkscreen und DM Mono werden als lokale WOFF2-Dateien ausgeliefert. Das CSS-`@import` zu Google Fonts entfällt. Nur die für den ersten Bildschirm benötigten Schnitte werden vorab geladen.
+Silkscreen und DM Mono werden als lokale WOFF2-Dateien ausgeliefert. Das CSS-`@import` zu Google Fonts entfällt. Der Quellcode importiert genau die vier verwendeten Schnitte; der Browser lädt aus den erzeugten Fontdateien nur die im aktuellen Bildschirm tatsächlich benötigten Dateien.
 
 Ein kleiner Service Worker cached ausschließlich versionierte Build-Assets unter `/assets/` mit Cache-first. HTML und Level-/Content-Dokumente bleiben network-first, damit Veröffentlichungen und neue Level nicht durch einen alten Cache verdeckt werden. Aktivierung und Cachebereinigung verändern keine LocalStorage-Spielstände.
 
@@ -147,6 +151,91 @@ Für WebGL2 und Canvas2D werden Referenzscreenshots erzeugt. Kurze Videos decken
 - Während fünf Sekunden aktivem Spiel entstehen keine Textur-Reallokationen.
 - Der bestehende Benchmark muss die Profile Notebook, Mobile und Weak Mobile weiterhin erfüllen.
 - Der erneute Web-Performance-Audit darf auf Mobile keinen schlechteren LCP als 2,5 Sekunden und keinen CLS über 0,1 zeigen.
+
+## Verifikation vom 11. August 2026
+
+### Methode und Grenzen
+
+Der geprüfte Spielstand basiert auf Renderer-Commit
+`925b1708dd8cd60f9cf4b0168d7674d8656ebdf2`. `npm ci` installierte 47 Pakete ohne
+gemeldete Schwachstelle; das anschließende Gate bestand 93/93 Node-Tests, den
+Produktions-Build und 8/8 Browserfälle. Nach dem im Audit gefundenen CLS-Fix bestand das finale Branch-Gate 96/96 Node-Tests,
+den Produktions-Build und 8/8 Browserfälle
+(`run-2026-08-11T07-51-04-608Z`).
+
+Der primäre Chrome-DevTools-Trace verwendete Chromium 151.0.7922.34, einen neuen
+isolierten Browser-Context ohne Spielstand oder warmen Cache, 412 × 915 CSS-Pixel,
+DPR 2,625, Fast 4G und 4× CPU-Drosselung. Der Produktions-Build lief auf einem lokalen
+HTTP-Server, dessen Port atomar durch `listen(0)` vergeben wurde. Der Server setzt
+`Cache-Control: no-store` und komprimiert nicht; Transferwerte sind deshalb konservative
+Labordaten und nicht mit GitHub-Pages-CDN-Werten gleichzusetzen. CrUX-Felddaten waren
+für die lokale URL nicht verfügbar und werden nicht behauptet.
+
+### Kalter Seitenstart
+
+| Messwert | Ergebnis | Abnahme |
+| --- | ---: | --- |
+| TTFB | 3 ms | gut |
+| FCP | 1.168 ms | gut |
+| LCP | 1.794 ms | ≤ 2.500 ms, bestanden |
+| CLS | 0,00 | ≤ 0,10, bestanden |
+| TBT / Long Tasks | 0 ms / 0 | bestanden |
+
+Das LCP-Element war ein Kartenmarkertext. Seine 1.791 ms Renderverzögerung enthält die
+gedrosselte Modul-, Renderer- und Fontinitialisierung; DevTools schätzte für die
+renderblockierenden Ressourcen keine LCP-Ersparnis. Der Trace meldete 222 ms gebündelte
+Startup-Reflowzeit bei der initialen DOM-/Kartenmontage, aber keinen entsprechenden
+Insight und keine Long Tasks in den fünfsekündigen stabilen Laufzeitzuständen.
+
+Dokument plus sechs Ressourcen übertrugen lokal 484.221 Byte: ein JavaScript-Bundle,
+ein Stylesheet, drei lokal gebündelte WOFF2-Dateien und das Favicon. Die längste
+kritische Kette `HTML → CSS → Font` dauerte 1.661 ms unter Fast 4G. DM Mono und
+Silkscreen waren nach dem Load vollständig verfügbar; es gab keine Drittanbieter-Font-
+Anfrage. Der versionierte Service Worker übernahm anschließend die Seite, sein
+Asset-Allowlisting enthält ausschließlich die erzeugten `/assets/`-Dateien.
+
+Vor dem Fix lag CLS reproduzierbar bei 0,1519: `map-active` wurde erst nach
+Renderer-Initialisierung gesetzt und verschob Board und HUD in den Vollviewport. Ein
+PerformanceObserver belegte den zustandsabhängigen Klassenwechsel als Quelle. Der
+synchronisierte Bootstrap senkte denselben frischen Trace auf CLS 0,00; Tests decken
+frischen Besuch, Map-Save, mobilen und Desktop-Gameplay-Save sowie defektes Save-JSON ab.
+
+### Fünfsekündige Laufzeitmatrix
+
+| Backend / Zustand | Dauer | Präsentationen | Upload-Bytes | Textur-Reallokationen | Static-World-Builds | Long Tasks / CLS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| WebGL2 / Karte | 5,003 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| WebGL2 / aktiv | 5,049 s | 233 | 162.242.636 | 0 | 0 | 0 / 0 |
+| WebGL2 / Pause | 5,016 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| Canvas2D / Karte | 5,003 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / aktiv | 5,016 s | 301 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / Pause | 5,004 s | 0 | n/a | n/a | 0 | 0 / 0 |
+
+WebGL2 präsentierte damit rund 46,1 FPS im headless Prüflauf; Canvas2D lag mit einem
+Intervall-Grenzframe bei rund 60,0 FPS. Beide blieben innerhalb des 60-FPS-Vertrags.
+Die WebGL2-Szenenuploads während aktiver Bewegung sind beabsichtigt; statische Weltlayer
+wurden nicht neu gebaut. Karte und Pause blieben nach dem Settle vollständig schlafen.
+Canvas2D besitzt keinen GPU-Upload- oder Textur-Reallokationspfad, daher sind diese
+Felder nicht als künstliche Nullmessung ausgewiesen.
+
+Der mobile Qualitätsfall ergab für das aktive Spiel 412 × 727 CSS-Pixel nach dem HUD,
+tatsächlichen DPR 2,625, effektiven Renderer-DPR 2 und einen Backbuffer von 824 × 1.454.
+Es gab weder Console-/Page-/Promise-Fehler noch Context Loss, Backend-Fallback oder
+Shaderfehler. Repräsentative Map-, Aktiv- und Pause-Screenshots von WebGL2 sowie ein
+Canvas2D-Aktivbild wurden visuell geprüft: HUD-Grenze, Kamera, Pixelraster und Overlay
+waren vollständig und ohne leere Frames, Flimmerbalken oder Clipping.
+
+### Accessibility und Bewegungsreduktion
+
+Der mobile Lighthouse-Navigationsaudit erzielte Accessibility 100 und Best Practices
+100. Der Accessibility-Tree enthielt einen benannten modalen Dialog, programmatisch
+beschriftete Vorname-/Altersfelder, einen benannten Submit-Button und polite Live-
+Regionen. Tastaturnavigation setzte `:focus-visible`; das fokussierte Zahlenfeld hatte
+einen sichtbaren 3-Pixel-Mint-Fokusring. Das automatisierte Reduced-Motion-Szenario
+pausierte Kartenbewegung und setzte Scanlines sowie RGB-Split auf null. Lighthouse
+liefert über das verwendete DevTools-Tool keinen Performance-Score; deshalb werden nur
+die direkt gemessenen Performancewerte und der reale Accessibility-Score dokumentiert.
+
 
 ## PR-Aufteilung
 
