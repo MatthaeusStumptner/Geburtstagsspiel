@@ -4,55 +4,21 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { parse as parseYaml } from 'yaml';
 
 const rootUrl = new URL('../', import.meta.url);
 
+function workflowTopology(source) {
+  const workflow = parseYaml(source);
+  assert.ok(workflow && typeof workflow === 'object', 'CI workflow must parse as a mapping');
+  assert.ok(workflow.jobs && typeof workflow.jobs === 'object', 'CI workflow must define jobs');
+  const jobs = Object.values(workflow.jobs);
+  const steps = jobs.flatMap((job) => Array.isArray(job?.steps) ? job.steps : []);
+  return { workflow, jobs, steps };
+}
+
 function workflowSteps(source) {
-  const lines = source.split(/\r?\n/);
-  const stepsStart = lines.findIndex((line) => line.trim() === 'steps:');
-  assert.notEqual(stepsStart, -1, 'CI workflow must define jobs.*.steps');
-  const stepsIndent = lines[stepsStart].length - lines[stepsStart].trimStart().length;
-  const itemPrefix = `${' '.repeat(stepsIndent + 2)}- `;
-  const propertyPrefix = ' '.repeat(stepsIndent + 4);
-  const nestedPrefix = ' '.repeat(stepsIndent + 6);
-  const multilinePrefix = ' '.repeat(stepsIndent + 8);
-  const blocks = [];
-  for (let index = stepsStart + 1; index < lines.length;) {
-    if (lines[index] && !lines[index].startsWith(itemPrefix.slice(0, -2))) break;
-    if (!lines[index].startsWith(itemPrefix)) { index += 1; continue; }
-    const start = index;
-    index += 1;
-    while (index < lines.length && !lines[index].startsWith(itemPrefix)
-      && (!lines[index] || lines[index].startsWith(propertyPrefix))) index += 1;
-    blocks.push(lines.slice(start, index));
-  }
-  return blocks.map((block) => {
-    const step = { with: {} };
-    const first = block[0].slice(itemPrefix.length);
-    const [firstKey, ...firstValue] = first.split(':');
-    step[firstKey] = firstValue.join(':').trim();
-    let section = null;
-    for (let index = 1; index < block.length; index += 1) {
-      const line = block[index];
-      const property = new RegExp(`^${propertyPrefix}([\\w-]+):\\s*(.*)$`).exec(line);
-      if (property) {
-        section = property[1] === 'with' ? 'with' : null;
-        if (!section) step[property[1]] = property[2].trim();
-        continue;
-      }
-      const nested = new RegExp(`^${nestedPrefix}([\\w-]+):\\s*(.*)$`).exec(line);
-      if (!nested || section !== 'with') continue;
-      if (nested[2] !== '|') step.with[nested[1]] = nested[2].trim();
-      else {
-        const values = [];
-        while (index + 1 < block.length && block[index + 1].startsWith(multilinePrefix)) {
-          values.push(block[++index].trim());
-        }
-        step.with[nested[1]] = values;
-      }
-    }
-    return step;
-  });
+  return workflowTopology(source).steps;
 }
 
 test('root verify command executes every planned package, build, benchmark, and browser boundary', async () => {
@@ -130,11 +96,12 @@ test('root verify command executes every planned package, build, benchmark, and 
 
 test('CI runs the root gate once and retains each browser surface on failure', async () => {
   const workflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assertCriticalCiTopology(workflow);
   const steps = workflowSteps(workflow);
   assert.equal(steps.filter(({ uses }) => uses?.startsWith('actions/checkout@')).length, 1);
   const nodeSteps = steps.filter(({ uses }) => uses?.startsWith('actions/setup-node@'));
   assert.equal(nodeSteps.length, 1);
-  assert.equal(nodeSteps[0].with['node-version'], '22');
+  assert.equal(nodeSteps[0].with['node-version'], 22);
   assert.equal(nodeSteps[0].with.cache, 'npm');
   assert.equal(nodeSteps[0].with['cache-dependency-path'], 'package-lock.json');
   assert.deepEqual(steps.filter(({ run }) => run === 'npm ci --ignore-scripts').map(({ run }) => run), ['npm ci --ignore-scripts']);
@@ -145,9 +112,65 @@ test('CI runs the root gate once and retains each browser surface on failure', a
   const artifacts = steps.filter(({ uses }) => uses?.startsWith('actions/upload-artifact@'));
   assert.equal(artifacts.length, 3);
   assert.deepEqual(artifacts.map(({ if: condition }) => condition), ['failure()', 'failure()', 'failure()']);
-  assert.deepEqual(artifacts.map(({ with: inputs }) => [inputs.name, inputs.path]), [
+  assert.deepEqual(artifacts.map(({ with: inputs }) => [inputs.name, String(inputs.path).trim().split(/\r?\n/)]), [
     ['renderer-browser-artifacts', ['packages/pixel-renderer/output/playwright/renderer']],
     ['game-browser-artifacts', ['apps/game/output/playwright/game']],
     ['studio-browser-artifacts', ['apps/studio/test-results']],
   ]);
+});
+
+function assertCriticalCiTopology(source) {
+  const { workflow, jobs, steps } = workflowTopology(source);
+  assert.equal(steps.filter(({ uses }) => uses?.startsWith('actions/checkout@')).length, 1);
+  const occurrences = (pattern) => steps.reduce((count, { run }) => (
+    count + [...String(run ?? '').matchAll(pattern)].length
+  ), 0);
+  assert.equal(occurrences(/\bnpm\s+ci\b/g), 1);
+  assert.equal(occurrences(/\b(?:npx\s+)?playwright\s+install\b/g), 1);
+  assert.equal(occurrences(/\bnpm\s+run\s+verify(?=\s|$|[;&|])/g), 1);
+  assert.equal(steps.filter(({ run }) => String(run ?? '').trim() === 'npm ci --ignore-scripts').length, 1);
+  assert.equal(steps.filter(({ run }) => String(run ?? '').trim() === 'npx playwright install --with-deps chromium').length, 1);
+  assert.equal(steps.filter(({ run }) => String(run ?? '').trim() === 'npm run verify').length, 1);
+  assert.equal(Boolean(workflow.defaults?.run?.['working-directory']), false);
+  assert.equal(jobs.some((job) => job?.defaults?.run?.['working-directory']), false);
+  assert.equal(steps.some(({ ['working-directory']: directory }) => directory), false);
+}
+
+function withAdditionalJob(source, body) {
+  return `${source}\n  adversarial:\n    runs-on: ubuntu-latest\n${body}\n`;
+}
+
+test('CI contract traverses every job when counting critical steps', async (context) => {
+  const source = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const duplicates = [
+    ['checkout', '      - uses: actions/checkout@v4'],
+    ['locked install', '      - run: npm ci --ignore-scripts'],
+    ['Chromium install', '      - run: npx playwright install --with-deps chromium'],
+    ['root verify', '      - run: npm run verify'],
+  ];
+  for (const [name, step] of duplicates) {
+    await context.test(name, () => {
+      const mutated = withAdditionalJob(source, `    steps:\n${step}`);
+      assert.throws(() => assertCriticalCiTopology(mutated));
+    });
+  }
+});
+
+test('CI contract rejects working-directory defaults and step overrides in any job', async (context) => {
+  const source = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const jobs = [
+    ['job default', '    defaults:\n      run:\n        working-directory: apps/game\n    steps:\n      - run: echo hidden'],
+    ['step override', '    steps:\n      - run: echo hidden\n        working-directory: apps/studio'],
+  ];
+  for (const [name, body] of jobs) {
+    await context.test(name, () => {
+      assert.throws(() => assertCriticalCiTopology(withAdditionalJob(source, body)));
+    });
+  }
+});
+
+test('CI contract rejects a nested install hidden in a shell command', async () => {
+  const source = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const mutated = withAdditionalJob(source, '    steps:\n      - run: cd apps/game && npm ci --ignore-scripts');
+  assert.throws(() => assertCriticalCiTopology(mutated));
 });

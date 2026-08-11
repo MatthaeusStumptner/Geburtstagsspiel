@@ -23,7 +23,9 @@ export function migrateLegacyLevel(level) {
   });
   migrated.cutscenes = (migrated.cutscenes ?? []).map((cutscene) => ({
     ...cutscene,
-    tracks: (cutscene.tracks ?? []).filter((track) => track.id !== 'note-solo' && !removedDecorations.has(track.target)),
+    tracks: (cutscene.tracks ?? []).filter((track) => (
+      !removedDecorations.has(track.target) && !retiredZauberbergNotes.has(track.target)
+    )),
   }));
   return migrated;
 }

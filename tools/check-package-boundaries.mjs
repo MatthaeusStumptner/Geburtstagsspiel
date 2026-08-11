@@ -1,6 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { init, parse as parseImports } from 'es-module-lexer';
+import { parse as parseSvelte } from 'svelte/compiler';
+
+await init;
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.svelte']);
 
@@ -11,13 +15,6 @@ function inside(parent, candidate) {
 
 function portable(root, candidate) {
   return path.relative(root, candidate).replaceAll('\\', '/');
-}
-
-function applicationSourceName(appsRoot, target) {
-  const relative = path.relative(appsRoot, target);
-  if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) return null;
-  const [application, source] = relative.split(path.sep);
-  return application && source === 'src' ? application : null;
 }
 
 async function filesBelow(directory) {
@@ -34,77 +31,19 @@ async function filesBelow(directory) {
   return files;
 }
 
-function tokens(source) {
-  const result = [];
-  let index = 0;
-  while (index < source.length) {
-    const character = source[index];
-    if (/\s/.test(character)) { index += 1; continue; }
-    if (character === '/' && source[index + 1] === '/') {
-      index = source.indexOf('\n', index + 2);
-      if (index < 0) break;
-      continue;
-    }
-    if (character === '/' && source[index + 1] === '*') {
-      const end = source.indexOf('*/', index + 2);
-      index = end < 0 ? source.length : end + 2;
-      continue;
-    }
-    if (character === '`') {
-      index += 1;
-      while (index < source.length) {
-        if (source[index] === '\\') index += 2;
-        else if (source[index++] === '`') break;
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      const quote = character;
-      let value = '';
-      index += 1;
-      while (index < source.length) {
-        const current = source[index++];
-        if (current === quote) break;
-        if (current === '\\' && index < source.length) value += source[index++];
-        else value += current;
-      }
-      result.push({ type: 'string', value });
-      continue;
-    }
-    if (/[A-Za-z_$]/.test(character)) {
-      let end = index + 1;
-      while (end < source.length && /[A-Za-z0-9_$]/.test(source[end])) end += 1;
-      result.push({ type: 'identifier', value: source.slice(index, end) });
-      index = end;
-      continue;
-    }
-    result.push({ type: 'punctuation', value: character });
-    index += 1;
-  }
-  return result;
+function scripts(file, source) {
+  if (path.extname(file) !== '.svelte') return [source];
+  const parsed = parseSvelte(source, { filename: file });
+  return [parsed.module, parsed.instance]
+    .filter(Boolean)
+    .map(({ content: script }) => source.slice(script.start, script.end));
 }
 
-function importSpecifiers(source) {
-  const sourceTokens = tokens(source);
-  const specifiers = [];
-  for (let index = 0; index < sourceTokens.length; index += 1) {
-    const token = sourceTokens[index];
-    if (token.type !== 'identifier' || !['import', 'export'].includes(token.value)) continue;
-    if (token.value === 'import' && sourceTokens[index + 1]?.value === '.') continue;
-    if (token.value === 'import' && sourceTokens[index + 1]?.value === '(') {
-      if (sourceTokens[index + 2]?.type === 'string') specifiers.push(sourceTokens[index + 2].value);
-      continue;
-    }
-    for (let cursor = index + 1; cursor < sourceTokens.length; cursor += 1) {
-      const candidate = sourceTokens[cursor];
-      if (candidate.value === ';' || (candidate.type === 'identifier' && ['import', 'export'].includes(candidate.value))) break;
-      if (candidate.type === 'string' && (cursor === index + 1 || sourceTokens[cursor - 1]?.value === 'from')) {
-        specifiers.push(candidate.value);
-        break;
-      }
-    }
-  }
-  return specifiers;
+function importSpecifiers(file, source) {
+  return scripts(file, source).flatMap((script) => {
+    const [imports] = parseImports(script);
+    return imports.map(({ n }) => n).filter((specifier) => typeof specifier === 'string');
+  });
 }
 
 async function applicationPackages(appsRoot) {
@@ -126,6 +65,17 @@ async function applicationPackages(appsRoot) {
   return applications;
 }
 
+function withoutSuffix(specifier) {
+  return specifier.split(/[?#]/, 1)[0].replaceAll('\\', '/');
+}
+
+function applicationTarget(appsRoot, target) {
+  const relative = path.relative(appsRoot, target);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+  const [name, child] = relative.split(path.sep);
+  return name ? { name, source: child === 'src' } : null;
+}
+
 export async function checkPackageBoundaries(rootUrl) {
   const root = path.resolve(fileURLToPath(rootUrl));
   const appsRoot = path.join(root, 'apps');
@@ -136,19 +86,23 @@ export async function checkPackageBoundaries(rootUrl) {
   for (const owner of applications) {
     for (const file of await filesBelow(owner.source)) {
       const fileName = portable(root, file);
-      for (const specifier of importSpecifiers(await readFile(file, 'utf8'))) {
-        if (specifier.startsWith('.')) {
-          const target = path.resolve(path.dirname(file), specifier.split(/[?#]/, 1)[0]);
-          const targetApplication = applicationSourceName(appsRoot, target);
-          if (targetApplication && targetApplication !== owner.name) {
-            violations.push(`${fileName}: imports another application source tree: ${portable(root, target)}`);
+      for (const specifier of importSpecifiers(file, await readFile(file, 'utf8'))) {
+        const classified = withoutSuffix(specifier);
+        if (classified.startsWith('.')) {
+          const target = path.resolve(path.dirname(file), classified);
+          const targetApplication = applicationTarget(appsRoot, target);
+          if (targetApplication && targetApplication.name !== owner.name) {
+            const description = targetApplication.source
+              ? 'imports another application source tree'
+              : 'imports another application root';
+            violations.push(`${fileName}: ${description}: ${portable(root, target)}`);
           } else if (inside(packagesRoot, target)) {
             violations.push(`${fileName}: imports shared source without @franz-lola/*: ${portable(root, target)}`);
           }
           continue;
         }
         const otherApp = applications.find((candidate) => candidate !== owner
-          && (specifier === candidate.packageName || specifier.startsWith(`${candidate.packageName}/`)));
+          && (classified === candidate.packageName || classified.startsWith(`${candidate.packageName}/`)));
         if (otherApp) violations.push(`${fileName}: imports another application package: ${specifier}`);
       }
     }

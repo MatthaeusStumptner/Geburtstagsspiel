@@ -39,3 +39,32 @@ test('leaves unrelated levels unchanged while still returning an isolated docume
   assert.deepEqual(migrated, source);
   assert.notEqual(migrated, source);
 });
+
+test('preserves a note-solo track when its retained target is not a note', () => {
+  const source = {
+    id: 'zauberberg',
+    decorations: [{ id: 'stage-lights', assetId: 'stage-lights' }],
+    events: [],
+    cutscenes: [{ id: 'intro', tracks: [{ id: 'note-solo', target: 'stage-lights' }] }],
+  };
+
+  const migrated = migrateLegacyLevel(source);
+
+  assert.deepEqual(migrated.cutscenes[0].tracks, [{ id: 'note-solo', target: 'stage-lights' }]);
+});
+
+test('removes a track targeting a retired note even when its decoration is already absent', () => {
+  const source = {
+    id: 'zauberberg',
+    decorations: [{ id: 'stage-lights', assetId: 'stage-lights' }],
+    events: [],
+    cutscenes: [{ id: 'intro', tracks: [
+      { id: 'note-solo', target: 'zauberberg-note-frei' },
+      { id: 'light-cue', target: 'stage-lights' },
+    ] }],
+  };
+
+  const migrated = migrateLegacyLevel(source);
+
+  assert.deepEqual(migrated.cutscenes[0].tracks, [{ id: 'light-cue', target: 'stage-lights' }]);
+});

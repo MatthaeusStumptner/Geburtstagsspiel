@@ -63,3 +63,36 @@ test('scanner rejects another application package and ignores import-like commen
     ]);
   });
 });
+test('scanner uses JavaScript and Svelte parser boundaries for templates, escapes, comments, and regexes', async () => {
+  await withWorkspace({
+    'apps/game/src/template.js': "const module = import(`../../studio/src/template.js`);\n",
+    'apps/game/src/escaped.js': "const module = import('\\x2e\\x2e/\\x2e\\x2e/studio/src/escaped.js');\n",
+    'apps/game/src/commented.svelte': "<!-- import '../../studio/src/commented.js' -->\n<div>Kein Script</div>\n",
+    'apps/game/src/regex.js': "const matcher = /import('..\\/..\\/studio\\/src\\/fake.js')/;\n",
+  }, async (rootUrl) => {
+    assert.deepEqual(await checkPackageBoundaries(rootUrl), [
+      'apps/game/src/escaped.js: imports another application source tree: apps/studio/src/escaped.js',
+      'apps/game/src/template.js: imports another application source tree: apps/studio/src/template.js',
+    ]);
+  });
+});
+
+test('scanner rejects every foreign application root and classifies portable suffixed specifiers', async () => {
+  await withWorkspace({
+    'apps/studio/package.json': '{"name":"@franz-lola/studio"}\n',
+    'apps/publisher/package.json': '{"name":"@franz-lola/publisher"}\n',
+    'apps/game/src/relative.js': "import '../../studio/package.json?raw';\n",
+    'apps/game/src/backslash.js': "import '..\\\\..\\\\publisher\\\\vite.config.js#x';\n",
+    'apps/game/src/package-query.js': "import '@franz-lola/studio?raw';\n",
+    'apps/game/src/package-hash.js': "const publisher = import('@franz-lola/publisher#x');\n",
+    'apps/game/src/shared-query.js': "import '../../../packages/game-core/src/index.js?raw#x';\n",
+  }, async (rootUrl) => {
+    assert.deepEqual(await checkPackageBoundaries(rootUrl), [
+      'apps/game/src/backslash.js: imports another application root: apps/publisher/vite.config.js',
+      'apps/game/src/package-hash.js: imports another application package: @franz-lola/publisher#x',
+      'apps/game/src/package-query.js: imports another application package: @franz-lola/studio?raw',
+      'apps/game/src/relative.js: imports another application root: apps/studio/package.json',
+      'apps/game/src/shared-query.js: imports shared source without @franz-lola/*: packages/game-core/src/index.js',
+    ]);
+  });
+});
