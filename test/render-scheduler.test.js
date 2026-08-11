@@ -19,7 +19,7 @@ test('renders continuous states through the pacer and static states once', () =>
   assert.deepEqual(renders, ['continuous', 'continuous', 'pause-enter', 'hud-change']);
 });
 
-test('replaces pending work and clears it without rendering while hidden', () => {
+test('clears pending work without rendering while hidden', () => {
   const renders = [];
   const scheduler = createRenderScheduler({
     render: (reason) => renders.push(reason),
@@ -39,6 +39,26 @@ test('replaces pending work and clears it without rendering while hidden', () =>
     lastReason: 'idle',
   });
   assert.equal(Object.isFrozen(scheduler.snapshot()), true);
+});
+
+test('keeps the first request reason before the first once frame', () => {
+  const renders = [];
+  const scheduler = createRenderScheduler({
+    render: (reason) => renders.push(reason),
+    pacer: { shouldPresent: () => true, reset() {} },
+  });
+
+  scheduler.request('state:won');
+  scheduler.request('overlay:show');
+  scheduler.frame(10, 'once');
+
+  assert.deepEqual(renders, ['state:won']);
+  assert.deepEqual(scheduler.snapshot(), {
+    pendingReason: 'idle',
+    renderCount: 1,
+    hiddenSkips: 0,
+    lastReason: 'state:won',
+  });
 });
 
 test('uses a pending reason on the next paced continuous frame', () => {

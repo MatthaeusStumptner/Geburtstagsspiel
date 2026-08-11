@@ -16,7 +16,7 @@ export function createRenderScheduler({ render, pacer }) {
 
   return Object.freeze({
     request(reason) {
-      pendingReason = reason;
+      if (pendingReason === IDLE) pendingReason = reason;
     },
 
     frame(timestamp, policy) {
