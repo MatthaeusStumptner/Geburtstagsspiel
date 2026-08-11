@@ -1,0 +1,13 @@
+{
+  "name": "@franz-lola/render-testkit",
+  "version": "0.0.0-monorepo",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.js" },
+  "scripts": { "test": "node --test" },
+  "dependencies": {
+    "@franz-lola/content-model": "0.0.0-monorepo",
+    "@franz-lola/game-core": "0.0.0-monorepo"
+  },
+  "engines": { "node": ">=22.14.0" }
+}

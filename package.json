@@ -6,12 +6,12 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "test:structure": "node --test test/*.test.js",
-    "test": "npm run test:structure && npm run test --workspaces --if-present",
+    "test:packages": "npm run test --workspaces --if-present",
+    "test": "npm run test:structure && npm run test:packages",
     "build": "npm run build --workspace @franz-lola/pixel-renderer && npm run build --workspace @franz-lola/game && npm run build --workspace @franz-lola/studio",
-    "test:browser": "npm run test:browser --workspace @franz-lola/game",
-    "test:renderer-browser": "npm run test:browser --workspace @franz-lola/pixel-renderer",
-    "benchmark:renderer": "npm run benchmark:assert --workspace @franz-lola/pixel-renderer",
-    "verify": "npm run test && npm run build && npm run test:browser"
+    "test:browser": "npm run test:browser --workspace @franz-lola/pixel-renderer && npm run test:browser --workspace @franz-lola/game && npm run test:e2e --workspace @franz-lola/studio",
+    "verify:foundation": "npm test && npm run build && npm run benchmark:assert --workspace @franz-lola/pixel-renderer && npm run test:browser",
+    "verify": "npm run verify:foundation"
   },
   "overrides": { "wrangler": "4.118.0", "undici": "7.29.0" },
   "engines": { "node": ">=22.14.0" }
