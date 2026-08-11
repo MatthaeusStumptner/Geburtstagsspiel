@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "franz-lola-publisher",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "secrets": {
+    "required": [
+      "GITHUB_APP_ID",
+      "GITHUB_APP_CLIENT_ID",
+      "GITHUB_APP_CLIENT_SECRET",
+      "GITHUB_INSTALLATION_ID",
+      "GITHUB_APP_PRIVATE_KEY",
+      "SESSION_SECRET",
+      "ALLOWED_GITHUB_LOGINS"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "LEVEL_DB",
+      "database_name": "franz-lola-publisher-level-db",
+      "database_id": "7b95045e-4f14-4a64-be26-000d6beecc81",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  },
+  "vars": {
+    "GITHUB_OWNER": "MatthaeusStumptner",
+    "GITHUB_REPO": "Geburtstagsspiel",
+    "GITHUB_BASE_BRANCH": "main",
+    "EDITOR_ORIGIN": "https://matthaeusstumptner.github.io",
+    "EDITOR_PATH_PREFIX": "/Pacman_clone_level_editor/",
+    "GAME_URL": "https://matthaeusstumptner.github.io/Geburtstagsspiel/"
+  }
+}

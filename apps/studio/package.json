@@ -1,0 +1,25 @@
+{
+  "name": "@franz-lola/studio",
+  "private": true,
+  "version": "0.0.0-monorepo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "catalog:generate": "node scripts/generate-game-catalog.mjs",
+    "test": "node --test test/*.test.js",
+    "test:e2e": "playwright test",
+    "test:visual": "playwright test --config=playwright.visual.config.js",
+    "test:all": "npm test && npm run test:e2e && npm run build"
+  },
+  "dependencies": {
+    "@franz-lola/pixel-renderer": "0.0.0-monorepo",
+    "svelte": "^5.56.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "vite": "^6.4.3"
+  }
+}

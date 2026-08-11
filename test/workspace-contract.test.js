@@ -8,7 +8,12 @@ test('reports the game-workspace topology without mutating it', async () => {
   assert.deepEqual(result.lockfiles, ['package-lock.json']);
   assert.deepEqual(result.externalRendererPins, []);
   assert.deepEqual(result.violations, []);
-  assert.deepEqual(result.packages, ['@franz-lola/game', '@franz-lola/pixel-renderer']);
+  assert.deepEqual(result.packages, [
+    '@franz-lola/game',
+    '@franz-lola/pixel-renderer',
+    '@franz-lola/publisher',
+    '@franz-lola/studio',
+  ]);
 });
 
 test('the game workspace keeps its public commands', async () => {
@@ -17,7 +22,12 @@ test('the game workspace keeps its public commands', async () => {
   assert.equal(game.scripts.verify, 'npm test && npm run build && npm run test:browser');
   assert.equal(game.dependencies['@franz-lola/pixel-renderer'], '0.0.0-monorepo');
   const result = await checkWorkspaceContract(new URL('../', import.meta.url));
-  assert.deepEqual(result.packages, ['@franz-lola/game', '@franz-lola/pixel-renderer']);
+  assert.deepEqual(result.packages, [
+    '@franz-lola/game',
+    '@franz-lola/pixel-renderer',
+    '@franz-lola/publisher',
+    '@franz-lola/studio',
+  ]);
   assert.deepEqual(result.externalRendererPins, []);
   assert.deepEqual(result.violations, []);
 });
@@ -31,7 +41,28 @@ test('the game resolves the renderer from the local workspace', async () => {
   const game = JSON.parse(await readFile(new URL('../apps/game/package.json', import.meta.url), 'utf8'));
   assert.equal(game.dependencies['@franz-lola/pixel-renderer'], '0.0.0-monorepo');
   const result = await checkWorkspaceContract(new URL('../', import.meta.url));
-  assert.deepEqual(result.packages, ['@franz-lola/game', '@franz-lola/pixel-renderer']);
+  assert.deepEqual(result.packages, [
+    '@franz-lola/game',
+    '@franz-lola/pixel-renderer',
+    '@franz-lola/publisher',
+    '@franz-lola/studio',
+  ]);
+  assert.deepEqual(result.externalRendererPins, []);
+  assert.deepEqual(result.violations, []);
+});
+test('studio and publisher use the local renderer and one root lock', async () => {
+  for (const workspace of ['studio', 'publisher']) {
+    const manifest = JSON.parse(await readFile(new URL(`../apps/${workspace}/package.json`, import.meta.url), 'utf8'));
+    assert.equal(manifest.dependencies['@franz-lola/pixel-renderer'], '0.0.0-monorepo');
+  }
+  const result = await checkWorkspaceContract(new URL('../', import.meta.url));
+  assert.deepEqual(result.lockfiles, ['package-lock.json']);
+  assert.deepEqual(result.packages, [
+    '@franz-lola/game',
+    '@franz-lola/pixel-renderer',
+    '@franz-lola/publisher',
+    '@franz-lola/studio',
+  ]);
   assert.deepEqual(result.externalRendererPins, []);
   assert.deepEqual(result.violations, []);
 });
