@@ -45,6 +45,64 @@ test('clones schema v2 without changing its values', () => {
   assert.notStrictEqual(migrated.document, eventV2.document);
 });
 
+test('fails closed on non-canonical schema-v2 reference IDs without rewriting them', () => {
+  const input = {
+    ...eventV2,
+    references: [{ type: 'object', id: '../missing' }],
+  };
+  assert.deepEqual(migrateContentDocument(input).references, [
+    { type: 'object', id: '../missing' },
+  ]);
+  const validated = validateContentDocument(input);
+  assert.equal(validated.ok, false);
+  assert.match(validated.errors.join('\n'), /references\[0\]\.id/);
+  assert.throws(() => parseContentDocument(input), /references\[0\]\.id/);
+  assert.deepEqual(input.references, [{ type: 'object', id: '../missing' }]);
+});
+
+test('fails closed on non-string schema-v2 reference IDs', () => {
+  const input = {
+    ...eventV2,
+    references: [{ type: 'object', id: 123 }],
+  };
+  const validated = validateContentDocument(input);
+  assert.equal(validated.ok, false);
+  assert.match(validated.errors.join('\n'), /references\[0\]\.id/);
+  assert.throws(() => parseContentDocument(input), /references\[0\]\.id/);
+  assert.deepEqual(input.references, [{ type: 'object', id: 123 }]);
+});
+
+test('fails closed on unknown schema-v2 reference types without dropping them', () => {
+  const input = {
+    ...eventV2,
+    references: [{ type: 'unknown', id: 'missing' }],
+  };
+  assert.deepEqual(migrateContentDocument(input).references, [
+    { type: 'unknown', id: 'missing' },
+  ]);
+  const validated = validateContentDocument(input);
+  assert.equal(validated.ok, false);
+  assert.match(validated.errors.join('\n'), /references\[0\]\.type/);
+  assert.throws(() => parseContentDocument(input), /references\[0\]\.type/);
+  assert.deepEqual(input.references, [{ type: 'unknown', id: 'missing' }]);
+});
+
+test('preserves a valid schema-v2 reference array exactly without mutating it', () => {
+  const references = Object.freeze([
+    Object.freeze({ type: 'object', id: 'briefkasten' }),
+    Object.freeze({ type: 'object', id: 'briefkasten' }),
+  ]);
+  const input = Object.freeze({ ...eventV2, references });
+  const migrated = migrateContentDocument(input);
+  assert.deepEqual(migrated.references, references);
+  assert.notStrictEqual(migrated.references, references);
+  const validated = validateContentDocument(input);
+  assert.equal(validated.ok, true, validated.errors.join('\n'));
+  assert.deepEqual(validated.value.references, references);
+  assert.notStrictEqual(validated.value.references, references);
+  assert.deepEqual(parseContentDocument(input).references, references);
+  assert.deepEqual(input.references, references);
+});
 test('fails closed with version-specific issues for invalid schema versions', () => {
   for (const schemaVersion of [0, 3, 1.5, '2', null]) {
     assert.throws(

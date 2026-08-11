@@ -185,6 +185,28 @@ export function createContentDocument(type, input = {}, metadata = {}) {
   };
 }
 
+function validateReferences(value) {
+  if (!Array.isArray(value)) return ['references muss ein Array sein.'];
+  const errors = [];
+  value.forEach((reference, index) => {
+    const path = `references[${index}]`;
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+      errors.push(`${path} muss ein Objekt sein.`);
+      return;
+    }
+    if (Object.keys(reference).some((key) => !['type', 'id'].includes(key))) {
+      errors.push(`${path} darf nur type und id enthalten.`);
+    }
+    if (!SUPPORTED_CONTENT_TYPES.includes(reference.type)) {
+      errors.push(`${path}.type ist kein unterstützter Inhaltstyp.`);
+    }
+    if (typeof reference.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(reference.id)) {
+      errors.push(`${path}.id muss ein URL-tauglicher Slug sein.`);
+    }
+  });
+  return errors;
+}
+
 function validateCurrentContentDocument(input) {
   const errors = [];
   if (!input || typeof input !== 'object' || Array.isArray(input)) errors.push('Das Content-Dokument muss ein Objekt sein.');
@@ -194,10 +216,11 @@ function validateCurrentContentDocument(input) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(input?.id ?? '')) errors.push('id muss ein URL-tauglicher Slug sein.');
   if (!text(input?.name)) errors.push('name darf nicht leer sein.');
   if (!input?.document || typeof input.document !== 'object' || Array.isArray(input.document)) errors.push('document muss ein Objekt sein.');
-  if (!Array.isArray(input?.references)) errors.push('references muss ein Array sein.');
+  errors.push(...validateReferences(input?.references));
   if (errors.length) return { ok: false, errors, value: null };
   try {
     const value = createContentDocument(input.type, input.document, input);
+    value.references = clone(input.references);
     if (value.id !== input.id) errors.push('id ist nicht kanonisch.');
     if (input.type === 'level') {
       const level = validateLevelDocument(value.document);
