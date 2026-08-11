@@ -80,7 +80,8 @@ const BOARD_SIZE = COLS * TILE;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 9;
+const MIN_SAVE_VERSION = Number(document.body.dataset.minSaveVersion);
+const SAVE_VERSION = Number(document.body.dataset.saveVersion);
 const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
 const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
@@ -1031,7 +1032,11 @@ function loadGame() {
   const parsed = saveStore.readJson(SAVE_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
   if (parsed.version === SAVE_VERSION) return parsed;
-  if ([2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return migrateLegacySave(parsed);
+  if (
+    Number.isInteger(parsed.version)
+    && parsed.version >= MIN_SAVE_VERSION
+    && parsed.version < SAVE_VERSION
+  ) return migrateLegacySave(parsed);
   return null;
 }
 

@@ -30,6 +30,20 @@ test('declares the two self-hosted font packages as runtime dependencies', async
   assert.ok(packageJson.dependencies['@fontsource/silkscreen']);
 });
 
+test('preloads the first-paint Silkscreen face from a source asset', async () => {
+  const html = await source('../index.html');
+
+  assert.match(
+    html,
+    /<link\s+rel="preload"\s+href="\.\/src\/assets\/silkscreen-latin-700-normal\.woff2"\s+as="font"\s+type="font\/woff2"\s+crossorigin\s*\/>/,
+  );
+  const [sourceFont, packageFont] = await Promise.all([
+    readFile(new URL('../src/assets/silkscreen-latin-700-normal.woff2', import.meta.url)),
+    readFile(new URL('../node_modules/@fontsource/silkscreen/files/silkscreen-latin-700-normal.woff2', import.meta.url)),
+  ]);
+  assert.deepEqual(sourceFont, packageFont);
+});
+
 test('uses one polite hidden lives announcement and decorative visual dots', async () => {
   const topHud = await source('../src/ui/components/TopHud.svelte');
 
