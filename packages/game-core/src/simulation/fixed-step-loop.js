@@ -20,7 +20,9 @@ export class FixedStepLoop {
   }
 
   advanceSeconds(frameSeconds, update) {
-    this.accumulator += Math.min(this.maxFrameSeconds, Math.max(0, Number(frameSeconds) || 0));
+    const numericFrameSeconds = Number(frameSeconds);
+    const normalizedFrameSeconds = Number.isFinite(numericFrameSeconds) ? numericFrameSeconds : 0;
+    this.accumulator += Math.min(this.maxFrameSeconds, Math.max(0, normalizedFrameSeconds));
     let updates = 0;
     while (this.accumulator + Number.EPSILON >= this.stepSeconds && updates < this.maxUpdatesPerFrame) {
       update(this.stepSeconds);

@@ -10,7 +10,6 @@ import {
   DIRECTIONS,
   LevelCutscenePlayer,
   aggregateProgress,
-  createGameSession,
 } from '@franz-lola/game-core';
 import {
   DirectionalSwipeInput,
@@ -21,6 +20,10 @@ import {
 import { BrowserAudioService } from './audio/browser-audio-service.js';
 import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
+import {
+  createBrowserGameSession,
+  setDebugPlayerPosition,
+} from './game/game-session-adapter.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
@@ -1137,7 +1140,11 @@ function buildLevel() {
   activeLevelDocument = createLevelDocument(currentPublishedLevel());
   grid = compileWallGrid(activeLevelDocument);
   pixelRenderer.setLevel(activeLevelDocument);
-  gameSession = createGameSession({ level: activeLevelDocument, difficulty, seed: activeLevelDocument.gameplay.pelletSeed });
+  gameSession = createBrowserGameSession({
+    level: activeLevelDocument,
+    difficulty,
+    unlockedEvents: activeUnlockedEventIds(),
+  });
   gameSessionSnapshot = null;
   gameSessionScore = 0;
   const snapshot = gameSession.snapshot();
@@ -1611,16 +1618,6 @@ function unlockLevelEvent(event, { award = true } = {}) {
   saveGame();
 }
 
-function checkLocationEasterEggs() {
-  const x = Math.round(player.x);
-  const y = Math.round(player.y);
-  (activeLevelDocument?.events ?? []).forEach((event) => {
-    if (event.trigger.type === 'zone' && event.trigger.zones.some((zone) => (
-      x >= zone.x && x < zone.x + zone.width && y >= zone.y && y < zone.y + zone.height
-    ))) unlockLevelEvent(event);
-    if (event.trigger.type === 'timer' && levelEventElapsed >= event.trigger.seconds) unlockLevelEvent(event);
-  });
-}
 
 function completeLevel() {
   state = 'won';
@@ -1984,10 +1981,8 @@ document.addEventListener('keydown', (event) => {
     const nextIndex = (Number(canvas.dataset.debugCameraIndex ?? -1) + 1) % cameraTestPositions.length;
     const position = cameraTestPositions[nextIndex];
     canvas.dataset.debugCameraIndex = String(nextIndex);
-    player.x = position.x;
-    player.y = position.y;
-    player.dir = DIRECTIONS.none;
-    player.nextDir = DIRECTIONS.none;
+    const positioned = setDebugPlayerPosition(gameSession, position);
+    applyGameSessionSnapshot(positioned, { processEvents: false });
     state = 'paused';
     setPauseButtons(true);
     hideOverlay();
@@ -2223,11 +2218,8 @@ if (import.meta.env.DEV) {
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_SET_PLAYER__ = (x, y) => {
-    player.x = x;
-    player.y = y;
-    player.dir = DIRECTIONS.none;
-    player.nextDir = DIRECTIONS.none;
-    checkLocationEasterEggs();
+    const positioned = setDebugPlayerPosition(gameSession, { x, y }, { evaluateEvents: true });
+    applyGameSessionSnapshot(positioned);
     requestRender('debug:player-position');
     return window.__GASSI_DEBUG__();
   };

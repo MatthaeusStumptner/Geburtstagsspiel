@@ -3,6 +3,7 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { deterministicSessionLevel } from './fixtures.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -57,7 +58,7 @@ test('game-core source stays free of browser, storage, audio, canvas and wall-cl
   assert.deepEqual(violations, []);
 });
 
-test('game and studio delegate fixed-step ownership to createGameSession', async () => {
+test('game and studio adapters produce the same session behavior without owning a fixed loop', async () => {
   const appSources = [
     ...await javascriptFiles(path.join(root, 'apps/game/src')),
     ...await javascriptFiles(path.join(root, 'apps/studio/src')),
@@ -69,8 +70,13 @@ test('game and studio delegate fixed-step ownership to createGameSession', async
   }
   assert.deepEqual(constructors, []);
 
-  const gameMain = await readFile(path.join(root, 'apps/game/src/main.js'), 'utf8');
-  const studioEngine = await readFile(path.join(root, 'apps/studio/src/playtest-engine.js'), 'utf8');
-  assert.match(gameMain, /createGameSession/);
-  assert.match(studioEngine, /createGameSession/);
+  const { createBrowserGameSession } = await import('../../../apps/game/src/game/game-session-adapter.js');
+  const { PlaytestEngine } = await import('../../../apps/studio/src/playtest-engine.js');
+  const gameSession = createBrowserGameSession({ level: deterministicSessionLevel, difficulty: 'normal' });
+  const studioSession = new PlaytestEngine(deterministicSessionLevel, 'normal');
+  for (const direction of ['right', 'right', 'down']) {
+    gameSession.queueInput(direction);
+    studioSession.queueInput(direction);
+    assert.deepEqual(gameSession.step(1 / 120), studioSession.step(1 / 120));
+  }
 });

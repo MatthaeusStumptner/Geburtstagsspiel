@@ -91,6 +91,7 @@ export class LevelSimulation {
       });
     });
     this.collect();
+    if (this.state !== 'playing') return this.events;
     this.checkLevelEvents();
     if (this.powerTimer > 0) this.powerTimer = Math.max(0, this.powerTimer - seconds);
     this.collide();
@@ -138,12 +139,12 @@ export class LevelSimulation {
     const playerStart = this.level.actors.player;
     Object.assign(this.player, { x: playerStart.x, y: playerStart.y, previousX: playerStart.x, previousY: playerStart.y, dir: DIRECTIONS.left, nextDir: DIRECTIONS.left });
     this.cats.forEach((cat, index) => {
-      const start = this.level.actors.cats[index]; Object.assign(cat, { x: start.x, y: start.y, previousX: start.x, previousY: start.y, lastDecision: '', respawnTimer: start.behavior?.respawnDelay ?? index * 0.9 });
+      const start = this.level.actors.cats[index]; Object.assign(cat, { x: start.x, y: start.y, previousX: start.x, previousY: start.y, dir: index === 0 ? DIRECTIONS.left : index === 1 ? DIRECTIONS.up : DIRECTIONS.right, lastDecision: '', respawnTimer: start.behavior?.respawnDelay ?? index * 0.9 });
     });
     this.graceTimer = this.config.grace;
   }
 
   snapshot() {
-    return { level: this.level, player: this.player, cats: this.cats, pellets: this.pellets, powerUps: this.powerUps, elapsed: this.elapsed, powerTimer: this.powerTimer, graceTimer: this.graceTimer, hitTimer: this.state === 'hit' ? this.hitTimer : 0, state: this.state, lives: this.lives, score: this.score, collected: this.collected, unlockedEvents: this.unlockedEvents, activeEventId: this.activeEventId };
+    return { level: this.level, player: this.player, cats: this.cats, pellets: this.pellets, powerUps: this.powerUps, elapsed: this.elapsed, powerTimer: this.powerTimer, graceTimer: this.graceTimer, hitTimer: this.state === 'hit' ? this.hitTimer : 0, state: this.state, lives: this.lives, score: this.score, collected: this.collected, unlockedEvents: this.unlockedEvents, activeEventId: this.activeEventId, activeEventTimer: this.activeEventTimer };
   }
 }

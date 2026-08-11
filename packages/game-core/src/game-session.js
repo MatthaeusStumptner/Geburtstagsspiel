@@ -50,8 +50,7 @@ function pelletKeys(level, difficulty) {
       const [leftX, leftY] = left.coordinates;
       const [rightX, rightY] = right.coordinates;
       const seed = level.gameplay.pelletSeed;
-      return ((leftX * 137 + leftY * 71 + seed) % 997) - ((rightX * 137 + rightY * 71 + seed) % 997)
-        || left.key.localeCompare(right.key);
+      return ((leftX * 137 + leftY * 71 + seed) % 997) - ((rightX * 137 + rightY * 71 + seed) % 997);
     });
   const target = level.gameplay.treatTargets[difficulty] ?? level.gameplay.treatTargets.normal;
   return candidates.slice(0, target).map(({ key }) => key);
@@ -73,7 +72,7 @@ function normalizedElapsed(value) {
   return Number((Number(value) || 0).toFixed(12));
 }
 
-export function createGameSession({ level, difficulty = 'normal', seed = 0 } = {}) {
+export function createGameSession({ level, difficulty = 'normal', seed = 0, unlockedEvents = [] } = {}) {
   const validation = validateLevelDocument(level);
   if (!validation.ok) throw new TypeError(`Invalid level: ${validation.errors.join(' ')}`);
 
@@ -83,6 +82,7 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0 } = {
     difficulty,
     pellets,
     random: seededRandom(seed),
+    unlockedEvents,
   });
   const fixedStep = new FixedStepLoop({ updatesPerSecond: 120 });
   const frozenLevel = deepFreeze(clone(normalizedLevel));
@@ -110,7 +110,7 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0 } = {
     return snapshot();
   }
 
-  function restore(input = {}) {
+  function restore(input = {}, { evaluateEvents = false } = {}) {
     if (input.player && typeof input.player === 'object') {
       const x = Number(input.player.x); const y = Number(input.player.y);
       if (Number.isFinite(x)) simulation.player.x = x;
@@ -134,15 +134,21 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0 } = {
     if (Array.isArray(input.pellets)) simulation.pellets = new Set(input.pellets.map(String));
     if (Array.isArray(input.powerUps)) simulation.powerUps = new Set(input.powerUps.map(String));
     if (Array.isArray(input.unlockedEvents)) simulation.unlockedEvents = new Set(input.unlockedEvents.map(String));
-    for (const key of ['score', 'lives', 'elapsed', 'powerTimer', 'hitTimer', 'graceTimer']) {
+    for (const key of ['score', 'lives', 'elapsed', 'powerTimer', 'hitTimer', 'graceTimer', 'activeEventTimer']) {
       if (Number.isFinite(Number(input[key]))) simulation[key] = Math.max(0, Number(input[key]));
     }
     simulation.collected = Math.max(0, simulation.initialPellets.size - simulation.pellets.size);
     if (['playing', 'hit', 'won', 'lost'].includes(input.state)) simulation.state = input.state;
-    simulation.activeEventId = typeof input.activeEventId === 'string' ? input.activeEventId : '';
+    if (Object.hasOwn(input, 'activeEventId')) {
+      simulation.activeEventId = typeof input.activeEventId === 'string' ? input.activeEventId : '';
+    }
     simulation.events = [];
     queuedInputs.length = 0;
     events = [];
+    if (evaluateEvents && simulation.state === 'playing') {
+      simulation.checkLevelEvents();
+      events = [...simulation.events];
+    }
     fixedStep.reset();
     return snapshot();
   }
@@ -168,6 +174,7 @@ export function createGameSession({ level, difficulty = 'normal', seed = 0 } = {
       collected: current.collected,
       unlockedEvents: [...current.unlockedEvents].sort(),
       activeEventId: current.activeEventId,
+      activeEventTimer: current.activeEventTimer,
       initialPelletCount: pellets.length,
     });
   }
