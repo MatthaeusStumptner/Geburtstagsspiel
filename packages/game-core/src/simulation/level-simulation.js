@@ -144,6 +144,6 @@ export class LevelSimulation {
   }
 
   snapshot() {
-    return { level: this.level, player: this.player, cats: this.cats, pellets: this.pellets, powerUps: this.powerUps, elapsed: this.elapsed, powerTimer: this.powerTimer, hitTimer: this.state === 'hit' ? this.hitTimer : 0, state: this.state, lives: this.lives, score: this.score, collected: this.collected, unlockedEvents: this.unlockedEvents, activeEventId: this.activeEventId };
+    return { level: this.level, player: this.player, cats: this.cats, pellets: this.pellets, powerUps: this.powerUps, elapsed: this.elapsed, powerTimer: this.powerTimer, graceTimer: this.graceTimer, hitTimer: this.state === 'hit' ? this.hitTimer : 0, state: this.state, lives: this.lives, score: this.score, collected: this.collected, unlockedEvents: this.unlockedEvents, activeEventId: this.activeEventId };
   }
 }

@@ -720,7 +720,7 @@ test('events keep triggers, both language variants and visual placement in one d
   expect(errors).toEqual([]);
 });
 
-test('testplay runs the same intro, camera and direct controls as the game', async ({ page }) => {
+test('playtest runs the same intro, camera and direct controls as the game', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await page.locator('[data-workspace="cutscenes"]').click(); await page.locator('#add-cutscene').click();
   await switchWorkspace(page, 'playtest'); await page.locator('#start-playtest').click();

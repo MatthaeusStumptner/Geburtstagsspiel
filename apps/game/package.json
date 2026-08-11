@@ -19,6 +19,7 @@
     "@fontsource/dm-mono": "^5.3.0",
     "@fontsource/silkscreen": "^5.3.0",
     "@franz-lola/content-model": "0.0.0-monorepo",
+    "@franz-lola/game-core": "0.0.0-monorepo",
     "@franz-lola/pixel-renderer": "0.0.0-monorepo",
     "svelte": "^5.56.8"
   },

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { moveGridActor } from '@franz-lola/pixel-renderer';
+import { moveGridActor } from '../src/index.js';
 
 const right = { name: 'right', x: 1, y: 0 };
 const down = { name: 'down', x: 0, y: 1 };

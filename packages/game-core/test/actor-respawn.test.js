@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { respawnCat } from '../src/game/actor-respawn.js';
+import { respawnCat } from '../src/actor-respawn.js';
 
 test('cat respawn resets both simulation and interpolation positions', () => {
   const cat = {

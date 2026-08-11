@@ -29,7 +29,6 @@ export {
 export { PassauPixelRenderer } from './passau-pixel-renderer.js';
 export { EFFECT_MODES, resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLimit } from './gpu/effect-profile.js';
 export { RENDER_BUDGETS, evaluatePerformanceBudget, summarizeRenderSamples } from './performance.js';
-export { cutsceneById, sampleCutscene } from './cutscene.js';
 export { drawPixelSprite } from './painters/sprites.js';
 export { drawActorPreview } from './actor-preview.js';
 export { drawDecoration, drawDecorationPreview } from './painters/environment.js';
@@ -39,18 +38,22 @@ export { VISUAL_EFFECT_TYPES, normalizeVisualEffects, drawWithVisualEffects } fr
 export { ACTOR_ANIMATION_STATES, actorAnimationState, animationById, animationDuration, animationKeyframes, selectAppearanceFrame, stateAnimationId } from './animation.js';
 export { applyMotionAnimation, sampleMotionAnimation } from './motion-animation.js';
 export { DirectionalSwipeInput } from './input.js';
-export { FixedStepLoop } from './simulation/fixed-step-loop.js';
 export { PresentationFramePacer, recommendedPresentationRate } from './presentation-frame-pacer.js';
-export { moveGridActor } from './simulation/grid-motion.js';
-export { DEFAULT_DIFFICULTY_PROFILES } from './simulation/profiles.js';
+
+// Task 7 migration compatibility only: applications import these owners from game-core directly.
 export {
+  DEFAULT_DIFFICULTY_PROFILES,
   DIRECTIONS,
-  directionByName,
+  FixedStepLoop,
+  LevelSimulation,
   canMoveOnGrid,
-  wrapGridActor,
+  chooseCatDirection,
+  cutsceneById,
+  directionByName,
+  moveCatActor,
+  moveGridActor,
   movePlayerActor,
   queuePlayerDirection,
-  moveCatActor,
-  chooseCatDirection,
-} from './simulation/actor-motion.js';
-export { LevelSimulation } from './simulation/level-simulation.js';
+  sampleCutscene,
+  wrapGridActor,
+} from '@franz-lola/game-core';

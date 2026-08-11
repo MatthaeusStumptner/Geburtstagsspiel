@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { tileKey } from '@franz-lola/content-model';
-  import { DirectionalSwipeInput, FixedStepLoop, PassauPixelRenderer, cutsceneById, sampleCutscene } from '@franz-lola/pixel-renderer';
+  import { cutsceneById, sampleCutscene } from '@franz-lola/game-core';
+  import { DirectionalSwipeInput, PassauPixelRenderer } from '@franz-lola/pixel-renderer';
   import { PlaytestEngine } from '../playtest-engine.js';
 
   let { studio } = $props();
@@ -11,7 +12,6 @@
   let rendererReady = $state(false);
   let pendingStart = $state(false);
   let engine = $state.raw(null);
-  let loop = $state.raw(null);
   let frame;
   let mode = $state('stopped');
   let paused = $state(false);
@@ -31,10 +31,10 @@
     if (intro) mode = 'cutscene'; else startGame();
   }
   function startGame() {
-    engine = new PlaytestEngine(studio.level, studio.difficulty); loop = new FixedStepLoop({ updatesPerSecond: 120 }); loop.reset(); mode = 'game'; snapshot = engine.snapshot(); dialogue = null; lastTimestamp = 0;
+    engine = new PlaytestEngine(studio.level, studio.difficulty); mode = 'game'; snapshot = engine.snapshot(); dialogue = null; lastTimestamp = 0;
   }
   function reset() { start(); }
-  function stop() { mode = 'stopped'; engine = null; loop = null; snapshot = null; dialogue = null; swipe.cancel(); }
+  function stop() { mode = 'stopped'; engine = null; snapshot = null; dialogue = null; swipe.cancel(); }
   function direction(name) { if (engine && mode === 'game') engine.setDirection(name); }
 
   function renderCutscene() {
@@ -49,7 +49,7 @@
   }
   function renderGame() {
     if (!snapshot) return;
-    const result = renderer.render(snapshot, { cameraEnabled, zoom: 1.12, alpha: loop?.interpolationAlpha ?? 1 });
+    const result = renderer.render(snapshot, { cameraEnabled, zoom: 1.12, alpha: snapshot.interpolationAlpha });
     canvas.dataset.rendererBackend = result.renderer.backend;
     canvas.dataset.playerDirection = snapshot.player.dir.name; canvas.dataset.playerNextDirection = snapshot.player.nextDir.name;
   }
@@ -59,7 +59,8 @@
         if (lastTimestamp) cutsceneTime += (timestamp - lastTimestamp) / 1000;
         if (cutsceneTime >= intro.duration) startGame(); else renderCutscene();
       } else if (mode === 'game') {
-        loop.advance(timestamp, (dt) => engine.step(dt)); snapshot = engine.snapshot(); renderGame();
+        if (lastTimestamp) snapshot = engine.step((timestamp - lastTimestamp) / 1000);
+        renderGame();
       }
     } else if (mode === 'cutscene') renderCutscene(); else if (mode === 'game') renderGame();
     lastTimestamp = timestamp; frame = requestAnimationFrame(tick);

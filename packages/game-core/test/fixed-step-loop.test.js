@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FixedStepLoop } from '@franz-lola/pixel-renderer';
+import { FixedStepLoop } from '../src/index.js';
 
 function simulate(displayHz, durationSeconds = 10) {
   const loop = new FixedStepLoop({ updatesPerSecond: 120 });

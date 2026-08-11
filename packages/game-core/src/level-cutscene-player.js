@@ -1,4 +1,4 @@
-import { cutsceneById, sampleCutscene } from '@franz-lola/pixel-renderer';
+import { cutsceneById, sampleCutscene } from './cutscene.js';
 
 export class LevelCutscenePlayer {
   constructor() { this.reset(); }

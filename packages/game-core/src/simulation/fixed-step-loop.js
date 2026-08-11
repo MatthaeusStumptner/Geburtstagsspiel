@@ -14,9 +14,13 @@ export class FixedStepLoop {
 
   advance(timestamp, update) {
     if (this.lastTimestamp === null) { this.lastTimestamp = timestamp; return 0; }
-    const frameSeconds = Math.min(this.maxFrameSeconds, Math.max(0, (timestamp - this.lastTimestamp) / 1000));
+    const frameSeconds = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
-    this.accumulator += frameSeconds;
+    return this.advanceSeconds(frameSeconds, update);
+  }
+
+  advanceSeconds(frameSeconds, update) {
+    this.accumulator += Math.min(this.maxFrameSeconds, Math.max(0, Number(frameSeconds) || 0));
     let updates = 0;
     while (this.accumulator + Number.EPSILON >= this.stepSeconds && updates < this.maxUpdatesPerFrame) {
       update(this.stepSeconds);

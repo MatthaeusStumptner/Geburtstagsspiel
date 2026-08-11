@@ -4,27 +4,24 @@ import '@fontsource/dm-mono/500.css';
 import '@fontsource/silkscreen/400.css';
 import '@fontsource/silkscreen/700.css';
 import { mount } from 'svelte';
-import { compileWallGrid, createLevelDocument, reachableTileKeys } from '@franz-lola/content-model';
+import { compileWallGrid, createLevelDocument } from '@franz-lola/content-model';
 import {
+  DIFFICULTIES,
   DIRECTIONS,
+  LevelCutscenePlayer,
+  aggregateProgress,
+  createGameSession,
+} from '@franz-lola/game-core';
+import {
   DirectionalSwipeInput,
-  FixedStepLoop,
   PassauPixelRenderer,
   PresentationFramePacer,
-  chooseCatDirection as chooseSharedCatDirection,
-  moveCatActor,
-  movePlayerActor,
-  queuePlayerDirection,
   recommendedPresentationRate,
 } from '@franz-lola/pixel-renderer';
-import { aggregateProgress } from './game/progress-system.js';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
 import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
-import { LevelCutscenePlayer } from './game/level-cutscene-player.js';
-import { DIFFICULTIES } from './game/difficulty-config.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
-import { respawnCat } from './game/actor-respawn.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
 import { registerGameServiceWorker } from './platform/register-service-worker.js';
@@ -61,7 +58,6 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   quality: 'auto',
   powerPreference: 'high-performance',
 });
-const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
 const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
 const renderScheduler = createRenderScheduler({
   render: (_reason, timestamp) => render(timestamp),
@@ -189,6 +185,10 @@ let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
 let activeLevelDocument = null;
+let gameSession = null;
+let gameSessionSnapshot = null;
+let gameSessionScore = 0;
+let simulationFrameTimestamp = null;
 let staticWorldRevision = 0;
 const audioService = new BrowserAudioService(() => soundEnabled);
 
@@ -466,21 +466,6 @@ function recordLevelAttempt() {
 
 function applyDifficultyUi() {
   syncSettingsMenu();
-}
-
-function createCat(index) {
-  const cat = activeLevelDocument?.actors.cats[index] ?? CAT_STARTS[index];
-  return {
-    ...cat,
-    index,
-    x: cat.x,
-    y: cat.y,
-    previousX: cat.x,
-    previousY: cat.y,
-    dir: index === 0 ? DIRECTIONS.left : index === 1 ? DIRECTIONS.up : DIRECTIONS.right,
-    lastDecision: '',
-    respawnTimer: cat.behavior?.respawnDelay ?? index * 0.9,
-  };
 }
 
 function rebaseLevelStatsForDifficulty() {
@@ -1102,90 +1087,68 @@ function saveGame(quiet = false) {
   }
 }
 
+function processGameSessionEvents(snapshot) {
+  for (const event of snapshot.events) {
+    if (event.type === 'gutti') {
+      invalidateStaticWorld('pellet-collected'); beep(520, 0.025, 0.018); updateHud(); saveGame(true);
+    } else if (event.type === 'power') {
+      beep(250, 0.15, 0.05, 'square'); vibrate([20, 25, 20]); ui.announcement.textContent = t('powerAnnouncement'); updateHud(); saveGame(true);
+    } else if (event.type === 'cat-eaten') {
+      beep(740, 0.1, 0.045, 'square'); updateHud(); saveGame(true);
+    } else if (event.type === 'level-event') {
+      unlockLevelEvent(event.event, { award: false });
+    } else if (event.type === 'hit') {
+      state = 'hit'; requestRender('state:hit'); beep(95, 0.32, 0.08, 'sawtooth'); vibrate([70, 35, 100]); updateHud(); saveGame();
+    } else if (event.type === 'won' && state === 'playing') completeLevel();
+  }
+}
+
+function applyGameSessionSnapshot(snapshot, { processEvents = true } = {}) {
+  const previous = gameSessionSnapshot;
+  const scoreDelta = snapshot.score - gameSessionScore;
+  if (scoreDelta) { score += scoreDelta; levelRunScore += scoreDelta; }
+  gameSessionScore = snapshot.score;
+  player = { ...snapshot.player };
+  cats = snapshot.cats.map((cat) => ({ ...cat }));
+  pellets = new Set(snapshot.pellets);
+  powerPellets = new Set(snapshot.powerUps);
+  lives = snapshot.lives;
+  powerTimer = snapshot.powerTimer;
+  hitTimer = snapshot.hitTimer;
+  graceTimer = Math.max(0, Number(snapshot.graceTimer) || 0);
+  const simulatedSeconds = previous ? Math.max(0, snapshot.elapsed - previous.elapsed) : 0;
+  elapsed += simulatedSeconds;
+  levelEventElapsed += simulatedSeconds;
+  if (previous && previous.pellets.length !== snapshot.pellets.length) invalidateStaticWorld('session-pellets');
+  gameSessionSnapshot = snapshot;
+  if (!processEvents) return simulatedSeconds;
+  processGameSessionEvents(snapshot);
+  if (snapshot.state === 'lost' && state === 'hit') finishGame();
+  else if (snapshot.state === 'playing' && state === 'hit' && !snapshot.events.some((event) => event.type === 'hit')) {
+    state = 'playing'; requestRender('state:playing');
+  }
+  if (activeEasterEgg && !snapshot.activeEventId) {
+    activeEasterEgg = null; invalidateStaticWorld('event-deactivate'); uiSession.patch('levelOverlays', { easterToast: null });
+  }
+  return simulatedSeconds;
+}
+
 function buildLevel() {
   activeLevelDocument = createLevelDocument(currentPublishedLevel());
   grid = compileWallGrid(activeLevelDocument);
   pixelRenderer.setLevel(activeLevelDocument);
-  const reachable = reachableTileKeys(activeLevelDocument);
-  powerPellets = new Set();
-  for (const { x, y } of activeLevelDocument.collectibles.powerUps) {
-    const key = toKey(x, y);
-    if (reachable.has(key)) powerPellets.add(key);
-  }
-
-  const playerStart = activeLevelDocument.actors.player;
-  const catStarts = activeLevelDocument.actors.cats;
-  const { columns, rows } = activeLevelDocument.board;
-  const candidates = [...reachable]
-    .map((key) => ({ key, coordinates: key.split(',').map(Number) }))
-    .filter(({ key, coordinates: [x, y] }) => {
-      const nearCatStart = catStarts.some((cat) => Math.abs(x - cat.x) <= 2 && Math.abs(y - cat.y) <= 1);
-      const atPlayerStart = x === playerStart.x && y === playerStart.y;
-      const insideBoard = x > 0 && x < columns - 1 && y > 0 && y < rows - 1;
-      return insideBoard && !nearCatStart && !atPlayerStart && !powerPellets.has(key);
-    })
-    .sort((a, b) => {
-      const [ax, ay] = a.coordinates;
-      const [bx, by] = b.coordinates;
-      const seed = activeLevelDocument.gameplay.pelletSeed;
-      return ((ax * 137 + ay * 71 + seed) % 997) - ((bx * 137 + by * 71 + seed) % 997);
-    });
-
-  const pelletLimit = difficultyConfig().treatTarget;
-  pellets = new Set(candidates.slice(0, pelletLimit).map(({ key }) => key));
-  levelTreatTotal = pellets.size;
+  gameSession = createGameSession({ level: activeLevelDocument, difficulty, seed: activeLevelDocument.gameplay.pelletSeed });
+  gameSessionSnapshot = null;
+  gameSessionScore = 0;
+  const snapshot = gameSession.snapshot();
+  levelTreatTotal = snapshot.initialPelletCount;
   levelEventElapsed = 0;
-
-  resetActors();
+  applyGameSessionSnapshot(snapshot, { processEvents: false });
   invalidateStaticWorld('build-level');
 }
-
-function reachableOpenKeys() {
-  const start = activeLevelDocument?.actors.player ?? PLAYER_START;
-  const columns = activeLevelDocument?.board.columns ?? COLS;
-  const rows = activeLevelDocument?.board.rows ?? ROWS;
-  const visited = new Set([toKey(start.x, start.y)]);
-  const queue = [{ x: start.x, y: start.y }];
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-    for (const direction of [DIRECTIONS.up, DIRECTIONS.down, DIRECTIONS.left, DIRECTIONS.right]) {
-      let x = current.x + direction.x;
-      const y = current.y + direction.y;
-      if (y < 0 || y >= rows) continue;
-      if (x < 0) x = columns - 1;
-      if (x >= columns) x = 0;
-      const key = toKey(x, y);
-      if (visited.has(key) || isWall(x, y)) continue;
-      visited.add(key);
-      queue.push({ x, y });
-    }
-  }
-  return visited;
-}
-
-function resetActors() {
-  const playerSource = activeLevelDocument?.actors.player ?? PLAYER_START;
-  player = {
-    ...playerSource,
-    x: playerSource.x,
-    y: playerSource.y,
-    dir: DIRECTIONS.left,
-    nextDir: DIRECTIONS.left,
-  };
-
-  const catCount = Math.min(difficultyConfig().catCount, activeLevelDocument.actors.cats.length);
-  cats = Array.from({ length: catCount }, (_, index) => createCat(index));
-  powerTimer = 0;
-  graceTimer = difficultyConfig().grace;
-}
-
 function clampNumber(value, minimum, maximum, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
-}
-
-function restoreDirection(name, fallback = DIRECTIONS.none) {
-  return DIRECTIONS[name] ?? fallback;
 }
 
 function validOpenKey(key) {
@@ -1232,49 +1195,56 @@ function restoreGame(save) {
 
   buildLevel();
   const generatedTreatTotal = levelTreatTotal;
+  let restoredPellets = [...pellets];
   if (save.rebalanceTreats) {
-    const migratedCollected = Math.min(
-      pellets.size,
-      Math.max(0, Math.floor(Number(save.migratedTreatsCollected) || 0)),
-    );
-    pellets = new Set([...pellets].slice(migratedCollected));
-  }
-  if (!save.rebalanceTreats && Array.isArray(save.pellets)) pellets = new Set(save.pellets.filter(validOpenKey));
-  if (Array.isArray(save.powerPellets)) powerPellets = new Set(save.powerPellets.filter(validOpenKey));
-  const remainingTreats = pellets.size;
+    const migratedCollected = Math.min(restoredPellets.length, Math.max(0, Math.floor(Number(save.migratedTreatsCollected) || 0)));
+    restoredPellets = restoredPellets.slice(migratedCollected);
+  } else if (Array.isArray(save.pellets)) restoredPellets = save.pellets.filter(validOpenKey);
+  const restoredPowerUps = Array.isArray(save.powerPellets) ? save.powerPellets.filter(validOpenKey) : [...powerPellets];
+  const remainingTreats = restoredPellets.length;
   levelTreatTotal = save.rebalanceTreats
     ? Math.max(generatedTreatTotal, Math.floor(Number(save.levelTreatTotal) || generatedTreatTotal))
     : Math.max(remainingTreats, Math.floor(Number(save.levelTreatTotal) || remainingTreats));
   if (runStarted) updateCurrentLevelStatsSnapshot(save.mode === 'won');
 
   const restoreActors = save.mode !== 'hit';
-  if (restoreActors && save.player) {
-    const start = activeLevelDocument.actors.player;
-    player.x = clampNumber(save.player.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
-    player.y = clampNumber(save.player.y, 0, activeLevelDocument.board.rows - 1, start.y);
-    player.dir = restoreDirection(save.player.direction, DIRECTIONS.left);
-    player.nextDir = restoreDirection(save.player.nextDirection, player.dir);
-  }
-
-  if (restoreActors && Array.isArray(save.cats)) {
-    cats.forEach((cat, index) => {
-      const savedCat = save.cats[index];
-      if (!savedCat) return;
-      const start = activeLevelDocument.actors.cats[index] ?? CAT_STARTS[index % CAT_STARTS.length];
-      cat.x = clampNumber(savedCat.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x);
-      cat.y = clampNumber(savedCat.y, 0, activeLevelDocument.board.rows - 1, start.y);
-      cat.previousX = cat.x;
-      cat.previousY = cat.y;
-      cat.dir = restoreDirection(savedCat.direction, cat.dir);
-      cat.lastDecision = typeof savedCat.lastDecision === 'string' ? savedCat.lastDecision : '';
-      cat.respawnTimer = clampNumber(savedCat.respawnTimer, 0, 3, 0);
-    });
-  }
-
-  powerTimer = clampNumber(save.powerTimer, 0, difficultyConfig().powerDuration, 0);
-  graceTimer = clampNumber(save.graceTimer, 0, difficultyConfig().grace, 0);
+  const playerStart = activeLevelDocument.actors.player;
+  const restoredPlayer = restoreActors && save.player ? {
+    x: clampNumber(save.player.x, -0.55, activeLevelDocument.board.columns - 0.45, playerStart.x),
+    y: clampNumber(save.player.y, 0, activeLevelDocument.board.rows - 1, playerStart.y),
+    direction: save.player.direction,
+    nextDirection: save.player.nextDirection,
+  } : undefined;
+  const restoredCats = restoreActors && Array.isArray(save.cats) ? cats.map((cat, index) => {
+    const savedCat = save.cats[index];
+    const start = activeLevelDocument.actors.cats[index] ?? CAT_STARTS[index % CAT_STARTS.length];
+    if (!savedCat) return null;
+    return {
+      x: clampNumber(savedCat.x, -0.55, activeLevelDocument.board.columns - 0.45, start.x),
+      y: clampNumber(savedCat.y, 0, activeLevelDocument.board.rows - 1, start.y),
+      direction: savedCat.direction,
+      lastDecision: typeof savedCat.lastDecision === 'string' ? savedCat.lastDecision : '',
+      respawnTimer: clampNumber(savedCat.respawnTimer, 0, 3, 0),
+    };
+  }) : undefined;
   levelEventElapsed = clampNumber(save.levelEventElapsed, 0, 3600, 0);
-  hitTimer = 0;
+  const restoredSnapshot = gameSession.restore({
+    ...(restoredPlayer ? { player: restoredPlayer } : {}),
+    ...(restoredCats ? { cats: restoredCats } : {}),
+    pellets: restoredPellets,
+    powerUps: restoredPowerUps,
+    unlockedEvents: [...activeUnlockedEventIds()],
+    score: levelRunScore,
+    lives,
+    elapsed: levelEventElapsed,
+    powerTimer: clampNumber(save.powerTimer, 0, difficultyConfig().powerDuration, 0),
+    graceTimer: clampNumber(save.graceTimer, 0, difficultyConfig().grace, 0),
+    hitTimer: 0,
+    state: save.mode === 'won' ? 'won' : save.mode === 'over' || lives <= 0 ? 'lost' : 'playing',
+  });
+  gameSessionScore = restoredSnapshot.score;
+  gameSessionSnapshot = null;
+  applyGameSessionSnapshot(restoredSnapshot, { processEvents: false });
   applyLanguage();
   updateHud();
 
@@ -1327,36 +1297,16 @@ function toKey(x, y) {
   return `${x},${y}`;
 }
 
-function isWall(x, y) {
-  const board = activeLevelDocument?.board;
-  const columns = board?.columns ?? COLS;
-  const rows = board?.rows ?? ROWS;
-  if (y < 0 || y >= rows) return true;
-  if (x < 0 || x >= columns) return !board?.tunnelRows.includes(y);
-  return grid[y][x];
-}
-
-function canMove(x, y, direction) {
-  if (direction.name === 'none') return false;
-  return !isWall(x + direction.x, y + direction.y);
-}
-
 function setDirection(name) {
-  if (state === 'cutscene') return;
-  if (!DIRECTIONS[name]) return;
-  const direction = DIRECTIONS[name];
-  queuePlayerDirection(player, direction);
+  if (state === 'cutscene' || !DIRECTIONS[name]) return;
+  gameSession?.queueInput(name);
   directionHistory.push(name);
-  const sequenceEvents = activeLevelDocument?.events.filter((event) => event.trigger.type === 'direction-sequence') ?? [];
-  const maximumSequence = Math.max(1, ...sequenceEvents.map((event) => event.trigger.sequence.length));
+  const maximumSequence = Math.max(1, ...(activeLevelDocument?.events ?? [])
+    .filter((event) => event.trigger.type === 'direction-sequence')
+    .map((event) => event.trigger.sequence.length));
   directionHistory = directionHistory.slice(-maximumSequence);
-  sequenceEvents.forEach((event) => {
-    const sequence = event.trigger.sequence;
-    if (directionHistory.slice(-sequence.length).join(',') === sequence.join(',')) unlockLevelEvent(event);
-  });
   if (state === 'ready') startGame();
 }
-
 function startGame(reset = false) {
   enterMobileGameMode();
   const startsNewAttempt = reset || !runStarted;
@@ -1641,15 +1591,17 @@ function activeUnlockedEventIds() {
     .map((event) => event.id));
 }
 
-function unlockLevelEvent(event) {
+function unlockLevelEvent(event, { award = true } = {}) {
   const storageKey = eventStorageKey(event);
   if (unlockedEggs.has(storageKey)) return;
   const message = localized(event.message);
   unlockedEggs.add(storageKey);
   activeEasterEgg = { id: event.id, message, timer: 4.5 };
   invalidateStaticWorld('event-unlock');
-  score += event.reward;
-  levelRunScore += event.reward;
+  if (award) {
+    score += event.reward;
+    levelRunScore += event.reward;
+  }
   uiSession.patch('levelOverlays', { easterToast: `${message} +${event.reward}` });
   ui.announcement.textContent = t('secretFound', { message });
   beep(820, 0.12, 0.045, 'square');
@@ -1668,153 +1620,6 @@ function checkLocationEasterEggs() {
     ))) unlockLevelEvent(event);
     if (event.trigger.type === 'timer' && levelEventElapsed >= event.trigger.seconds) unlockLevelEvent(event);
   });
-}
-
-function update(dt) {
-  elapsed += dt;
-  levelEventElapsed += dt;
-  if (graceTimer > 0) graceTimer = Math.max(0, graceTimer - dt);
-  if (activeEasterEgg) {
-    activeEasterEgg.timer -= dt;
-    if (activeEasterEgg.timer <= 0) {
-      activeEasterEgg = null;
-      invalidateStaticWorld('event-deactivate');
-      uiSession.patch('levelOverlays', { easterToast: null });
-    }
-  }
-  if (state === 'hit') {
-    hitTimer -= dt;
-    if (hitTimer <= 0) {
-      if (lives <= 0) finishGame();
-      else {
-        resetActors();
-        state = 'playing';
-        requestRender('state:playing');
-      }
-    }
-    return;
-  }
-
-  movePlayer(dt);
-  for (const cat of cats) moveCat(cat, dt);
-  collectTreats();
-  if (state !== 'playing') return;
-  checkLocationEasterEggs();
-
-  if (powerTimer > 0) powerTimer = Math.max(0, powerTimer - dt);
-  checkCollisions();
-}
-
-function nearestPlayerDirection() {
-  if (!pellets.size) return DIRECTIONS.none;
-  const points = [...pellets].map((key) => key.split(',').map(Number));
-  return Object.values(DIRECTIONS)
-    .filter((direction) => direction.name !== 'none' && canMove(player.x, player.y, direction))
-    .map((direction) => {
-      const x = Math.round(player.x) + direction.x;
-      const y = Math.round(player.y) + direction.y;
-      return { direction, distance: Math.min(...points.map(([targetX, targetY]) => Math.abs(targetX - x) + Math.abs(targetY - y))) };
-    })
-    .sort((left, right) => left.distance - right.distance)[0]?.direction ?? DIRECTIONS.none;
-}
-
-function updatePlayerController() {
-  const controller = player.behavior?.controller ?? 'user';
-  if (controller === 'autopilot') player.nextDir = nearestPlayerDirection();
-  if (controller === 'patrol' && !canMove(player.x, player.y, player.dir)) {
-    const order = ['left', 'up', 'right', 'down'];
-    const startIndex = Math.max(0, order.indexOf(player.dir.name));
-    for (let step = 1; step <= order.length; step += 1) {
-      const direction = DIRECTIONS[order[(startIndex + step) % order.length]];
-      if (canMove(player.x, player.y, direction)) { player.nextDir = direction; break; }
-    }
-  }
-}
-
-function movePlayer(dt) {
-  if (player.behavior?.controller === 'stationary') return;
-  updatePlayerController();
-  const speed = difficultyConfig().playerSpeed;
-  movePlayerActor(player, speed * dt, { canMove, wrap: wrapActor });
-}
-
-function moveCat(cat, dt) {
-  if (cat.respawnTimer > 0) {
-    cat.respawnTimer -= dt;
-    return;
-  }
-
-  const config = difficultyConfig();
-  const speed = powerTimer > 0 ? config.frightenedSpeed : config.catSpeed;
-  moveCatActor(cat, speed * dt, { canMove, wrap: wrapActor, chooseDirection: (actor, x, y) => chooseCatDirection(actor, x, y) });
-}
-
-function chooseCatDirection(cat, x, y) {
-  return chooseSharedCatDirection({ cat, x, y, player, elapsed, powerActive: powerTimer > 0, canMove, wander: difficultyConfig().wander });
-}
-
-function wrapActor(actor) {
-  const columns = activeLevelDocument?.board.columns ?? COLS;
-  if (actor.x < -0.5) actor.x = columns - 0.5;
-  if (actor.x > columns - 0.5) actor.x = -0.5;
-}
-
-function collectTreats() {
-  const x = Math.round(player.x);
-  const y = Math.round(player.y);
-  const key = toKey(x, y);
-  const distance = Math.hypot(player.x - x, player.y - y);
-  if (distance > 0.42) return;
-  let collected = false;
-
-  if (pellets.delete(key)) {
-    invalidateStaticWorld('pellet-collected');
-    score += 10;
-    levelRunScore += 10;
-    collected = true;
-    beep(520, 0.025, 0.018);
-    updateHud();
-  }
-
-  if (powerPellets.delete(key)) {
-    score += 50;
-    levelRunScore += 50;
-    collected = true;
-    powerTimer = difficultyConfig().powerDuration;
-    beep(250, 0.15, 0.05, 'square');
-    vibrate([20, 25, 20]);
-    ui.announcement.textContent = t('powerAnnouncement');
-    updateHud();
-  }
-
-  if (collected) saveGame(true);
-  if (pellets.size === 0 && state === 'playing') completeLevel();
-}
-
-function checkCollisions() {
-  if (graceTimer > 0) return;
-  for (const cat of cats) {
-    if (cat.respawnTimer > 0 || Math.hypot(player.x - cat.x, player.y - cat.y) > 0.72) continue;
-    if (powerTimer > 0) {
-      score += 200;
-      levelRunScore += 200;
-      const start = activeLevelDocument.actors.cats[cat.index] ?? CAT_STARTS[cat.index % CAT_STARTS.length];
-      respawnCat(cat, start);
-      beep(740, 0.1, 0.045, 'square');
-      updateHud();
-      saveGame(true);
-    } else {
-      lives -= 1;
-      state = 'hit';
-      requestRender('state:hit');
-      hitTimer = 1.1;
-      beep(95, 0.32, 0.08, 'sawtooth');
-      vibrate([70, 35, 100]);
-      updateHud();
-      saveGame();
-      break;
-    }
-  }
 }
 
 function completeLevel() {
@@ -1942,7 +1747,7 @@ function render(frameTimestamp) {
     unlockedEvents: activeUnlockedEventIds(),
     activeEventId: activeEasterEgg?.id,
   }, {
-    alpha: simulationLoop.interpolationAlpha,
+    alpha: state === 'cutscene' ? 1 : (gameSessionSnapshot?.interpolationAlpha ?? 1),
     viewport: playViewport,
     cameraEnabled: cutsceneSnapshot ? true : isCameraGameView(),
     language,
@@ -2132,17 +1937,19 @@ function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewpor
 }
 
 function frame(now) {
-  simulationLoop.advance(now, (dt) => {
-    if (state === 'cutscene') { updateLevelCutscene(dt); return; }
-    if (state !== 'playing' && state !== 'hit') return;
-    update(dt);
-    autoSaveElapsed += dt;
+  const frameSeconds = simulationFrameTimestamp === null
+    ? 0
+    : Math.min(0.1, Math.max(0, (now - simulationFrameTimestamp) / 1000));
+  simulationFrameTimestamp = now;
+  if (state === 'cutscene') updateLevelCutscene(frameSeconds);
+  else if ((state === 'playing' || state === 'hit') && gameSession) {
+    const snapshot = gameSession.step(frameSeconds);
+    autoSaveElapsed += applyGameSessionSnapshot(snapshot);
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
-  });
+  }
   renderScheduler.frame(now, currentRenderPolicy());
   requestAnimationFrame(frame);
 }
-
 
 document.addEventListener('keydown', (event) => {
   if (uiSession.snapshot().onboarding.open) return;
@@ -2330,7 +2137,7 @@ document.addEventListener('click', (event) => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
   if (!document.hidden) {
-    simulationLoop.reset();
+    simulationFrameTimestamp = null;
     renderScheduler.reset();
     requestRender('visibility:return');
   }
@@ -2411,7 +2218,7 @@ if (import.meta.env.DEV) {
   });
   window.__GASSI_DEBUG_STEP__ = (seconds) => {
     const steps = Math.max(0, Math.round(seconds * 60));
-    for (let index = 0; index < steps; index += 1) update(1 / 60);
+    for (let index = 0; index < steps; index += 1) applyGameSessionSnapshot(gameSession.step(1 / 60));
     requestRender('debug:step');
     return window.__GASSI_DEBUG__();
   };

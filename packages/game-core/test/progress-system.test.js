@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateProgress } from '../src/game/progress-system.js';
+import { aggregateProgress } from '../src/progress-system.js';
 
 test('global Gutti scale stays at 630 independently of difficulty targets', () => {
   const ids = Array.from({ length: 9 }, (_, index) => `level-${index}`);
