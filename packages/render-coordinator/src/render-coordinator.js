@@ -13,6 +13,8 @@ function cloneSurface(surface) {
   });
 }
 
+const CADENCE_TOLERANCE_MS = 1e-7;
+
 function unknownSurface(id) {
   throw new Error(`unknown surface: ${id}`);
 }
@@ -41,14 +43,11 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
 
   function isCadenceDue(surface, timestamp) {
     if (surface.lastPresentedAt === null || timestamp < surface.lastPresentedAt) return true;
-    const interval = 1000 / surface.profile.maxFps;
-    const dueAt = surface.cadenceOrigin + surface.nextCadenceSlot * interval;
-    return timestamp >= dueAt;
+    return timestamp + CADENCE_TOLERANCE_MS >= surface.nextEligibleAt;
   }
 
   function shouldPresent(surface, timestamp) {
     if (!isRunnable(surface)) return false;
-    if (surface.profile.mode === 'continuous') return true;
     if (surface.profile.mode === 'on-demand') return surface.dirty && isCadenceDue(surface, timestamp);
     return isCadenceDue(surface, timestamp);
   }
@@ -84,16 +83,9 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
     }
 
     if (surfaces.get(surface.id) !== surface) return;
-    const previousPresentedAt = surface.lastPresentedAt;
     surface.lastPresentedAt = timestamp;
-    if (surface.profile.mode !== 'continuous') {
-      const interval = 1000 / surface.profile.maxFps;
-      if (surface.cadenceOrigin === null || (previousPresentedAt !== null && timestamp < previousPresentedAt)) {
-        surface.cadenceOrigin = timestamp;
-        surface.nextCadenceSlot = 1;
-      } else {
-        surface.nextCadenceSlot = Math.floor((timestamp - surface.cadenceOrigin) / interval + 1e-9) + 1;
-      }
+    if (surface.profile.mode !== 'manual') {
+      surface.nextEligibleAt = timestamp + 1000 / surface.profile.maxFps;
     }
     surface.counters.renders += 1;
   }
@@ -126,8 +118,7 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
       dirty: false,
       lastReason: null,
       lastPresentedAt: null,
-      cadenceOrigin: null,
-      nextCadenceSlot: 0,
+      nextEligibleAt: null,
       invalidationVersion: 0,
       counters: { renders: 0, invalidations: 0 },
     };

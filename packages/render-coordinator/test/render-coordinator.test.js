@@ -297,11 +297,12 @@ test('resets each animated surface phase after a backward timestamp', () => {
   coordinator.setSurfaceState('b', { active: true });
   clock.present(132);
   clock.present(133.33333333333334);
+  clock.present(165.33333333333334);
   assert.deepEqual(events, [
     ['a', 0], ['b', 0],
     ['a', 1000],
     ['a', 132], ['b', 132],
-    ['b', 133.33333333333334],
+    ['a', 165.33333333333334], ['b', 165.33333333333334],
   ]);
 });
 
@@ -327,6 +328,28 @@ test('keeps continuous surfaces presenting for backward and forward timestamps',
   const timestamps = [];
   const coordinator = createRenderCoordinator(clock.adapter);
   coordinator.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => timestamps.push(timestamp) });
-  for (const timestamp of [0, 1000, 132, 133.33333333333334]) clock.present(timestamp);
-  assert.deepEqual(timestamps, [0, 1000, 132, 133.33333333333334]);
+  for (const timestamp of [0, 1000, 132, 133.33333333333334, 148.66666666666666]) clock.present(timestamp);
+  assert.deepEqual(timestamps, [0, 1000, 132, 148.66666666666666]);
+});
+test('uses a full actual animated interval after a non-slot forward gap', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => timestamps.push(timestamp) });
+  clock.present(0);
+  clock.present(1016);
+  clock.present(1033.3333333333333);
+  clock.present(1049.3333333333333);
+  assert.deepEqual(timestamps, [0, 1016, 1049.3333333333333]);
+});
+
+test('uses 60-FPS continuous deadlines without missing exact display boundaries', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => timestamps.push(timestamp) });
+  clock.present(0);
+  clock.present(1);
+  clock.present(1000 / 60);
+  assert.deepEqual(timestamps, [0, 1000 / 60]);
 });
