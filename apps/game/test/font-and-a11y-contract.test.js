@@ -40,7 +40,7 @@ test('preloads both Silkscreen faces visible in the first gameplay paint', async
     );
     const [sourceFont, packageFont] = await Promise.all([
       readFile(new URL(`../src/assets/silkscreen-latin-${weight}-normal.woff2`, import.meta.url)),
-      readFile(new URL(`../node_modules/@fontsource/silkscreen/files/silkscreen-latin-${weight}-normal.woff2`, import.meta.url)),
+      readFile(new URL(`../../../node_modules/@fontsource/silkscreen/files/silkscreen-latin-${weight}-normal.woff2`, import.meta.url)),
     ]);
     assert.deepEqual(sourceFont, packageFont);
   }

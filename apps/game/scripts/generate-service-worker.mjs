@@ -6,6 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const OWNED_CACHE_PREFIX = 'franz-lola-assets-';
 const DEFAULT_BASE_PATH = '/Geburtstagsspiel/';
 const moduleDirectory = fileURLToPath(new URL('.', import.meta.url));
+export const gameRoot = resolve(moduleDirectory, '..');
+export const outputPath = resolve(gameRoot, 'dist', 'sw.js');
 
 function normalizeBasePath(basePath) {
   const normalized = String(basePath ?? DEFAULT_BASE_PATH).replaceAll('\\', '/');
@@ -123,8 +125,8 @@ async function listAssetFiles(directory) {
 }
 
 export async function generateServiceWorker({
-  distDirectory = resolve(moduleDirectory, '../dist'),
-  assetsDirectory = resolve(moduleDirectory, '../dist/assets'),
+  distDirectory = resolve(gameRoot, 'dist'),
+  assetsDirectory = resolve(gameRoot, 'dist', 'assets'),
   basePath = DEFAULT_BASE_PATH,
 } = {}) {
   const normalizedBasePath = normalizeBasePath(basePath);

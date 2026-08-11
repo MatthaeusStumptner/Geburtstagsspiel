@@ -18,9 +18,9 @@ import {
   settleCleanup,
 } from './browser-regression-contracts.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const gameRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RUN_ID = `run-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`;
-const RUN_DIR = join(ROOT, 'output', 'playwright', 'game', RUN_ID);
+const RUN_DIR = join(gameRoot, 'output', 'playwright', 'game', RUN_ID);
 const SAVE_KEY = 'gassi-runde-hals-save';
 const APP_WARNING = /(?:renderer|webgl|webgpu|svelte|unhandled|context\s*lost|gassi)/i;
 const FIXED_STEP_TOLERANCE = (5.8 / 120) + 0.006;
@@ -468,7 +468,7 @@ async function main() {
   const summary = { runId: RUN_ID, startedAt: new Date().toISOString(), server: null, scenarios: [], skips: [] };
   let viteServer; let httpServer; let browser; let failure = null;
   try {
-    viteServer = await createServer({ root: ROOT, logLevel: 'error', appType: 'spa', server: { middlewareMode: true } });
+    viteServer = await createServer({ root: gameRoot, logLevel: 'error', appType: 'spa', server: { middlewareMode: true } });
     httpServer = createHttpServer(viteServer.middlewares);
     const address = await listenHttp(httpServer);
     const baseUrl = `http://127.0.0.1:${address.port}/`;

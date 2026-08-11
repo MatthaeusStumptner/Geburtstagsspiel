@@ -3,13 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import vm from 'node:vm';
 import {
   buildServiceWorkerSource,
+  gameRoot,
   generateServiceWorker,
+  outputPath,
 } from '../scripts/generate-service-worker.mjs';
 import { registerGameServiceWorker } from '../src/platform/register-service-worker.js';
+
+test('generator defaults to the game workspace dist artifact', () => {
+  assert.equal(outputPath, resolve(gameRoot, 'dist', 'sw.js'));
+});
 
 function workerRuntime(source, { origin = 'https://example.test' } = {}) {
   const listeners = new Map();
