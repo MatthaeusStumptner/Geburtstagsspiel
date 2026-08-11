@@ -1,6 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGameplayLayout } from '../src/render/gameplay-layout.js';
+import {
+  createGameplayLayout,
+  highestVisibleBlockerBottom,
+} from '../src/render/gameplay-layout.js';
+
+test('uses the highest visible HUD blocker bottom', () => {
+  const bottom = highestVisibleBlockerBottom([
+    { bottom: 124, visible: true },
+    { bottom: 238.5, visible: true },
+  ], 20);
+
+  assert.equal(bottom, 238.5);
+});
+
+test('ignores missing and hidden HUD blockers', () => {
+  const bottom = highestVisibleBlockerBottom([
+    null,
+    { bottom: 260, visible: false },
+    { bottom: Number.NaN, visible: true },
+    { bottom: 96, visible: true },
+  ], 100);
+
+  assert.equal(bottom, 100);
+});
 
 test('excludes the mobile DOM HUD from the renderer backbuffer', () => {
   const layout = createGameplayLayout();

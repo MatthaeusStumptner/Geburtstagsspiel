@@ -40,7 +40,10 @@ import {
 } from './ui/ui-preferences.js';
 import { renderPolicyForState } from './render/render-policy.js';
 import { createRenderScheduler } from './render/render-scheduler.js';
-import { createGameplayLayout } from './render/gameplay-layout.js';
+import {
+  createGameplayLayout,
+  highestVisibleBlockerBottom,
+} from './render/gameplay-layout.js';
 
 const canvas = document.querySelector('#game');
 const rendererBackendParameter = new URLSearchParams(location.search).get('renderer');
@@ -2012,9 +2015,19 @@ function observedDevicePixelRatio(entries, cssWidth) {
 function measureGameplayLayout(reason, entries = []) {
   const canvasRect = canvas.getBoundingClientRect();
   const mobile = isMobileGameLayout() || isBoardFullscreen();
-  const mobileHeader = mobile ? document.querySelector('#mobile-game-header') : null;
-  const headerVisible = mobileHeader && getComputedStyle(mobileHeader).display !== 'none';
-  const hudBottom = headerVisible ? mobileHeader.getBoundingClientRect().bottom : canvasRect.top;
+  const blockerMeasurements = mobile
+    ? ['#mobile-game-header', '#level-status'].map((selector) => {
+      const element = document.querySelector(selector);
+      if (!element || element.hidden) return null;
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return { visible: false };
+      }
+      const rect = element.getBoundingClientRect();
+      return { bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 };
+    })
+    : [];
+  const hudBottom = highestVisibleBlockerBottom(blockerMeasurements, canvasRect.top);
   const layout = gameplayLayout.update({
     canvasWidth: canvasRect.width,
     canvasHeight: canvasRect.height,
@@ -2312,9 +2325,11 @@ const gameplayLayoutResizeObserver = 'ResizeObserver' in window
   ? new ResizeObserver((entries) => measureGameplayLayout('resize-observer', entries))
   : null;
 const mobileGameHeader = document.querySelector('#mobile-game-header');
+const levelStatus = document.querySelector('#level-status');
 gameplayLayoutResizeObserver?.observe(canvas);
 gameplayLayoutResizeObserver?.observe(ui.boardFrame);
 if (mobileGameHeader) gameplayLayoutResizeObserver?.observe(mobileGameHeader);
+if (levelStatus) gameplayLayoutResizeObserver?.observe(levelStatus);
 measureGameplayLayout('initial');
 canvas.addEventListener('webglcontextrestored', () => requestRender('context:restored'));
 window.addEventListener('pagehide', () => {

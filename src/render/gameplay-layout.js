@@ -7,6 +7,14 @@ function positive(value, fallback = 0) {
   return Number.isFinite(number) ? Math.max(0, number) : fallback;
 }
 
+export function highestVisibleBlockerBottom(blockers, canvasTop = 0) {
+  return blockers.reduce((bottom, blocker) => {
+    const blockerBottom = Number(blocker?.bottom);
+    if (!blocker?.visible || !Number.isFinite(blockerBottom)) return bottom;
+    return Math.max(bottom, blockerBottom);
+  }, positive(canvasTop));
+}
+
 function normalize(input) {
   const cssWidth = Math.max(1, rounded(positive(input.canvasWidth)));
   const canvasHeight = Math.max(1, rounded(positive(input.canvasHeight)));
