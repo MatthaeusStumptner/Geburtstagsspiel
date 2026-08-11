@@ -1,0 +1,9 @@
+{
+  "name": "@franz-lola/render-coordinator",
+  "version": "0.0.0-monorepo",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.js" },
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=22.14.0" }
+}
