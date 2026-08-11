@@ -17,9 +17,10 @@
   </div>
   <div class="hud-card compact">
     <span>{view.copy.livesLabel}</span>
-    <strong id="lives" aria-label={`${view.lives} ${view.copy.livesA11y ?? 'Leben'}`}>
+    <strong id="lives" aria-hidden="true">
       {Array.from({ length: view.lives }, () => '●').join(' ')}
     </strong>
+    <span class="visually-hidden" aria-live="polite">{view.lives} {view.copy.livesA11y ?? 'Leben'}</span>
   </div>
   <div class:complete={view.globalProgress === 100} class="hud-card compact progress-card">
     <span>{view.copy.globalProgressLabel}</span>

@@ -11,6 +11,8 @@
     "levels:import": "node scripts/import-level-catalog.mjs"
   },
   "dependencies": {
+    "@fontsource/dm-mono": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
     "@franz-lola/pixel-renderer": "github:MatthaeusStumptner/Pacman_clone_renderer#925b1708dd8cd60f9cf4b0168d7674d8656ebdf2"
   },
   "devDependencies": {

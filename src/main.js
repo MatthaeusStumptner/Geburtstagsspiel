@@ -1,4 +1,8 @@
 import './style.css';
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+import '@fontsource/silkscreen/400.css';
+import '@fontsource/silkscreen/700.css';
 import { mount } from 'svelte';
 import {
   DIRECTIONS,
