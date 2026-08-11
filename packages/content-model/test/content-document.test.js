@@ -15,6 +15,7 @@ const samples = {
   block: { id: 'ziegel', name: 'Ziegel', width: 3, height: 2, pattern: 'brick', color: '#553322' },
   animation: { id: 'winken', name: 'Winken', width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels, fps: 8, keyframes: [{ time: 0, pixels }] },
   cutscene: { id: 'servus', name: { standard: 'Servus', dialect: 'Hawedere' }, duration: 2, tracks: [] },
+  event: { id: 'eisvogel', name: { standard: 'Eisvogel', dialect: 'Eisvogl' }, message: { standard: 'Gefunden!', dialect: 'Gfundn!' }, trigger: { type: 'time', seconds: 1 }, visual: { type: 'kingfisher' } },
 };
 
 test('creates and validates every independently publishable content type', () => {

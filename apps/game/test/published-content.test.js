@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { contentPublicationPath, validateContentDocument } from '@franz-lola/pixel-renderer';
+import { contentPublicationPath, validateContentDocument } from '@franz-lola/content-model';
 
 const contentDirectories = {
   character: 'characters',

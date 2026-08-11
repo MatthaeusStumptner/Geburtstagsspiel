@@ -1,4 +1,4 @@
-import { compileWallGrid, createLevelDocument, tileKey } from '../level-format.js';
+import { compileWallGrid, createLevelDocument, tileKey } from '@franz-lola/content-model';
 import { DEFAULT_DIFFICULTY_PROFILES } from './profiles.js';
 import { DIRECTIONS, canMoveOnGrid, chooseCatDirection, directionByName, moveCatActor, movePlayerActor, queuePlayerDirection, wrapGridActor } from './actor-motion.js';
 

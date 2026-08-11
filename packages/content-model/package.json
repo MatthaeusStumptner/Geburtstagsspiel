@@ -1,0 +1,17 @@
+{
+  "name": "@franz-lola/content-model",
+  "version": "0.0.0-monorepo",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./schema/franz-lola-level.schema.json": "./schema/franz-lola-level.schema.json",
+    "./schema/franz-lola-content.schema.json": "./schema/franz-lola-content.schema.json"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}

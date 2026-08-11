@@ -1,6 +1,6 @@
-import { DEFAULT_DIFFICULTY_PROFILES } from './simulation/profiles.js';
-import { EDGE_EFFECT_TYPES } from './painters/edge-effects.js';
-import { normalizeVisualEffects } from './visual-effects.js';
+import { DEFAULT_DIFFICULTY_PROFILES, EDGE_EFFECT_TYPES, normalizeVisualEffects } from './content-defaults.js';
+
+export { DEFAULT_DIFFICULTY_PROFILES, EDGE_EFFECT_TYPES, VISUAL_EFFECT_TYPES, normalizeVisualEffects } from './content-defaults.js';
 
 export const LEVEL_DOCUMENT_KIND = 'franz-lola-level';
 export const LEVEL_FORMAT_VERSION = 1;

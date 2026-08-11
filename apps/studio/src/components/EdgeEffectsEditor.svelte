@@ -1,5 +1,5 @@
 <script>
-  import { EDGE_EFFECT_TYPES } from '@franz-lola/pixel-renderer';
+  import { EDGE_EFFECT_TYPES } from '@franz-lola/content-model';
   let { effects = [], onchange = () => {} } = $props();
   const names = { 'water-flow': 'Fließendes Wasser', fish: 'Springende Fische', boat: 'Vorbeifahrendes Boot', leaves: 'Treibende Blätter', fireflies: 'Glühwürmchen', mist: 'Nebel', 'city-lights': 'Stadtlichter', birds: 'Vögel', steam: 'Dampf', sparks: 'Funken', 'stage-pulse': 'Bühnenpuls' };
   const clone = (value) => JSON.parse(JSON.stringify(value));

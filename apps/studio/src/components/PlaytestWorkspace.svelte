@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { DirectionalSwipeInput, FixedStepLoop, PassauPixelRenderer, cutsceneById, sampleCutscene, tileKey } from '@franz-lola/pixel-renderer';
+  import { tileKey } from '@franz-lola/content-model';
+  import { DirectionalSwipeInput, FixedStepLoop, PassauPixelRenderer, cutsceneById, sampleCutscene } from '@franz-lola/pixel-renderer';
   import { PlaytestEngine } from '../playtest-engine.js';
 
   let { studio } = $props();

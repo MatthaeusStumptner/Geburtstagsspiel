@@ -1,5 +1,5 @@
 import { calculateCamera, projectWorldPoint, snapCameraToTexels, visibleWorldBounds } from './camera.js';
-import { compileWallGrid, createLevelDocument } from './level-format.js';
+import { compileWallGrid, createLevelDocument } from '@franz-lola/content-model';
 import { drawCat, drawWalker } from './painters/characters.js';
 import { drawCollectibles, drawEasterEggs } from './painters/collectibles.js';
 import { drawDecoration, drawEditorGrid, drawEnvironment, drawEnvironmentAnimation, drawEnvironmentBase, drawEnvironmentForeground, drawEnvironmentLandmarkAnimation, drawEnvironmentMidground } from './painters/environment.js';

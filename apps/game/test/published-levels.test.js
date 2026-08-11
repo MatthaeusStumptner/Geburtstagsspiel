@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { validateLevelDocument } from '@franz-lola/content-model';
 
 const directory = resolve('src/data/levels');
 

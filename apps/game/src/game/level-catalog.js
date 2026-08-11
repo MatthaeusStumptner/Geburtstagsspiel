@@ -1,4 +1,4 @@
-import { validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { validateLevelDocument } from '@franz-lola/content-model';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const modules = import.meta.glob('../data/levels/*.level.json', { eager: true, import: 'default' });

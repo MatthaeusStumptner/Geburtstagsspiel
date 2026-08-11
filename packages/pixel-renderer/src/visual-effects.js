@@ -1,30 +1,8 @@
-export const VISUAL_EFFECT_TYPES = Object.freeze(['glitch', 'neon', 'hologram', 'echo', 'sparkle']);
+import { VISUAL_EFFECT_TYPES, normalizeVisualEffects } from '@franz-lola/content-model';
 
-const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value) || 0));
-const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(value ?? '') ? value : fallback;
-const slug = (value, fallback) => String(value || fallback).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
-const normalizedEffectsCache = new WeakMap();
+export { VISUAL_EFFECT_TYPES, normalizeVisualEffects };
+
 const NEON_DIRECTIONS = Object.freeze([[-1, 0], [1, 0], [0, -1], [0, 1]]);
-
-export function normalizeVisualEffects(value) {
-  if (!Array.isArray(value)) return [];
-  const cached = normalizedEffectsCache.get(value);
-  if (cached) return cached;
-  const effects = [];
-  const length = Math.min(4, value.length);
-  for (let index = 0; index < length; index += 1) {
-    const effect = value[index];
-    effects.push({
-      id: slug(effect?.id, `effect-${index + 1}`),
-      type: VISUAL_EFFECT_TYPES.includes(effect?.type) ? effect.type : 'glitch',
-      intensity: clamp(effect?.intensity ?? 0.55, 0.05, 1),
-      speed: clamp(effect?.speed ?? 1, 0.1, 8),
-      color: color(effect?.color, effect?.type === 'neon' ? '#55d9dd' : '#ff4f87'),
-    });
-  }
-  normalizedEffectsCache.set(value, effects);
-  return effects;
-}
 
 function drawEcho(context, effect, bounds, elapsed, draw) {
   const distance = Math.max(1, Math.min(bounds.width, bounds.height) * 0.12 * effect.intensity);

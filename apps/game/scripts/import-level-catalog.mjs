@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { validateLevelDocument } from '@franz-lola/content-model';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourcePath = resolve(process.argv[2] ?? '');

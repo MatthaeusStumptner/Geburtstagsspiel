@@ -1,4 +1,4 @@
-import { createLevelDocument, tileKey } from '@franz-lola/pixel-renderer';
+import { createLevelDocument, tileKey } from '@franz-lola/content-model';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 

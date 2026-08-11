@@ -1,23 +1,23 @@
 export {
-  LEVEL_DOCUMENT_KIND,
-  LEVEL_FORMAT_VERSION,
-  createLevelDocument,
-  parseLevelDocument,
-  validateLevelDocument,
-  compileWallGrid,
-  reachableTileKeys,
-  tileKey,
-} from './level-format.js';
-
-export {
   CONTENT_DOCUMENT_KIND,
   CONTENT_SCHEMA_VERSION,
   CONTENT_TYPES,
-  createContentDocument,
-  validateContentDocument,
-  parseContentDocument,
+  LEVEL_DOCUMENT_KIND,
+  LEVEL_FORMAT_VERSION,
+  MIN_CONTENT_SCHEMA_VERSION,
+  compileWallGrid,
   contentPublicationPath,
-} from './content-document.js';
+  createContentDocument,
+  createLevelDocument,
+  migrateContentDocument,
+  parseContentDocument,
+  parseLevelDocument,
+  reachableTileKeys,
+  resolveProjectDependencies,
+  tileKey,
+  validateContentDocument,
+  validateLevelDocument,
+} from '@franz-lola/content-model';
 
 export {
   calculateCamera,

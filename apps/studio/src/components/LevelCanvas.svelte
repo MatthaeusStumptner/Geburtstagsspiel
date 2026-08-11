@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { PassauPixelRenderer, tileKey } from '@franz-lola/pixel-renderer';
+  import { tileKey } from '@franz-lola/content-model';
+  import { PassauPixelRenderer } from '@franz-lola/pixel-renderer';
   import { worldPointFromScreen, worldTilePointFromScreen } from '../editor-tools.js';
 
   let { studio, compact = false, ariaLabel = 'Bearbeitbares Levelraster' } = $props();

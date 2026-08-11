@@ -1,11 +1,12 @@
 # Franz & Lola Pixel Renderer
 
-Gemeinsamer, frameworkfreier Canvas-Renderer und Simulationskern für Spiel und Levelwerkstatt. Das Paket enthält das versionierte Zwischenformat, Normalisierung, Validierung, Wegerreichbarkeit, Kamera-Projektion, Pixel-Art-Painter und die bildfrequenzunabhängige Maze-Chase-Simulation.
+Gemeinsamer, frameworkfreier Canvas-Renderer und Simulationskern für Spiel und Levelwerkstatt. Das Paket konsumiert das versionierte Zwischenformat aus `@franz-lola/content-model` und enthält Kamera-Projektion, Pixel-Art-Painter und die bildfrequenzunabhängige Maze-Chase-Simulation.
 
 Eigene, nicht feindliche Figuren leben getrennt von Katzen unter `actors.characters`. Sie besitzen stabile IDs, eine wiederverwendbare `characterId`, Namen, Player States, Sprite-Animationen, Effekte und Cutscene-Ziele wie `character:passauer-postler`. Der Renderer zeichnet sie in normalen Levels und in gesampelten Cutscenes, ohne sie als Gegner oder Schwierigkeitsfaktor zu zählen.
 
 ```js
-import { PassauPixelRenderer, parseLevelDocument } from '@franz-lola/pixel-renderer';
+import { parseLevelDocument } from '@franz-lola/content-model';
+import { PassauPixelRenderer } from '@franz-lola/pixel-renderer';
 
 const renderer = new PassauPixelRenderer(document.querySelector('canvas'));
 const result = parseLevelDocument(json);
@@ -35,7 +36,7 @@ Ein Level ist reines JSON mit `kind: "franz-lola-level"` und `schemaVersion: 1`.
 - Gutti-Seed, Zielwerte und vollständige Physikprofile pro Schwierigkeit
 - optionale Herkunftsmetadaten für Kataloge
 
-Das maschinenlesbare Schema liegt unter `schema/franz-lola-level.schema.json` und wird mit dem Paket ausgeliefert. `validateLevelDocument()` ergänzt semantische Prüfungen, die JSON Schema allein nicht abbildet: Erreichbarkeit, Objekte in Wänden, zu kleine begehbare Flächen und überstehende Elemente.
+Das maschinenlesbare Schema wird von `@franz-lola/content-model/schema/franz-lola-level.schema.json` ausgeliefert. `validateLevelDocument()` aus diesem Paket ergänzt semantische Prüfungen, die JSON Schema allein nicht abbildet: Erreichbarkeit, Objekte in Wänden, zu kleine begehbare Flächen und überstehende Elemente.
 
 ## Renderer-Vertrag
 

@@ -1,4 +1,4 @@
-import { validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { validateLevelDocument } from '@franz-lola/content-model';
 
 const MAX_DRAFT_BYTES = 1_000_000;
 const MAX_DRAFTS_PER_REQUEST = 20;

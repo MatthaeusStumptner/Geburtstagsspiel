@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTENT_TYPES, createContentDocument, createLevelDocument } from '@franz-lola/pixel-renderer';
+import { CONTENT_TYPES, createContentDocument, createLevelDocument } from '@franz-lola/content-model';
 import { assertSafeObject, preparePublishedBatch, preparePublishedContent, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from '../src/level-publication.js';
 
 function level() {
@@ -102,6 +102,7 @@ test('publishes every reusable content type to a strict static path', () => {
     block: { id: 'ziegel', name: 'Ziegel', width: 2, height: 1, pattern: 'brick' },
     animation: { id: 'winken', name: 'Winken', width: 4, height: 4, palette: ['transparent', '#55d9dd'], pixels, keyframes: [{ time: 0, pixels }] },
     cutscene: { id: 'servus', name: { standard: 'Servus', dialect: 'Hawedere' }, duration: 2, tracks: [] },
+    event: { id: 'eisvogel', name: { standard: 'Eisvogel', dialect: 'Eisvogl' }, message: { standard: 'Gefunden!', dialect: 'Gfundn!' }, trigger: { type: 'time', seconds: 1 }, visual: { type: 'kingfisher' } },
   };
   for (const type of CONTENT_TYPES.filter((entry) => entry !== 'level')) {
     const prepared = preparePublishedContent(createContentDocument(type, samples[type]));

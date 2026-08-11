@@ -1,9 +1,12 @@
 import { createLevelDocument, validateLevelDocument } from './level-format.js';
+import { CONTENT_SCHEMA_VERSION, migrateContentDocument } from './migrations.js';
 
 export const CONTENT_DOCUMENT_KIND = 'franz-lola-content';
-export const CONTENT_SCHEMA_VERSION = 1;
-export const CONTENT_TYPES = Object.freeze(['level', 'character', 'tileset', 'block', 'animation', 'cutscene', 'object']);
+export const CONTENT_TYPES = Object.freeze([
+  'character', 'tileset', 'block', 'animation', 'cutscene', 'object', 'event',
+]);
 
+const SUPPORTED_CONTENT_TYPES = Object.freeze(['level', ...CONTENT_TYPES]);
 const CONTENT_PATHS = Object.freeze({
   level: ['levels', 'level'],
   character: ['library/characters', 'character'],
@@ -12,6 +15,7 @@ const CONTENT_PATHS = Object.freeze({
   animation: ['library/animations', 'animation'],
   cutscene: ['library/cutscenes', 'cutscene'],
   object: ['library/objects', 'object'],
+  event: ['library/events', 'event'],
 });
 
 const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -109,6 +113,15 @@ function normalizeAnimation(input, id, name) {
   };
 }
 
+function normalizeEvent(input, id, name) {
+  return createLevelDocument({
+    board: { columns: 25, rows: 25 },
+    actors: { cats: [] },
+    collectibles: { powerUps: [] },
+    events: [{ ...clone(input), id, name: input?.name ?? { standard: name, dialect: name } }],
+  }).events[0];
+}
+
 function normalizeDocument(type, input, id, name) {
   if (type === 'level') return createLevelDocument({ ...clone(input), id });
   if (type === 'character') return normalizeCharacter(input, id, name);
@@ -117,6 +130,7 @@ function normalizeDocument(type, input, id, name) {
   if (type === 'block') return normalizeBlock(input, id, name);
   if (type === 'cutscene') return normalizeCutscene(input, id, name);
   if (type === 'animation') return normalizeAnimation(input, id, name);
+  if (type === 'event') return normalizeEvent(input, id, name);
   throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
 }
 
@@ -124,7 +138,7 @@ function normalizeDependencies(value) {
   if (!Array.isArray(value)) return [];
   const seen = new Set();
   return value.flatMap((entry) => {
-    if (!CONTENT_TYPES.includes(entry?.type)) return [];
+    if (!SUPPORTED_CONTENT_TYPES.includes(entry?.type)) return [];
     const id = slug(entry.id, '');
     if (!id) return [];
     const relation = slug(entry.relation, 'uses');
@@ -140,8 +154,22 @@ function normalizeDependencies(value) {
   });
 }
 
+function normalizeReferences(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.flatMap((entry) => {
+    if (!SUPPORTED_CONTENT_TYPES.includes(entry?.type)) return [];
+    const id = slug(entry.id, '');
+    if (!id) return [];
+    const key = `${entry.type}:${id}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ type: entry.type, id }];
+  });
+}
+
 export function createContentDocument(type, input = {}, metadata = {}) {
-  if (!CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
+  if (!SUPPORTED_CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
   const id = slug(metadata.id ?? input?.id, type);
   const name = text(metadata.name, localizedName(input?.name, id));
   return {
@@ -153,18 +181,20 @@ export function createContentDocument(type, input = {}, metadata = {}) {
     description: typeof metadata.description === 'string' ? metadata.description.trim() : text(input?.description, ''),
     document: normalizeDocument(type, input, id, name),
     dependencies: normalizeDependencies(metadata.dependencies),
+    references: normalizeReferences(metadata.references),
   };
 }
 
-export function validateContentDocument(input) {
+function validateCurrentContentDocument(input) {
   const errors = [];
   if (!input || typeof input !== 'object' || Array.isArray(input)) errors.push('Das Content-Dokument muss ein Objekt sein.');
   if (input?.kind !== CONTENT_DOCUMENT_KIND) errors.push(`kind muss "${CONTENT_DOCUMENT_KIND}" sein.`);
   if (input?.schemaVersion !== CONTENT_SCHEMA_VERSION) errors.push(`schemaVersion muss ${CONTENT_SCHEMA_VERSION} sein.`);
-  if (!CONTENT_TYPES.includes(input?.type)) errors.push('type ist kein unterstützter Inhaltstyp.');
+  if (!SUPPORTED_CONTENT_TYPES.includes(input?.type)) errors.push('type ist kein unterstützter Inhaltstyp.');
   if (!/^[a-z0-9][a-z0-9-]*$/.test(input?.id ?? '')) errors.push('id muss ein URL-tauglicher Slug sein.');
   if (!text(input?.name)) errors.push('name darf nicht leer sein.');
   if (!input?.document || typeof input.document !== 'object' || Array.isArray(input.document)) errors.push('document muss ein Objekt sein.');
+  if (!Array.isArray(input?.references)) errors.push('references muss ein Array sein.');
   if (errors.length) return { ok: false, errors, value: null };
   try {
     const value = createContentDocument(input.type, input.document, input);
@@ -179,17 +209,26 @@ export function validateContentDocument(input) {
   }
 }
 
+export function validateContentDocument(input) {
+  try {
+    return validateCurrentContentDocument(migrateContentDocument(input));
+  } catch (error) {
+    return { ok: false, errors: [error instanceof Error ? error.message : String(error)], value: null };
+  }
+}
+
 export function parseContentDocument(source) {
   let input;
   try { input = typeof source === 'string' ? JSON.parse(source) : source; }
   catch { throw new TypeError('Das Content-Dokument enthält kein gültiges JSON.'); }
-  const result = validateContentDocument(input);
+  const migrated = migrateContentDocument(input);
+  const result = validateCurrentContentDocument(migrated);
   if (!result.ok) throw new TypeError(result.errors.join('\n'));
   return result.value;
 }
 
 export function contentPublicationPath(type, id) {
-  if (!CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
+  if (!SUPPORTED_CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
   const canonicalId = slug(id, '');
   if (!canonicalId || canonicalId !== id) throw new TypeError('Content-ID muss ein kanonischer Slug sein.');
   const [directory, extension] = CONTENT_PATHS[type];

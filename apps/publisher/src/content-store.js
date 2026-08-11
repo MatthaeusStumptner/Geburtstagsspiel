@@ -1,4 +1,4 @@
-import { CONTENT_TYPES, validateContentDocument } from '@franz-lola/pixel-renderer';
+import { CONTENT_TYPES, validateContentDocument } from '@franz-lola/content-model';
 
 const REGISTRY_TYPES = Object.freeze(CONTENT_TYPES.filter((type) => type !== 'level'));
 const MAX_CONTENT_BYTES = 1_000_000;

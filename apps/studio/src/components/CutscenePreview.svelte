@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { PassauPixelRenderer, sampleCutscene, tileKey } from '@franz-lola/pixel-renderer';
+  import { tileKey } from '@franz-lola/content-model';
+  import { PassauPixelRenderer, sampleCutscene } from '@franz-lola/pixel-renderer';
 
   let { studio, cutscene, time = $bindable(0) } = $props();
   let canvas;

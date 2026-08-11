@@ -4,6 +4,7 @@ import '@fontsource/dm-mono/500.css';
 import '@fontsource/silkscreen/400.css';
 import '@fontsource/silkscreen/700.css';
 import { mount } from 'svelte';
+import { compileWallGrid, createLevelDocument, reachableTileKeys } from '@franz-lola/content-model';
 import {
   DIRECTIONS,
   DirectionalSwipeInput,
@@ -11,12 +12,9 @@ import {
   PassauPixelRenderer,
   PresentationFramePacer,
   chooseCatDirection as chooseSharedCatDirection,
-  compileWallGrid,
-  createLevelDocument,
   moveCatActor,
   movePlayerActor,
   queuePlayerDirection,
-  reachableTileKeys,
   recommendedPresentationRate,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';

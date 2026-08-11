@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DIRECTIONS, FixedStepLoop, createLevelDocument, tileKey } from '@franz-lola/pixel-renderer';
+import { createLevelDocument, tileKey } from '@franz-lola/content-model';
+import { DIRECTIONS, FixedStepLoop } from '@franz-lola/pixel-renderer';
 import { PlaytestEngine } from '../src/playtest-engine.js';
 
 function level(overrides = {}) {

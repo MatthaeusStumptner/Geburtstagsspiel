@@ -1,5 +1,5 @@
 <script>
-  import { VISUAL_EFFECT_TYPES } from '@franz-lola/pixel-renderer';
+  import { VISUAL_EFFECT_TYPES } from '@franz-lola/content-model';
   let { effects = [], title = 'Visuelle Effekte', onchange = () => {} } = $props();
   const names = { glitch: 'Glitch', neon: 'Neon-Schein', hologram: 'Hologramm', echo: 'Echo / Spur', sparkle: 'Funkeln' };
   const clone = (value) => JSON.parse(JSON.stringify(value));

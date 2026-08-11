@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createContentDocument } from '@franz-lola/pixel-renderer';
+import { createContentDocument } from '@franz-lola/content-model';
 import {
   ContentConflictError, deleteContentItem, listContentItems, readContentItem,
   resolveContentReferences, saveContentItem,

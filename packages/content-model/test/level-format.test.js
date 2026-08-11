@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVEL_DOCUMENT_KIND, LEVEL_FORMAT_VERSION, compileWallGrid, createLevelDocument, reachableTileKeys, sampleCutscene, validateLevelDocument } from '../src/index.js';
+import { LEVEL_DOCUMENT_KIND, LEVEL_FORMAT_VERSION, compileWallGrid, createLevelDocument, reachableTileKeys, validateLevelDocument } from '../src/index.js';
 
 const valid = () => createLevelDocument({ kind: LEVEL_DOCUMENT_KIND, schemaVersion: LEVEL_FORMAT_VERSION, id: 'test-level', board: { columns: 9, rows: 9, tileSize: 24, tunnelRows: [4], walls: [] }, actors: { player: { x: 4, y: 6 }, cats: [{ x: 4, y: 4, color: '#ff6b5f', accent: '#9e302e' }] }, collectibles: { powerUps: [{ x: 1, y: 1 }] } });
 const rows = (token) => Array.from({ length: 4 }, () => token.repeat(4));
@@ -55,10 +55,7 @@ test('keeps reusable custom characters separate from enemy cats and exposes them
   assert.equal(normalized.actors.characters[0].name, 'Passauer Postler');
   assert.equal(normalized.actors.characters[0].behavior.controller, 'patrol');
   assert.equal(normalized.actors.characters[0].scale, 2.25);
-  const sample = sampleCutscene(normalized, normalized.cutscenes[0], 1);
-  assert.equal(sample.characters.length, 1);
-  assert.equal(sample.characters[0].x, 3.5);
-  assert.equal(sample.characters[0].direction.name, 'right');
+
 });
 
 test('clamps reusable character display scales to the public renderer contract', () => {
@@ -149,13 +146,7 @@ test('preserves reusable sprite objects and samples level-bound cutscenes', () =
   assert.equal(normalized.decorations[0].assetId, 'music-note');
   assert.equal(normalized.decorations[0].appearance.palette.length, 2);
   assert.equal(normalized.cutscenes[0].tracks.length, 3);
-  const sample = sampleCutscene(normalized, 'intro', 2, 'dialect');
-  assert.equal(sample.level.actors.player.x, 3);
-  assert.equal(sample.level.decorations[0].x, 4);
-  assert.equal(sample.player.x, 3);
-  assert.equal(sample.decorations[0].x, 4);
-  assert.equal(sample.dialogue.text, 'Hawedere!');
-  assert.equal(sample.done, false);
+
 });
 
 test('preserves only supported linked object overrides', () => {

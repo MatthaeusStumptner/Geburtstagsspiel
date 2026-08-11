@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLevelDocument } from '@franz-lola/pixel-renderer';
+import { createLevelDocument } from '@franz-lola/content-model';
 import { LevelCutscenePlayer } from '../src/game/level-cutscene-player.js';
 
 function levelWithIntro() {

@@ -1,4 +1,4 @@
-import { createContentDocument, createLevelDocument, tileKey, validateContentDocument, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { createContentDocument, createLevelDocument, tileKey, validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
 import { catalogLevel, passauCatalog } from '../catalog.js';
 import { DraftRepository } from '../draft-repository.js';
 import { createStarterLevel, EditorState } from '../editor-state.js';

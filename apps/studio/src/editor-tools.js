@@ -1,4 +1,4 @@
-import { reachableTileKeys, tileKey } from '@franz-lola/pixel-renderer';
+import { reachableTileKeys, tileKey } from '@franz-lola/content-model';
 
 export function linePoints(start, end) {
   const points = [];

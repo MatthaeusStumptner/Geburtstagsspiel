@@ -1,4 +1,4 @@
-import { contentPublicationPath, validateContentDocument, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { contentPublicationPath, validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
 
 const MAX_BODY_BYTES = 5_000_000;
 const MAX_LEVEL_BYTES = 1_000_000;

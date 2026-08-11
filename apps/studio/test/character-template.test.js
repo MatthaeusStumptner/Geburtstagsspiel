@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLevelDocument, selectAppearanceFrame, stateAnimationId } from '@franz-lola/pixel-renderer';
+import { createLevelDocument } from '@franz-lola/content-model';
+import { selectAppearanceFrame, stateAnimationId } from '@franz-lola/pixel-renderer';
 import { PLAYER_STATES, createFranzLolaAppearance } from '../src/character-template.js';
 
 function centerOf(pixels, tokens) {

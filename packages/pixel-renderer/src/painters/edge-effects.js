@@ -1,4 +1,6 @@
-export const EDGE_EFFECT_TYPES = Object.freeze(['water-flow', 'fish', 'boat', 'leaves', 'fireflies', 'mist', 'city-lights', 'birds', 'steam', 'sparks', 'stage-pulse']);
+import { EDGE_EFFECT_TYPES } from '@franz-lola/content-model';
+
+export { EDGE_EFFECT_TYPES };
 
 const sides = (side) => side === 'both' ? ['left', 'right'] : [side === 'right' ? 'right' : 'left'];
 const edgeX = (level, side, inset = 0.5) => side === 'left' ? level.board.tileSize * inset : level.board.columns * level.board.tileSize - level.board.tileSize * inset;

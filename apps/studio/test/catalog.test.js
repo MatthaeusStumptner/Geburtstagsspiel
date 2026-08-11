@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLevelDocument, validateLevelDocument } from '@franz-lola/pixel-renderer';
+import { parseLevelDocument, validateLevelDocument } from '@franz-lola/content-model';
 import { catalogDocument, catalogLevel, passauCatalog, searchCatalog } from '../src/catalog.js';
 import { EditorState } from '../src/editor-state.js';
 import { previewGuttis } from '../src/editor-tools.js';
