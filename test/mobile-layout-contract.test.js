@@ -68,4 +68,11 @@ test('gameplay blocker measurement ignores reveal transforms', async () => {
 
   assert.match(measurement, /bottom:\s*boardRect\.top \+ element\.offsetTop \+ element\.offsetHeight/);
   assert.doesNotMatch(measurement, /bottom:\s*rect\.bottom/);
+  assert.doesNotMatch(measurement, /style\.opacity === '0'/);
+});
+test('remeasures the canvas after cutscene HUD reveal starts', async () => {
+  const [, , main] = await readSources();
+  const reveal = main.match(/function revealGameUiAfterCutscene\(\)[\s\S]*?\n\}/)?.[0] ?? '';
+
+  assert.match(reveal, /requestAnimationFrame\(\(\) => measureGameplayLayout\('cutscene-ui-reveal'\)\)/);
 });

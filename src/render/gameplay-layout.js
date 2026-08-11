@@ -15,6 +15,15 @@ export function highestVisibleBlockerBottom(blockers, canvasTop = 0) {
   }, positive(canvasTop));
 }
 
+export function resolveObservedDevicePixelRatio({ deviceWidth, contentWidth, browserPixelRatio }) {
+  const browser = Math.max(1, positive(browserPixelRatio, 1));
+  const width = positive(contentWidth);
+  const observed = width > 0 ? positive(deviceWidth) / width : Number.NaN;
+  if (Number.isFinite(observed) && observed >= 1 && Math.abs(observed - browser) <= 0.01) {
+    return rounded(observed);
+  }
+  return rounded(browser);
+}
 function normalize(input) {
   const cssWidth = Math.max(1, rounded(positive(input.canvasWidth)));
   const canvasHeight = Math.max(1, rounded(positive(input.canvasHeight)));

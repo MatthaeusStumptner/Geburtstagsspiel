@@ -48,6 +48,7 @@ import { createRenderScheduler } from './render/render-scheduler.js';
 import {
   createGameplayLayout,
   highestVisibleBlockerBottom,
+  resolveObservedDevicePixelRatio,
 } from './render/gameplay-layout.js';
 
 const canvas = document.querySelector('#game');
@@ -831,6 +832,7 @@ function beginCutscenePresentation() {
 function revealGameUiAfterCutscene() {
   document.body.classList.remove('cutscene-active', 'cutscene-ui-reveal');
   document.body.classList.add('cutscene-ui-reveal');
+  requestAnimationFrame(() => measureGameplayLayout('cutscene-ui-reveal'));
   cutsceneUiRevealTimer = setTimeout(() => {
     document.body.classList.remove('cutscene-ui-reveal');
     cutsceneUiRevealTimer = null;
@@ -2011,10 +2013,11 @@ function observedDevicePixelRatio(entries, cssWidth) {
   const box = Array.isArray(devicePixelSize) ? devicePixelSize[0] : devicePixelSize;
   const contentWidth = Number(canvasEntry?.contentRect?.width) || cssWidth;
   const deviceWidth = Number(box?.inlineSize);
-  if (Number.isFinite(deviceWidth) && deviceWidth > 0 && contentWidth > 0) {
-    return deviceWidth / contentWidth;
-  }
-  return window.devicePixelRatio || 1;
+  return resolveObservedDevicePixelRatio({
+    deviceWidth,
+    contentWidth,
+    browserPixelRatio: window.devicePixelRatio || 1,
+  });
 }
 
 function measureGameplayLayout(reason, entries = []) {
@@ -2024,7 +2027,7 @@ function measureGameplayLayout(reason, entries = []) {
     ? [...document.querySelectorAll('[data-gameplay-blocker]')].map((element) => {
       if (element.hidden) return null;
       const style = getComputedStyle(element);
-      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      if (style.display === 'none' || style.visibility === 'hidden') {
         return { visible: false };
       }
       return {

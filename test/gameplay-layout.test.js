@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createGameplayLayout,
   highestVisibleBlockerBottom,
+  resolveObservedDevicePixelRatio,
 } from '../src/render/gameplay-layout.js';
 
 test('uses the highest visible HUD blocker bottom', () => {
@@ -120,4 +121,11 @@ test('advances layout revision only when normalized geometry or DPR changes', ()
 
   assert.equal(normalizedEqual.revision, first.revision);
   assert.equal(dprChange.revision, first.revision + 1);
+});
+test('falls back to browser DPR when device-pixel observer data is inconsistent', () => {
+  assert.equal(resolveObservedDevicePixelRatio({ deviceWidth: 412, contentWidth: 412, browserPixelRatio: 2.625 }), 2.625);
+});
+
+test('retains consistent device-pixel observer precision', () => {
+  assert.equal(resolveObservedDevicePixelRatio({ deviceWidth: 1081.44, contentWidth: 412, browserPixelRatio: 2.625 }), 2.625);
 });
