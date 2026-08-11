@@ -462,6 +462,7 @@ export function createLevelDocument(input = {}) {
       gameLayout: integer(input.source?.gameLayout, -1),
       markerClass: text(input.source?.markerClass, ''),
       home: Boolean(input.source?.home),
+      ...(Number.isInteger(input.source?.mapOrder) && input.source.mapOrder >= 0 ? { mapOrder: input.source.mapOrder } : {}),
     },
     decorations: (Array.isArray(input.decorations) ? input.decorations : [])
       .map((entry, index) => normalizeDecoration(entry, index, columns, rows)),

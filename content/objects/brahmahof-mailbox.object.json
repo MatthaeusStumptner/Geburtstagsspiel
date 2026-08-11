@@ -1,0 +1,77 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "brahmahof-mailbox",
+  "name": "Briefkasten Nr. 30",
+  "description": "Der Briefkasten vor Franz und Lolas Haus.",
+  "document": {
+    "id": "brahmahof-mailbox",
+    "name": "Briefkasten Nr. 30",
+    "category": "Bramerhof",
+    "description": "Der Briefkasten vor Franz und Lolas Haus.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#d7b56d",
+    "label": "30",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#8a6a45",
+        "#f5c451"
+      ],
+      "pixels": [
+        "00000000",
+        "00111100",
+        "01111110",
+        "01222210",
+        "01111110",
+        "00011000",
+        "00011000",
+        "00011000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00000000",
+                "00111100",
+                "01111110",
+                "01222210",
+                "01111110",
+                "00011000",
+                "00011000",
+                "00011000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.1
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

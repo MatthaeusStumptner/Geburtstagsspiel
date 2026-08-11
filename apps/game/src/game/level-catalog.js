@@ -1,12 +1,12 @@
 import { validateLevelDocument } from '@franz-lola/content-model';
+import rawCatalog from '../data/level-catalog.generated.json' with { type: 'json' };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
-const modules = import.meta.glob('../data/levels/*.level.json', { eager: true, import: 'default' });
 const mapMarkerClasses = new Set(['park', 'industrial', 'music']);
 
-function normalizePublishedLevel(raw, path) {
+function normalizePublishedLevel(raw, sourcePath) {
   const result = validateLevelDocument(raw);
-  if (!result.ok) throw new Error(`Ungültiges veröffentlichtes Level ${path}: ${result.errors.join(' ')}`);
+  if (!result.ok) throw new Error(`Ungültiges veröffentlichtes Level ${sourcePath}: ${result.errors.join(' ')}`);
   const mapOrder = Number(raw?.source?.mapOrder);
   return {
     ...result.value,
@@ -18,8 +18,8 @@ function normalizePublishedLevel(raw, path) {
 }
 
 const ids = new Set();
-export const LEVEL_DOCUMENTS = Object.freeze(Object.entries(modules)
-  .map(([path, raw]) => normalizePublishedLevel(raw, path))
+export const LEVEL_DOCUMENTS = Object.freeze(rawCatalog.levels
+  .map((raw) => normalizePublishedLevel(raw, `content/levels/${raw?.id ?? 'unknown'}.level.json`))
   .sort((left, right) => left.source.mapOrder - right.source.mapOrder || left.id.localeCompare(right.id))
   .map((level) => {
     if (ids.has(level.id)) throw new Error(`Doppelte veröffentlichte Level-ID: ${level.id}`);

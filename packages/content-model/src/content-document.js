@@ -9,13 +9,13 @@ export const CONTENT_TYPES = Object.freeze([
 const SUPPORTED_CONTENT_TYPES = Object.freeze(['level', ...CONTENT_TYPES]);
 const CONTENT_PATHS = Object.freeze({
   level: ['levels', 'level'],
-  character: ['library/characters', 'character'],
-  tileset: ['library/tilesets', 'tileset'],
-  block: ['library/blocks', 'block'],
-  animation: ['library/animations', 'animation'],
-  cutscene: ['library/cutscenes', 'cutscene'],
-  object: ['library/objects', 'object'],
-  event: ['library/events', 'event'],
+  character: ['characters', 'character'],
+  tileset: ['tilesets', 'tileset'],
+  block: ['blocks', 'block'],
+  animation: ['animations', 'animation'],
+  cutscene: ['cutscenes', 'cutscene'],
+  object: ['objects', 'object'],
+  event: ['events', 'event'],
 });
 
 const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -250,10 +250,12 @@ export function parseContentDocument(source) {
   return result.value;
 }
 
-export function contentPublicationPath(type, id) {
+export function contentPublicationPath(typeOrDocument, idInput) {
+  const type = typeOrDocument && typeof typeOrDocument === 'object' ? typeOrDocument.type : typeOrDocument;
+  const id = typeOrDocument && typeof typeOrDocument === 'object' ? typeOrDocument.id : idInput;
   if (!SUPPORTED_CONTENT_TYPES.includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
   const canonicalId = slug(id, '');
   if (!canonicalId || canonicalId !== id) throw new TypeError('Content-ID muss ein kanonischer Slug sein.');
   const [directory, extension] = CONTENT_PATHS[type];
-  return `src/data/${directory}/${canonicalId}.${extension}.json`;
+  return `content/${directory}/${canonicalId}.${extension}.json`;
 }

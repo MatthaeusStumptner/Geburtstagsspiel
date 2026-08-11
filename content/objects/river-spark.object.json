@@ -1,0 +1,85 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "river-spark",
+  "name": "Flussfunkeln",
+  "description": "Ein Lichtreflex für Inn, Ilz und Donau.",
+  "document": {
+    "id": "river-spark",
+    "name": "Flussfunkeln",
+    "category": "Passau",
+    "description": "Ein Lichtreflex für Inn, Ilz und Donau.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#55d9dd",
+    "label": "✦",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#55d9dd"
+      ],
+      "pixels": [
+        "00010000",
+        "01010100",
+        "00111000",
+        "11111110",
+        "00111000",
+        "01010100",
+        "00010000",
+        "00000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00010000",
+                "01010100",
+                "00111000",
+                "11111110",
+                "00111000",
+                "01010100",
+                "00010000",
+                "00000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "pulse",
+      "speed": 0.75,
+      "amplitude": 0.18
+    },
+    "effects": [
+      {
+        "id": "wasser-funkeln",
+        "type": "sparkle",
+        "intensity": 0.6,
+        "speed": 1.2,
+        "color": "#55d9dd"
+      }
+    ]
+  },
+  "dependencies": [],
+  "references": []
+}

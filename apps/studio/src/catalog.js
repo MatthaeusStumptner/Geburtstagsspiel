@@ -1,4 +1,4 @@
-import rawCatalog from './data/passau-levels.json' with { type: 'json' };
+import rawCatalog from './data/content-catalog.generated.json' with { type: 'json' };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 

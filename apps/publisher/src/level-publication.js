@@ -78,7 +78,7 @@ export function preparePublishedLevel(input, { existing, nextMapOrder }) {
       mapOrder,
     },
   };
-  return { value, warnings: result.warnings, path: `src/data/levels/${value.id}.level.json` };
+  return { value, warnings: result.warnings, path: contentPublicationPath({ type: 'level', id: value.id }) };
 }
 
 export function preparePublishedBatch(inputs, { existingByPath = new Map(), nextMapOrder = 0 } = {}) {
@@ -101,6 +101,6 @@ export function preparePublishedContent(input) {
   return {
     value: result.value,
     warnings: [],
-    path: contentPublicationPath(result.value.type, result.value.id),
+    path: contentPublicationPath(result.value),
   };
 }

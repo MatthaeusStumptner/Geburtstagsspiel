@@ -4,9 +4,12 @@
   "version": "0.3.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run levels:import",
     "dev": "vite",
+    "prebuild": "npm run levels:import",
     "build": "vite build && node scripts/generate-service-worker.mjs",
     "preview": "vite preview",
+    "pretest": "npm run levels:import",
     "test": "node --test test/*.test.js",
     "test:browser": "node scripts/browser-game-regression.mjs",
     "verify": "npm test && npm run build && npm run test:browser",

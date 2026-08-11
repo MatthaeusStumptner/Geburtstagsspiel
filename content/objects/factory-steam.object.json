@@ -1,0 +1,85 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "factory-steam",
+  "name": "Fabrikdampf",
+  "description": "Animierbarer Dampf aus der alten Tabakfabrik.",
+  "document": {
+    "id": "factory-steam",
+    "name": "Fabrikdampf",
+    "category": "Tabakfabrik",
+    "description": "Animierbarer Dampf aus der alten Tabakfabrik.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#f0d0a0",
+    "label": "≈",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#f0d0a0"
+      ],
+      "pixels": [
+        "00011000",
+        "00110000",
+        "00011000",
+        "00001100",
+        "00011000",
+        "00110000",
+        "00000000",
+        "00000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00011000",
+                "00110000",
+                "00011000",
+                "00001100",
+                "00011000",
+                "00110000",
+                "00000000",
+                "00000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "bob",
+      "speed": 0.45,
+      "amplitude": 0.18
+    },
+    "effects": [
+      {
+        "id": "dampf-echo",
+        "type": "echo",
+        "intensity": 0.35,
+        "speed": 0.7,
+        "color": "#f0d0a0"
+      }
+    ]
+  },
+  "dependencies": [],
+  "references": []
+}

@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { validateLevelDocument } from '@franz-lola/content-model';
 
-const directory = resolve('src/data/levels');
+const directory = fileURLToPath(new URL('../../../content/levels/', import.meta.url));
 
 test('all published levels are valid, ordered and lossless for editable palettes', async () => {
   const filenames = (await readdir(directory)).filter((name) => name.endsWith('.level.json')).sort();

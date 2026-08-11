@@ -4,10 +4,13 @@
   "version": "0.0.0-monorepo",
   "type": "module",
   "scripts": {
+    "predev": "npm run catalog:generate",
     "dev": "vite",
+    "prebuild": "npm run catalog:generate",
     "build": "vite build",
     "preview": "vite preview",
     "catalog:generate": "node scripts/generate-game-catalog.mjs",
+    "pretest": "npm run catalog:generate",
     "test": "node --test test/*.test.js",
     "test:e2e": "playwright test",
     "test:visual": "playwright test --config=playwright.visual.config.js",

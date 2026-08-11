@@ -1,3 +1,4 @@
+import { CONTENT_TYPES, contentPublicationPath } from '@franz-lola/content-model';
 import { base64UrlEncode } from './security.js';
 
 const encoder = new TextEncoder();
@@ -115,13 +116,23 @@ export async function readRepositoryFile(env, path, ref = env.GITHUB_BASE_BRANCH
   }
 }
 
-export async function listPublishedLevels(env) {
+export function publishedContentDirectory(type) {
+  if (!['level', ...CONTENT_TYPES].includes(type)) throw new TypeError(`Unbekannter Inhaltstyp: ${type}`);
+  return contentPublicationPath({ type, id: 'catalog-entry' }).replace(/\/[^/]+$/, '');
+}
+
+export async function listPublishedContent(env, type) {
+  const directory = publishedContentDirectory(type);
   try {
-    return await githubRequest(env, `${repositoryPath(env, '/contents/src/data/levels')}?ref=${encodeURIComponent(env.GITHUB_BASE_BRANCH)}`);
+    return await githubRequest(env, `${repositoryPath(env, `/contents/${directory}`)}?ref=${encodeURIComponent(env.GITHUB_BASE_BRANCH)}`);
   } catch (error) {
     if (error.message.includes('(404)')) return [];
     throw error;
   }
+}
+
+export function listPublishedLevels(env) {
+  return listPublishedContent(env, 'level');
 }
 
 function publicationKey(items) {

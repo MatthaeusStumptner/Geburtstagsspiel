@@ -1,36 +1,27 @@
-import { createHash } from 'node:crypto';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { storyContent } from '../src/story-content.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { jsonValueSha256, readContentCatalog } from '../../../tools/content-checksums.mjs';
 
-const sourcePath = resolve(process.argv[2] ?? 'src/data/passau-levels.json');
-const outputPath = resolve(process.argv[3] ?? 'src/data/passau-levels.json');
-const source = JSON.parse(await readFile(sourcePath, 'utf8'));
-if (source?.kind !== 'franz-lola-level-catalog' || !Array.isArray(source.levels)) {
-  throw new Error('Die Quelle ist kein Franz-und-Lola-Levelkatalog.');
-}
-
-const levels = source.levels.map((level) => {
-  const story = storyContent(level.id, level.actors.player);
-  const events = (level.events ?? []).filter((event) => event.id !== story.event?.id);
-  return {
-    ...level,
-    decorations: story.decorations,
-    theme: { ...level.theme, elements: (level.theme.elements ?? []).filter((element) => element.id !== 'stage-note'), edgeEffects: story.edgeEffects ?? [] },
-    actors: { ...level.actors, cats: level.actors.cats.map((cat, index) => ({ ...cat, ...(story.catEffects?.[index] ? { effects: story.catEffects[index] } : {}) })) },
-    events: [...events, ...(story.event ? [story.event] : [])],
-    cutscenes: story.cutscene ? [story.cutscene] : [],
-  };
-});
-
-const geometryFingerprint = JSON.stringify(levels.map((level) => ({ id: level.id, board: level.board, location: level.location, theme: level.theme.id })));
-const catalog = {
-  ...source,
-  generatedFrom: 'Pacman_clone_level_editor/src/data/passau-levels.json + src/story-content.js',
-  sourceHash: createHash('sha256').update(geometryFingerprint).digest('hex'),
+const STUDIO_LEVEL_ORDER = Object.freeze([
+  'home', 'hals', 'oberhaus', 'dom', 'dreifluesseeck', 'uni', 'bschuett', 'tabakfabrik', 'zauberberg',
+]);
+const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const monorepoRoot = resolve(studioRoot, '../..');
+const outputPath = resolve(studioRoot, 'src/data/content-catalog.generated.json');
+const catalog = await readContentCatalog(pathToFileURL(`${monorepoRoot}${sep}`));
+const levelsById = new Map(catalog.levels.map((level) => [level.id, level]));
+const levels = STUDIO_LEVEL_ORDER.map((id) => levelsById.get(id));
+if (levels.some((level) => !level)) throw new Error('Root content does not match the Studio level order manifest.');
+const document = {
+  kind: 'franz-lola-level-catalog',
+  schemaVersion: 1,
+  generatedFrom: 'content/levels/*.level.json',
+  sourceHash: jsonValueSha256(levels),
+  ...catalog,
   levels,
 };
 
 await mkdir(dirname(outputPath), { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
-console.log(`Katalog mit ${levels.length} Leveln und individuellen Cutscenes: ${outputPath}`);
+await writeFile(outputPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+console.log(`Generated studio catalog with ${document.levels.length} levels and ${document.objects.length} reusable objects from root content: ${outputPath}`);

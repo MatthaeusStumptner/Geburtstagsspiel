@@ -36,7 +36,13 @@ test('catalog is pinned to the reviewed Geburtstagsspiel source snapshot', () =>
   const catalog = catalogDocument();
   assert.equal(catalog.kind, 'franz-lola-level-catalog');
   assert.match(catalog.sourceHash, /^[a-f0-9]{64}$/);
-  assert.equal(catalog.generatedFrom, 'Pacman_clone_level_editor/src/data/passau-levels.json + src/story-content.js');
+  assert.equal(catalog.generatedFrom, 'content/levels/*.level.json');
+  assert.equal(catalog.objects.length, 16);
+  assert.deepEqual(catalog.objects.map((entry) => entry.id).sort(), [
+    'bench', 'brahmahof-mailbox', 'cathedral-bell', 'concert-speaker', 'factory-steam', 'kingfisher',
+    'lola-stick', 'music-note', 'oberhaus-flag', 'river-spark', 'sign', 'stage-lights', 'text-block',
+    'tree', 'university-book', 'zauberberg-note',
+  ]);
 });
 
 test('contains all nine original levels in map order with exact layout assignments', () => {
@@ -131,6 +137,6 @@ test('ships Zauberberg without baked, placed or event-backed note objects', () =
   assert.equal(notes.length, 0);
   const encore = level.events.find((event) => event.id === 'zugabe');
   assert.equal(encore.visual.type, 'none');
-  assert.equal('assetId' in encore.visual, false);
+  assert.equal(encore.visual.assetId, '');
   assert.equal(level.cutscenes[0].tracks.some((track) => track.target?.includes('note')), false);
 });

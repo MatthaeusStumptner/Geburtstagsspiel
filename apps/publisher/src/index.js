@@ -211,6 +211,11 @@ async function publish(request, env, session) {
   }, { status: 202, request, env });
 }
 
+export function contentRouteMatch(path) {
+  const match = /^\/api\/content\/(character|tileset|block|animation|cutscene|object|event)\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
+  return match ? [match[1], match[2]] : null;
+}
+
 async function api(request, env, path) {
   if (!requestOriginAllowed(request, env)) return json({ error: 'Nicht erlaubter Ursprung.' }, { status: 403, request, env });
   if (request.method === 'OPTIONS') return response(null, { status: 204, request, env });
@@ -245,7 +250,7 @@ async function api(request, env, path) {
       login: session.login,
     }), { request, env });
   }
-  const contentMatch = /^\/api\/content\/(character|tileset|block|animation|cutscene|object)\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
+  const contentMatch = contentRouteMatch(path);
   if (contentMatch && request.method === 'GET') return json(await readContentItem(env.LEVEL_DB, contentMatch[1], contentMatch[2]), { request, env });
   if (contentMatch && request.method === 'PUT') {
     const body = await readPublishBody(request);

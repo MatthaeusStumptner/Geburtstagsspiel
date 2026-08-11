@@ -20,17 +20,18 @@ test('publishing guard accepts only the exact configured app bot in the same rep
 
 test('publishing guard accepts every canonical content type and nothing else', () => {
   const allowed = [
-    'src/data/levels/hals.level.json',
-    'src/data/library/characters/postler.character.json',
-    'src/data/library/tilesets/innstadt.tileset.json',
-    'src/data/library/blocks/ziegel.block.json',
-    'src/data/library/animations/winken.animation.json',
-    'src/data/library/cutscenes/servus.cutscene.json',
-    'src/data/library/objects/briefkasten.object.json',
+    'content/levels/hals.level.json',
+    'content/characters/postler.character.json',
+    'content/tilesets/innstadt.tileset.json',
+    'content/blocks/ziegel.block.json',
+    'content/animations/winken.animation.json',
+    'content/cutscenes/servus.cutscene.json',
+    'content/objects/briefkasten.object.json',
+    'content/events/eisvogel.event.json',
   ];
   assert.doesNotThrow(() => assertPublishedContentPaths(allowed));
   assert.throws(() => assertPublishedContentPaths([...allowed, '.github/workflows/deploy.yml']), /kanonische Content-JSON/);
-  assert.throws(() => assertPublishedContentPaths(['src/data/levels/..%2Fmain.js.level.json']), /kanonische Content-JSON/);
-  assert.throws(() => assertPublishedContentPaths(['src/data/library/characters/postler.object.json']), /kanonische Content-JSON/);
+  assert.throws(() => assertPublishedContentPaths(['content/levels/..%2Fmain.js.level.json']), /kanonische Content-JSON/);
+  assert.throws(() => assertPublishedContentPaths(['content/characters/postler.object.json']), /kanonische Content-JSON/);
   assert.throws(() => assertPublishedContentPaths([]), /keine Dateien/);
 });

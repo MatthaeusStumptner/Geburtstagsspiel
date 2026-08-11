@@ -1,0 +1,27 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "bench",
+  "name": "Parkbank",
+  "description": "Bank für Bschütt und Gassirunden.",
+  "document": {
+    "id": "bench",
+    "name": "Parkbank",
+    "category": "Nachbarschaft",
+    "description": "Bank für Bschütt und Gassirunden.",
+    "type": "bench",
+    "width": 2,
+    "height": 1,
+    "color": "#b4794f",
+    "label": "",
+    "appearance": null,
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.15
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

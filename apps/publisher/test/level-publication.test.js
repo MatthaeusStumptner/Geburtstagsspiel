@@ -58,7 +58,7 @@ test('publication preserves protected map metadata, sprites, objects and level-b
   assert.equal(result.value.decorations[1].animation.type, 'keyframes');
   assert.equal(result.value.cutscenes[0].tracks[1].target, 'note');
   assert.equal(result.value.cutscenes[0].tracks[1].keyframes[1].x, 4);
-  assert.equal(result.path, 'src/data/levels/hals.level.json');
+  assert.equal(result.path, 'content/levels/hals.level.json');
 });
 
 test('publication rejects prototype keys, oversized bodies and oversized boards', async () => {
@@ -75,7 +75,7 @@ test('batch publication accepts legacy and multi-level bodies and assigns stable
   const first = level(); const second = level(); second.id = 'neuer-ort'; second.name.standard = 'Neuer Ort';
   assert.deepEqual(publishLevelsFromBody({ level: first }), [first]);
   assert.deepEqual(publishLevelsFromBody({ levels: [first, second] }), [first, second]);
-  const existingByPath = new Map([['src/data/levels/hals.level.json', { source: { catalog: 'Geburtstagsspiel', gameLayout: 2, mapOrder: 2 } }]]);
+  const existingByPath = new Map([['content/levels/hals.level.json', { source: { catalog: 'Geburtstagsspiel', gameLayout: 2, mapOrder: 2 } }]]);
   const batch = preparePublishedBatch([first, second], { existingByPath, nextMapOrder: 9 });
   assert.equal(batch[0].value.source.mapOrder, 2);
   assert.equal(batch[1].value.source.mapOrder, 9);
@@ -106,7 +106,7 @@ test('publishes every reusable content type to a strict static path', () => {
   };
   for (const type of CONTENT_TYPES.filter((entry) => entry !== 'level')) {
     const prepared = preparePublishedContent(createContentDocument(type, samples[type]));
-    assert.match(prepared.path, new RegExp(`^src/data/library/.+/${samples[type].id}\\.${type}\\.json$`));
+    assert.equal(prepared.path, `content/${type === 'character' ? 'characters' : `${type}s`}/${samples[type].id}.${type}.json`);
     assert.equal(prepared.value.type, type);
   }
   assert.throws(() => preparePublishedContent(createContentDocument('level', level())), /Level-Entwürfe/);

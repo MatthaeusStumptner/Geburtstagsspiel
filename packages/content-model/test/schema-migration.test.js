@@ -115,7 +115,7 @@ test('fails closed with version-specific issues for invalid schema versions', ()
 });
 
 test('publishes events through their exact reusable-content path', () => {
-  assert.equal(contentPublicationPath('event', 'eisvogel'), 'src/data/library/events/eisvogel.event.json');
+  assert.equal(contentPublicationPath('event', 'eisvogel'), 'content/events/eisvogel.event.json');
 });
 
 test('ships a schema-v2 discriminator with reusable event references', async () => {

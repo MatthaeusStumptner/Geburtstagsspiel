@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../src/index.js';
+import worker, { contentRouteMatch } from '../src/index.js';
 
 const env = {
   SESSION_SECRET: '0123456789abcdef0123456789abcdef',
@@ -47,4 +47,11 @@ test('OAuth login accepts only the exact editor return path', async () => {
   assert.equal(accepted.status, 302);
   assert.equal(new URL(accepted.headers.get('Location')).hostname, 'github.com');
   assert.match(accepted.headers.get('Set-Cookie'), /HttpOnly; Secure; SameSite=Lax/);
+});
+
+test('content API routes every reusable type including events', () => {
+  assert.deepEqual(contentRouteMatch('/api/content/event/eisvogel'), ['event', 'eisvogel']);
+  assert.deepEqual(contentRouteMatch('/api/content/character/postler'), ['character', 'postler']);
+  assert.equal(contentRouteMatch('/api/content/level/hals'), null);
+  assert.equal(contentRouteMatch('/api/content/unknown/nope'), null);
 });

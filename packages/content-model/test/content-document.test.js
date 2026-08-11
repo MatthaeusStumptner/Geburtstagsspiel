@@ -31,9 +31,10 @@ test('creates and validates every independently publishable content type', () =>
 });
 
 test('uses strict, type-specific static publication paths', () => {
-  assert.equal(contentPublicationPath('level', 'domplatz'), 'src/data/levels/domplatz.level.json');
-  assert.equal(contentPublicationPath('character', 'postler'), 'src/data/library/characters/postler.character.json');
-  assert.equal(contentPublicationPath('cutscene', 'servus'), 'src/data/library/cutscenes/servus.cutscene.json');
+  assert.equal(contentPublicationPath('level', 'domplatz'), 'content/levels/domplatz.level.json');
+  assert.equal(contentPublicationPath('character', 'postler'), 'content/characters/postler.character.json');
+  assert.equal(contentPublicationPath('cutscene', 'servus'), 'content/cutscenes/servus.cutscene.json');
+  assert.equal(contentPublicationPath({ type: 'event', id: 'eisvogel' }), 'content/events/eisvogel.event.json');
   assert.throws(() => contentPublicationPath('object', '../package'), /kanonischer Slug/);
 });
 

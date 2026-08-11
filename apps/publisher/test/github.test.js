@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { importPrivateKey, workflowProgress } from '../src/github.js';
+import { importPrivateKey, publishedContentDirectory, workflowProgress } from '../src/github.js';
 
 test('GitHub App keys work in both generated PKCS#1 and PKCS#8 PEM formats', async () => {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 });
@@ -34,4 +34,19 @@ test('maps GitHub Pages deployment jobs and has a useful queued fallback', () =>
   const queued = workflowProgress({ status: 'queued' }, [], 'deploy');
   assert.equal(queued.phase, 'deploy-queued');
   assert.equal(queued.progress, 68);
+});
+
+test('lists every publishable type from its canonical root content directory', () => {
+  assert.deepEqual([
+    'level', 'character', 'tileset', 'block', 'animation', 'cutscene', 'object', 'event',
+  ].map((type) => [type, publishedContentDirectory(type)]), [
+    ['level', 'content/levels'],
+    ['character', 'content/characters'],
+    ['tileset', 'content/tilesets'],
+    ['block', 'content/blocks'],
+    ['animation', 'content/animations'],
+    ['cutscene', 'content/cutscenes'],
+    ['object', 'content/objects'],
+    ['event', 'content/events'],
+  ]);
 });

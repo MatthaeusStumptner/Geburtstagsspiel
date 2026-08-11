@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { LevelAudioDirector } from '../src/audio/level-audio-director.js';
 import {
   LEVEL_SOUNDSCAPES,
@@ -12,7 +13,7 @@ import {
   validateSoundscapeProfile,
 } from '../src/audio/level-soundscapes.js';
 
-const levelsDirectory = resolve('src/data/levels');
+const levelsDirectory = fileURLToPath(new URL('../../../content/levels/', import.meta.url));
 
 test('every published level owns one valid soundscape profile', async () => {
   const filenames = (await readdir(levelsDirectory)).filter((name) => name.endsWith('.level.json'));

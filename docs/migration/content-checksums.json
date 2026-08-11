@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-11",
+  "sourceManifest": {
+    "sourcePaths": [
+      "apps/game/src/data/levels/bschuett.level.json",
+      "apps/game/src/data/levels/dom.level.json",
+      "apps/game/src/data/levels/dreifluesseeck.level.json",
+      "apps/game/src/data/levels/hals.level.json",
+      "apps/game/src/data/levels/home.level.json",
+      "apps/game/src/data/levels/oberhaus.level.json",
+      "apps/game/src/data/levels/tabakfabrik.level.json",
+      "apps/game/src/data/levels/uni.level.json",
+      "apps/game/src/data/levels/zauberberg.level.json",
+      "apps/studio/src/data/passau-levels.json",
+      "apps/studio/src/object-library.js"
+    ],
+    "counts": {
+      "levels": 9,
+      "studioLevels": 9,
+      "objects": 16
+    },
+    "valueSha256": {
+      "levels": "c53c35f2f266a560706a4dd06a69fb5ed678a630f6faaeabbc502a47d06a8b1d",
+      "studioLevels": "8d846f6d03a132edbd62188543b5008e024d233ac82da1db4883a884a4e90bcd",
+      "objects": "e4645e201e6cfd4ae992783ef8f849c55144a6b9c0b31b8d168be8635e18c77c"
+    }
+  },
+  "counts": {
+    "levels": 9,
+    "characters": 0,
+    "tilesets": 0,
+    "blocks": 0,
+    "animations": 0,
+    "cutscenes": 0,
+    "objects": 16,
+    "events": 0
+  },
+  "levels": [
+    {
+      "type": "level",
+      "id": "bschuett",
+      "sourcePath": "apps/game/src/data/levels/bschuett.level.json",
+      "canonicalPath": "content/levels/bschuett.level.json",
+      "sourceValueSha256": "7d61b06c21fd1c91e9f8b97c8e739ee7eb1a9c1e80ca58dd4ca3fd11b928487d",
+      "canonicalValueSha256": "7d61b06c21fd1c91e9f8b97c8e739ee7eb1a9c1e80ca58dd4ca3fd11b928487d"
+    },
+    {
+      "type": "level",
+      "id": "dom",
+      "sourcePath": "apps/game/src/data/levels/dom.level.json",
+      "canonicalPath": "content/levels/dom.level.json",
+      "sourceValueSha256": "5966a64d92ca5aed577b0367b083723fa255cc2ca60e358246b8b72071bea3f2",
+      "canonicalValueSha256": "5966a64d92ca5aed577b0367b083723fa255cc2ca60e358246b8b72071bea3f2"
+    },
+    {
+      "type": "level",
+      "id": "dreifluesseeck",
+      "sourcePath": "apps/game/src/data/levels/dreifluesseeck.level.json",
+      "canonicalPath": "content/levels/dreifluesseeck.level.json",
+      "sourceValueSha256": "024871138edfe85cc03a40179dcc163f7612dc19fc307922947c746d7faad47f",
+      "canonicalValueSha256": "024871138edfe85cc03a40179dcc163f7612dc19fc307922947c746d7faad47f"
+    },
+    {
+      "type": "level",
+      "id": "hals",
+      "sourcePath": "apps/game/src/data/levels/hals.level.json",
+      "canonicalPath": "content/levels/hals.level.json",
+      "sourceValueSha256": "d398fc1f5d90ad73d55ac8941494dbb17ac0216da9064c15ee80638e7b28b64c",
+      "canonicalValueSha256": "d398fc1f5d90ad73d55ac8941494dbb17ac0216da9064c15ee80638e7b28b64c"
+    },
+    {
+      "type": "level",
+      "id": "home",
+      "sourcePath": "apps/game/src/data/levels/home.level.json",
+      "canonicalPath": "content/levels/home.level.json",
+      "sourceValueSha256": "a98389723e97729d4f1d30d04b29ccf4eea50f31da112fe63c6e1c0ea1d2c73b",
+      "canonicalValueSha256": "a98389723e97729d4f1d30d04b29ccf4eea50f31da112fe63c6e1c0ea1d2c73b"
+    },
+    {
+      "type": "level",
+      "id": "oberhaus",
+      "sourcePath": "apps/game/src/data/levels/oberhaus.level.json",
+      "canonicalPath": "content/levels/oberhaus.level.json",
+      "sourceValueSha256": "d8b1e44a55ffa4bb94be8d92a81822d9bc9bc75d86d8a0978470b9c4ae774dd6",
+      "canonicalValueSha256": "d8b1e44a55ffa4bb94be8d92a81822d9bc9bc75d86d8a0978470b9c4ae774dd6"
+    },
+    {
+      "type": "level",
+      "id": "tabakfabrik",
+      "sourcePath": "apps/game/src/data/levels/tabakfabrik.level.json",
+      "canonicalPath": "content/levels/tabakfabrik.level.json",
+      "sourceValueSha256": "0a98dcd425427821a8ac0a4c5dfcccc701effa042b8ad8d38da33090bfe23cb5",
+      "canonicalValueSha256": "0a98dcd425427821a8ac0a4c5dfcccc701effa042b8ad8d38da33090bfe23cb5"
+    },
+    {
+      "type": "level",
+      "id": "uni",
+      "sourcePath": "apps/game/src/data/levels/uni.level.json",
+      "canonicalPath": "content/levels/uni.level.json",
+      "sourceValueSha256": "17344ef06c19668a3da5b42c1931f2abb19425c8ca733f918373e9dacaa52bd1",
+      "canonicalValueSha256": "17344ef06c19668a3da5b42c1931f2abb19425c8ca733f918373e9dacaa52bd1"
+    },
+    {
+      "type": "level",
+      "id": "zauberberg",
+      "sourcePath": "apps/game/src/data/levels/zauberberg.level.json",
+      "canonicalPath": "content/levels/zauberberg.level.json",
+      "sourceValueSha256": "4a7ea77357455b9b7636a99a14ab977d2d9e55ec25d981d2b8d00c6a0f940e21",
+      "canonicalValueSha256": "4a7ea77357455b9b7636a99a14ab977d2d9e55ec25d981d2b8d00c6a0f940e21"
+    }
+  ],
+  "characters": [],
+  "tilesets": [],
+  "blocks": [],
+  "animations": [],
+  "cutscenes": [],
+  "objects": [
+    {
+      "type": "object",
+      "id": "bench",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/bench.object.json",
+      "sourceValueSha256": "d3508362e95fb21d175119f3d48a6320a4b0d14ebb7023c3f300ed4b737ad5f5",
+      "canonicalValueSha256": "d3508362e95fb21d175119f3d48a6320a4b0d14ebb7023c3f300ed4b737ad5f5"
+    },
+    {
+      "type": "object",
+      "id": "brahmahof-mailbox",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/brahmahof-mailbox.object.json",
+      "sourceValueSha256": "958b42514535e3c11337462dfcbf98150030b076b25cea5d98a45bb59b5751ed",
+      "canonicalValueSha256": "958b42514535e3c11337462dfcbf98150030b076b25cea5d98a45bb59b5751ed"
+    },
+    {
+      "type": "object",
+      "id": "cathedral-bell",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/cathedral-bell.object.json",
+      "sourceValueSha256": "b191d811a337ca733b52ead00802a63d12019c9490adeb9a31d3dd417b167933",
+      "canonicalValueSha256": "b191d811a337ca733b52ead00802a63d12019c9490adeb9a31d3dd417b167933"
+    },
+    {
+      "type": "object",
+      "id": "concert-speaker",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/concert-speaker.object.json",
+      "sourceValueSha256": "01b86cfea90bb86739f039814265d17ec0757f90ca7eae672573e3bb4922c014",
+      "canonicalValueSha256": "01b86cfea90bb86739f039814265d17ec0757f90ca7eae672573e3bb4922c014"
+    },
+    {
+      "type": "object",
+      "id": "factory-steam",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/factory-steam.object.json",
+      "sourceValueSha256": "421942b0be5855e2805fad4284afd3aefe768a457f55e4ec7c67ff1caf16ab42",
+      "canonicalValueSha256": "421942b0be5855e2805fad4284afd3aefe768a457f55e4ec7c67ff1caf16ab42"
+    },
+    {
+      "type": "object",
+      "id": "kingfisher",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/kingfisher.object.json",
+      "sourceValueSha256": "e2051bc173a885c1b89a3fc4facd701c4755d101e0ec02278545892c81fcd693",
+      "canonicalValueSha256": "e2051bc173a885c1b89a3fc4facd701c4755d101e0ec02278545892c81fcd693"
+    },
+    {
+      "type": "object",
+      "id": "lola-stick",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/lola-stick.object.json",
+      "sourceValueSha256": "aa001b5dc0be3b1aa03ae1e68f099a06d625f2b9f4d13bb83ed9ecbdcab3fea4",
+      "canonicalValueSha256": "aa001b5dc0be3b1aa03ae1e68f099a06d625f2b9f4d13bb83ed9ecbdcab3fea4"
+    },
+    {
+      "type": "object",
+      "id": "music-note",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/music-note.object.json",
+      "sourceValueSha256": "ddfe2c3dc81787304435744ab5e227ff981a785a1f38ef7a47eb09fff900eab6",
+      "canonicalValueSha256": "ddfe2c3dc81787304435744ab5e227ff981a785a1f38ef7a47eb09fff900eab6"
+    },
+    {
+      "type": "object",
+      "id": "oberhaus-flag",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/oberhaus-flag.object.json",
+      "sourceValueSha256": "fd96eee2cfbc479210b0fa420f312c7bc2c21f357022a3c77b8102ebc0affe6a",
+      "canonicalValueSha256": "fd96eee2cfbc479210b0fa420f312c7bc2c21f357022a3c77b8102ebc0affe6a"
+    },
+    {
+      "type": "object",
+      "id": "river-spark",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/river-spark.object.json",
+      "sourceValueSha256": "bb8a7a6e4aa0392ad585f614cecd5647ab4086f5fffe56c33a7d57d2ef6abc24",
+      "canonicalValueSha256": "bb8a7a6e4aa0392ad585f614cecd5647ab4086f5fffe56c33a7d57d2ef6abc24"
+    },
+    {
+      "type": "object",
+      "id": "sign",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/sign.object.json",
+      "sourceValueSha256": "8512a9a54e2fa944bc3767948bb00679369fdd61fc4cb384182ee34448a7aa7d",
+      "canonicalValueSha256": "8512a9a54e2fa944bc3767948bb00679369fdd61fc4cb384182ee34448a7aa7d"
+    },
+    {
+      "type": "object",
+      "id": "stage-lights",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/stage-lights.object.json",
+      "sourceValueSha256": "51107e64912b6299e07d5d8cecd32989acc1adde2796d41bbb6f79d3756e0ec5",
+      "canonicalValueSha256": "51107e64912b6299e07d5d8cecd32989acc1adde2796d41bbb6f79d3756e0ec5"
+    },
+    {
+      "type": "object",
+      "id": "text-block",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/text-block.object.json",
+      "sourceValueSha256": "b3a6071822e2fa77133215dc14dae251546e1297f7156e75215976612dda80bf",
+      "canonicalValueSha256": "b3a6071822e2fa77133215dc14dae251546e1297f7156e75215976612dda80bf"
+    },
+    {
+      "type": "object",
+      "id": "tree",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/tree.object.json",
+      "sourceValueSha256": "e8277b1c7d36e045486359bb15b0984d5b30c29f018825b97f0ffa62fa6170b9",
+      "canonicalValueSha256": "e8277b1c7d36e045486359bb15b0984d5b30c29f018825b97f0ffa62fa6170b9"
+    },
+    {
+      "type": "object",
+      "id": "university-book",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/university-book.object.json",
+      "sourceValueSha256": "e3cb11b7bc4ebfdc01f9f5fba63f0bc0d86b7613e4ba97c954003216144e13b0",
+      "canonicalValueSha256": "e3cb11b7bc4ebfdc01f9f5fba63f0bc0d86b7613e4ba97c954003216144e13b0"
+    },
+    {
+      "type": "object",
+      "id": "zauberberg-note",
+      "sourcePath": "apps/studio/src/object-library.js#DEFAULT_OBJECT_ASSETS",
+      "canonicalPath": "content/objects/zauberberg-note.object.json",
+      "sourceValueSha256": "7825cd8d44196e9550b3c3c18fefce51d80aa3c8a25b680fb567eb23a8c186b3",
+      "canonicalValueSha256": "7825cd8d44196e9550b3c3c18fefce51d80aa3c8a25b680fb567eb23a8c186b3"
+    }
+  ],
+  "events": []
+}

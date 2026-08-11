@@ -59,7 +59,7 @@ npm run test:visual   # visuelle Belege für Text/Transformation, Publisher, Fig
 npm run build         # statischer GitHub-Pages-Build
 ```
 
-`npm run catalog:generate -- ../Pacman_clone/src/main.js src/data/passau-levels.json` erzeugt die neun Vorlagen deterministisch aus dem Spielcode. Der geprüfte Quellstand wird über einen SHA-256-Hash im Katalog festgehalten.
+`npm run catalog:generate` erzeugt den Studio-Lesekatalog deterministisch aus dem kanonischen Root-Katalog unter `content/`. Der Migrationsbericht `docs/migration/content-checksums.json` hält die geprüften JSON-Value-SHA-256-Hashes fest.
 
 ## Austauschformat
 

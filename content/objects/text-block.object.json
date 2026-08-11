@@ -1,0 +1,43 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "text-block",
+  "name": "Freier Textblock",
+  "description": "Frei beweglicher, zweisprachiger Text direkt im Level.",
+  "document": {
+    "id": "text-block",
+    "name": "Freier Textblock",
+    "category": "Text",
+    "description": "Frei beweglicher, zweisprachiger Text direkt im Level.",
+    "type": "text",
+    "width": 5,
+    "height": 2,
+    "color": "#f5e7bd",
+    "label": "TEXT",
+    "content": {
+      "standard": "Text im Level",
+      "dialect": "Text im Level"
+    },
+    "textStyle": {
+      "fontSize": 0.45,
+      "align": "center",
+      "verticalAlign": "middle",
+      "background": "#071016",
+      "backgroundOpacity": 0,
+      "borderColor": "#55d9dd",
+      "borderOpacity": 0,
+      "padding": 0.2,
+      "uppercase": false
+    },
+    "appearance": null,
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.15
+    },
+    "effects": []
+  },
+  "dependencies": [],
+  "references": []
+}

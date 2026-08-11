@@ -8,13 +8,14 @@ export function assertPublisherPullRequest(pullRequest, expectedBot) {
 }
 
 const PUBLISHED_CONTENT_PATHS = Object.freeze([
-  /^src\/data\/levels\/[a-z0-9][a-z0-9-]*\.level\.json$/,
-  /^src\/data\/library\/characters\/[a-z0-9][a-z0-9-]*\.character\.json$/,
-  /^src\/data\/library\/tilesets\/[a-z0-9][a-z0-9-]*\.tileset\.json$/,
-  /^src\/data\/library\/blocks\/[a-z0-9][a-z0-9-]*\.block\.json$/,
-  /^src\/data\/library\/animations\/[a-z0-9][a-z0-9-]*\.animation\.json$/,
-  /^src\/data\/library\/cutscenes\/[a-z0-9][a-z0-9-]*\.cutscene\.json$/,
-  /^src\/data\/library\/objects\/[a-z0-9][a-z0-9-]*\.object\.json$/,
+  /^content\/levels\/[a-z0-9][a-z0-9-]*\.level\.json$/,
+  /^content\/characters\/[a-z0-9][a-z0-9-]*\.character\.json$/,
+  /^content\/tilesets\/[a-z0-9][a-z0-9-]*\.tileset\.json$/,
+  /^content\/blocks\/[a-z0-9][a-z0-9-]*\.block\.json$/,
+  /^content\/animations\/[a-z0-9][a-z0-9-]*\.animation\.json$/,
+  /^content\/cutscenes\/[a-z0-9][a-z0-9-]*\.cutscene\.json$/,
+  /^content\/objects\/[a-z0-9][a-z0-9-]*\.object\.json$/,
+  /^content\/events\/[a-z0-9][a-z0-9-]*\.event\.json$/,
 ]);
 
 export function assertPublishedContentPaths(changedFiles) {
