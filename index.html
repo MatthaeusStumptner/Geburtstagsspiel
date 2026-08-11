@@ -5,13 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#071522" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="./src/assets/silkscreen-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./src/assets/silkscreen-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
     <meta
       name="description"
       content="Franz &amp; Lola – ein liebevoller Pixel-Art Maze-Chase an neun Orten in Passau."
     />
     <title>Franz &amp; Lola – Gassi-Runde Passau</title>
   </head>
-  <body>
+  <body data-min-save-version="2" data-save-version="9">
+    <script data-initial-layout-bootstrap>
+      (() => {
+        let initialClass = 'map-active';
+        try {
+          const saved = JSON.parse(localStorage.getItem('gassi-runde-hals-save') || 'null');
+          const minSaveVersion = Number(document.body.dataset.minSaveVersion);
+          const saveVersion = Number(document.body.dataset.saveVersion);
+          const supported = saved
+            && typeof saved === 'object'
+            && !Array.isArray(saved)
+            && Number.isInteger(saved.version)
+            && saved.version >= minSaveVersion
+            && saved.version <= saveVersion;
+          if (supported && saved.mode !== 'map') initialClass = 'mobile-game-active';
+        } catch {
+          initialClass = 'map-active';
+        }
+        if (initialClass) document.body.classList.add(initialClass);
+      })();
+    </script>
     <main class="app-shell">
       <header class="topbar">
         <div class="brand" aria-label="Gassi-Runde Passau">

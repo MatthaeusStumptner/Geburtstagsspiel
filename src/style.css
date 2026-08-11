@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Silkscreen:wght@400;700&display=swap');
-
 :root {
   color-scheme: dark;
   font-family: 'DM Mono', 'Courier New', monospace;
@@ -24,6 +22,18 @@
 
 * {
   box-sizing: border-box;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 html {
@@ -577,28 +587,40 @@ body.map-active .passau-map-screen { inset: 0; }
   min-height: 250px;
   overflow: hidden;
   border: 1px solid #244650;
+  background: #0b1c25;
+  transition: opacity 180ms ease;
+}
+
+.map-canvas::before {
+  position: absolute;
+  z-index: 0;
+  inset: -28px;
+  pointer-events: none;
   background:
     linear-gradient(rgba(67, 105, 107, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(67, 105, 107, 0.07) 1px, transparent 1px),
-    #0b1c25;
+    linear-gradient(90deg, rgba(67, 105, 107, 0.07) 1px, transparent 1px);
   background-size: 28px 28px;
-  animation: map-grid-drift 22s linear infinite;
-  transition: filter 180ms ease, opacity 180ms ease;
+  content: '';
 }
 
 .passau-map-screen.map-details-open .map-canvas {
-  filter: saturate(0.82) brightness(0.72);
+  opacity: 0.72;
 }
 
 #passau-map,
 .map-markers {
   position: absolute;
+  z-index: 1;
   inset: 0;
   width: 100%;
   height: 100%;
 }
 
 #passau-map {
+  pointer-events: none;
+}
+
+.map-glints {
   pointer-events: none;
 }
 
@@ -614,17 +636,24 @@ body.map-active .passau-map-screen { inset: 0; }
   stroke-width: 30;
 }
 
-#passau-map .river-glint {
+#passau-map .map-glint {
   fill: none;
   stroke: rgba(207, 255, 245, 0.42);
   stroke-width: 3;
   stroke-linecap: round;
-  stroke-dasharray: 7 30;
-  animation: river-flow 5.5s linear infinite;
+  opacity: 0.35;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-#passau-map .river-glint-inn { animation-duration: 4.6s; }
-#passau-map .river-glint-ilz { animation-duration: 6.4s; }
+#passau-map .map-glint-road {
+  stroke: rgba(245, 196, 81, 0.48);
+  stroke-width: 2;
+}
+
+#passau-map .map-glint-delay-1 { animation-delay: -1.7s; }
+#passau-map .map-glint-delay-2 { animation-delay: -3.4s; }
+#passau-map .map-glint-delay-3 { animation-delay: -5.1s; }
 
 #passau-map .danube { stroke: #287e9b; stroke-width: 20; }
 #passau-map .inn { stroke: #3cae9d; stroke-width: 23; }
@@ -634,7 +663,6 @@ body.map-active .passau-map-screen { inset: 0; }
   stroke: #30454c;
   stroke-width: 4;
   stroke-dasharray: 5 7;
-  animation: road-flow 13s linear infinite;
 }
 
 #passau-map .district {
@@ -643,7 +671,6 @@ body.map-active .passau-map-screen { inset: 0; }
   stroke-width: 2;
   transform-box: fill-box;
   transform-origin: center;
-  animation: district-breathe 7s ease-in-out infinite;
 }
 
 #passau-map .district:nth-child(2) { animation-delay: -3.5s; }
@@ -660,7 +687,7 @@ body.map-active .passau-map-screen { inset: 0; }
   display: grid;
   place-items: center;
   pointer-events: auto;
-  transform: translate(-50%, -50%);
+  transform: translate3d(-50%, -50%, 0);
 }
 
 .map-marker-wrap:hover,
@@ -688,8 +715,15 @@ body.map-active .passau-map-screen { inset: 0; }
 
 .map-marker span {
   transform: rotate(-45deg);
-  animation: marker-float 2.8s ease-in-out infinite;
-  animation-delay: var(--marker-delay);
+}
+
+.map-marker::after {
+  position: absolute;
+  inset: 6px;
+  border: 1px solid currentColor;
+  content: '';
+  opacity: 0.28;
+  pointer-events: none;
 }
 
 .map-marker-label {
@@ -1644,16 +1678,18 @@ kbd {
   50% { filter: brightness(1.65); }
 }
 
-@keyframes map-grid-drift {
-  to { background-position: 28px 28px, 28px 28px, 0 0; }
+@keyframes map-grid-translate {
+  to { transform: translate3d(28px, 28px, 0); }
 }
 
-@keyframes river-flow {
-  to { stroke-dashoffset: -74; }
+@keyframes map-glint-river {
+  0%, 100% { opacity: 0.25; transform: translate3d(0, 0, 0); }
+  50% { opacity: 0.9; transform: translate3d(8px, -3px, 0); }
 }
 
-@keyframes road-flow {
-  to { stroke-dashoffset: -48; }
+@keyframes map-glint-road {
+  0%, 100% { opacity: 0.2; transform: translate3d(0, 0, 0); }
+  50% { opacity: 0.82; transform: translate3d(5px, -4px, 0); }
 }
 
 @keyframes district-breathe {
@@ -1664,10 +1700,62 @@ kbd {
 }
 
 @keyframes marker-float {
-  50% {
-    filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
-    transform: rotate(-45deg) translate(-1px, -2px);
-  }
+  0%, 100% { transform: translate3d(-50%, -50%, 0); }
+  50% { transform: translate3d(-50%, calc(-50% - 2px), 0); }
+}
+
+@keyframes marker-highlight {
+  0%, 100% { opacity: 0.28; }
+  50% { opacity: 0.72; }
+}
+.map-motion-active .map-canvas::before {
+  animation: map-grid-translate 22s linear infinite;
+  will-change: transform;
+}
+
+.map-motion-active #passau-map .district {
+  animation: district-breathe 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.map-motion-active #passau-map .district:nth-child(2) {
+  animation-delay: -3.5s;
+}
+
+.map-motion-active #passau-map .map-glint-river {
+  animation: map-glint-river 5.5s linear infinite;
+  will-change: transform, opacity;
+}
+
+.map-motion-active #passau-map .map-glint-road {
+  animation: map-glint-road 4.8s linear infinite;
+  will-change: transform, opacity;
+}
+
+.map-motion-active .map-marker-wrap {
+  animation: marker-float 2.8s ease-in-out infinite;
+  animation-delay: var(--marker-delay);
+  will-change: transform;
+}
+
+.map-motion-active .map-marker::after {
+  animation: marker-highlight 2.8s ease-in-out infinite;
+  animation-delay: var(--marker-delay);
+  will-change: opacity;
+}
+
+.map-motion-paused .map-canvas::before,
+.map-motion-paused #passau-map .district,
+.map-motion-paused #passau-map .map-glint,
+.map-motion-paused .map-marker-wrap,
+.map-motion-paused .map-marker::after,
+body.onboarding-open .passau-map-screen .map-canvas::before,
+body.onboarding-open .passau-map-screen #passau-map .district,
+body.onboarding-open .passau-map-screen #passau-map .map-glint,
+body.onboarding-open .passau-map-screen .map-marker-wrap,
+body.onboarding-open .passau-map-screen .map-marker::after {
+  animation-play-state: paused;
+  will-change: auto;
 }
 
 .mobile-controls p {
@@ -1768,6 +1856,27 @@ body.mobile-game-active {
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
+}
+
+body.mobile-game-active .app-shell {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+}
+
+body.mobile-game-active .topbar,
+body.mobile-game-active #svelte-side-panel,
+body.mobile-game-active footer {
+  display: none;
+}
+
+body.mobile-game-active .game-layout {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 body.mobile-game-active .key-hint,
@@ -1950,8 +2059,11 @@ body.mobile-game-active .board-frame,
 body.mobile-game-active #game,
 .board-column:fullscreen #game,
 .board-column:-webkit-full-screen #game {
+  position: absolute;
+  inset-inline: 0;
+  top: var(--mobile-game-header-height, 0px);
   width: 100%;
-  height: 100%;
+  height: calc(100dvh - var(--mobile-game-header-height, 0px));
   aspect-ratio: auto;
   border: 0;
 }
@@ -1968,6 +2080,15 @@ body.mobile-game-active .mobile-game-header,
   padding: 0;
 }
 
+body.mobile-game-active .mobile-game-header .level-status,
+.board-column:fullscreen .mobile-game-header .level-status,
+.board-column:-webkit-full-screen .mobile-game-header .level-status {
+  position: static;
+  grid-column: 1 / -1;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+}
 body.mobile-game-active .mobile-game-menu,
 body.mobile-game-active .mobile-fullscreen-button,
 .board-column:fullscreen .mobile-game-menu,
@@ -2076,14 +2197,10 @@ body.mobile-game-active .level-cutscene:has(.level-cutscene-dialogue:not([hidden
     width: calc(100% - 16px);
   }
 
-  body.mobile-game-active .level-status,
-  .board-column:fullscreen .level-status,
-  .board-column:-webkit-full-screen .level-status {
-    top: calc(max(8px, env(safe-area-inset-top)) + 68px);
-    right: 8px;
-    left: 8px;
+  body.mobile-game-active .mobile-game-header .level-status,
+  .board-column:fullscreen .mobile-game-header .level-status,
+  .board-column:-webkit-full-screen .mobile-game-header .level-status {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: auto;
   }
 
   body.mobile-game-active .level-cutscene-heading,
@@ -2438,6 +2555,14 @@ body.cutscene-ui-reveal #svelte-board-hud .level-status {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .passau-map-screen .map-canvas::before,
+  .passau-map-screen #passau-map .district,
+  .passau-map-screen #passau-map .map-glint,
+  .passau-map-screen .map-marker-wrap,
+  .passau-map-screen .map-marker::after {
+    animation-play-state: paused;
+    will-change: auto;
+  }
   html:not([data-reduced-motion]) *,
   html:not([data-reduced-motion]) *::before,
   html:not([data-reduced-motion]) *::after {

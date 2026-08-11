@@ -1,0 +1,283 @@
+# Stabiles Mobile-Rendering und Web-Performance
+
+**Status:** Freigegeben am 10. August 2026 · verifiziert am 11. August 2026
+
+## Ziel
+
+Das Spiel soll auf mobilen Geräten, 60-Hz-Displays und hochfrequenten Desktop-Displays stabil, flimmerfrei und mit vorhersehbarer Last laufen. Die gemeinsame Renderer-API bleibt mit dem Level Editor kompatibel. Die bereits in Renderer PR #14 und Spiel PR #15 vorhandene Trennung zwischen einer festen 120-Hz-Simulation und einer auf 30 oder 60 FPS begrenzten Präsentation bleibt erhalten.
+
+## Ausgangslage und Root Cause
+
+Der aktuelle lokale Stand wurde bei 412 × 915 CSS-Pixeln, emuliertem DPR 2,625 und mit WebGL2, WebGPU sowie Canvas2D verglichen.
+
+- WebGL2 und WebGPU zeigen ein horizontales Moiré-/Flimmermuster im Spielbild; Canvas2D zeigt es nicht.
+- Die GPU-Shader erzeugen Scanlines im Raster einzelner interner Canvas-Pixel. Der Renderer begrenzt den internen DPR auf 2, während der Browser das Ergebnis auf DPR 2,625 ausgibt. Die erneute Skalierung lässt das feine Muster flimmern.
+- Die Kamera liefert fraktionale Quellkoordinaten an einen Nearest-Neighbor-Sampler. Kontinuierliche UV-Verzerrungen verschieben die gesamte Pixelgrafik zusätzlich um Subpixel und verstärken sichtbare Sprünge.
+- Auch statische Spielzustände werden weiter mit 30 oder 60 FPS gerendert und laden die Szenentextur erneut hoch.
+- Im mobilen Layout ist die Canvas so groß wie das gesamte Viewport, obwohl der obere Teil von undurchsichtigen HUD-Flächen verdeckt wird.
+- Größen werden teilweise im heißen Renderpfad über DOM-Messungen ermittelt.
+
+Damit ist das Flimmern kein reiner Emulatorfehler. Geräte mit fraktionalem DPR oder browserseitiger Nachskalierung können denselben Fehler zeigen.
+
+## Architekturentscheidung
+
+Es wird eine stabile hybride Pipeline umgesetzt. Sie optimiert die bestehende Canvas2D-zu-GPU-Präsentation ohne eine neue, inkompatible Tile-/Sprite-Engine einzuführen.
+
+Ein vollständiger GPU-Sprite-Batcher bleibt außerhalb dieses Vorhabens. Er benötigt einen eigenen Architektur- und Messzyklus, da er Renderer, Spiel und Level Editor gleichzeitig berührt.
+
+## Renderer-Änderungen
+
+### Pixelstabiles Sampling
+
+Die Kameraquellen werden vor der Präsentation auf das Texelraster der gerenderten Szene eingerastet. Projektionen für Radar, Text und Editor-Selektionen verwenden exakt dieselbe eingerastete Kamera, damit Logik und Bild nicht auseinanderlaufen.
+
+Nearest-Neighbor-Sampling bleibt für die Pixel-Art erhalten. Globale, kontinuierliche Subpixelverschiebungen der gesamten Szene werden entfernt. Atmosphärische Effekte verändern Farbe, Helligkeit und lokale Overlays, nicht mehr die Lage sämtlicher Weltpixel.
+
+Der RGB-Split des Zauberbergs bleibt als bewusstes Stilelement erhalten, verwendet aber ganzzahlige Texelabstände und eine begrenzte Aktualisierungsfrequenz. Dadurch bleibt er lesbar, ohne die Geometrie der Szene flimmern zu lassen.
+
+### DPR-stabile Scanlines
+
+Ein Ein-Pixel-Wechselmuster wird nicht mehr verwendet. Scanlines werden als breites, niederfrequentes Muster berechnet. Wenn interner Renderer-DPR und tatsächlicher Geräte-DPR nicht hinreichend übereinstimmen, wird die Scanline-Intensität auf null gesetzt. `prefers-reduced-motion` deaktiviert geometrische Bewegung vollständig und lässt höchstens statische Farbkorrekturen zu.
+
+### Resize-Vertrag
+
+`PassauPixelRenderer.resize()` erhält gemessene CSS-Abmessungen und den tatsächlichen Geräte-DPR vom Aufrufer. Ohne Argumente bleibt ein kompatibler Fallback erhalten, er wird jedoch nicht mehr pro Frame verwendet.
+
+Der Renderer ändert Backbuffer und Overlay-Canvas nur, wenn sich Breite, Höhe oder effektiver DPR wirklich geändert haben. Debugdaten zeigen CSS-Größe, tatsächlichen DPR, effektiven DPR, Backbuffergröße und den Grund einer Größenänderung.
+
+### Uploads und Backend-Auswahl
+
+Unveränderte Szene-, Welttext- und Bildschirm-Overlay-Texturen werden nicht erneut hochgeladen. Der Renderer erhält dafür explizite Änderungsmarker und behält die bereits vorhandenen Umgebungs- und Overlay-Caches bei. Collectibles und statische Dekorationen werden nur neu zusammengesetzt, wenn sich ihre Daten ändern.
+
+WebGL2 reserviert unveränderliche Texturspeicher mit `texStorage2D` und aktualisiert sie mit `texSubImage2D`. Texturgrößenwechsel erzeugen kontrolliert eine neue Textur statt impliziter Reallokationen im Präsentationspfad.
+
+Der synthetische Backend-Performance-Probe beim Start entfällt. Die Reihenfolge lautet WebGPU, WebGL2, Canvas2D, jeweils nach erfolgreicher Initialisierung. Qualität, Pixelratio und Präsentationsrate steuern die Last. Backend-Auswahl, Initialisierungsfehler, Context Loss und Fallback-Grund werden im Renderer-Snapshot ausgewiesen. Unter Windows wird WebGPU ohne wirkungsloses `powerPreference` angefordert.
+
+## Spiel-Änderungen
+
+### Zustandsabhängiger Scheduler
+
+Kontinuierliche Simulation und Präsentation laufen nur in `playing`, `hit` und `cutscene`.
+
+`ready`, `paused`, `won`, `over` und geöffnete Spielmenüs rendern genau einmal beim Eintritt und danach nur bei einer sichtbaren Änderung. In `map` und während des Onboardings wird die verdeckte Spiel-Canvas nicht präsentiert. Ein zentraler `requestRender(reason)`-Mechanismus markiert Einmal-Renderings und protokolliert im Entwicklungsmodus den Grund.
+
+Beim Zurückkehren aus einem inaktiven Tab werden Simulation und Präsentationspacer zurückgesetzt. Der erste sichtbare Frame wird sofort angefordert.
+
+### Layout und mobile Canvas
+
+Ein `ResizeObserver` misst Board und HUD. Wenn verfügbar, wird `device-pixel-content-box` verwendet; andernfalls werden CSS-Größe und `devicePixelRatio` kombiniert. Gemessene Werte werden gecacht und an Renderer sowie Kamera weitergereicht.
+
+Im mobilen Spiel ist das Board in zwei Bereiche geteilt:
+
+- ein DOM-HUD oberhalb des Spielfelds;
+- eine Canvas, die nur den verbleibenden sichtbaren Spielbereich belegt.
+
+Overlays, Cutscenes und Radar verwenden dieselbe Spielfeldgeometrie. Safe-Area-Insets und Wechsel zwischen Portrait, Landscape und Browser-Vollbild lösen genau eine atomare Layoutaktualisierung aus.
+
+Ein synchroner Bootstrap setzt vor dem ersten App-Paint anhand des gespeicherten Modus
+die initiale Map- oder Mobile-Game-Klasse. Dadurch springt ein frischer Besuch nicht
+erst nach der asynchronen Renderer-Initialisierung vom Dokumentlayout in die Vollkarte.
+
+### Passau-Karte
+
+Das bewegte Raster wird auf einem eigenen Pseudo-Element über `transform` verschoben. Marker-Glow verwendet Opacity und Transform statt eines animierten Filters. Fluss- und Straßenlichter werden als wenige transformierte Glints umgesetzt, nicht als dauerhaft animierter `stroke-dashoffset` über komplette SVG-Pfade.
+
+Kartenanimationen pausieren, wenn Auswahlmodal, Onboarding oder ein anderer Bildschirm die Karte verdeckt. `prefers-reduced-motion` zeigt eine statische Karte.
+
+### Fonts, Cache und Accessibility
+
+Silkscreen und DM Mono werden als lokale WOFF2-Dateien ausgeliefert. Das CSS-`@import` zu Google Fonts entfällt. Der Quellcode importiert genau die vier verwendeten Schnitte; der Browser lädt aus den erzeugten Fontdateien nur die im aktuellen Bildschirm tatsächlich benötigten Dateien.
+
+Ein kleiner Service Worker cached ausschließlich versionierte Build-Assets unter `/assets/` mit Cache-first. HTML und Level-/Content-Dokumente bleiben network-first, damit Veröffentlichungen und neue Level nicht durch einen alten Cache verdeckt werden. Aktivierung und Cachebereinigung verändern keine LocalStorage-Spielstände.
+
+Das unzulässige `aria-label` auf `strong#lives` entfällt. Eine visuell versteckte, semantische Textalternative liefert die Anzahl der Leinen.
+
+## Datenfluss
+
+1. `ResizeObserver` aktualisiert ein gecachtes Layoutmodell.
+2. Zustandswechsel oder sichtbare Datenänderungen rufen `requestRender(reason)` auf.
+3. Der Präsentationspacer entscheidet nur bei kontinuierlichen Zuständen über den nächsten Frame.
+4. Der Renderer berechnet eine texelgenaue Kamera aus Snapshot und Layoutmodell.
+5. Dirty-Marker bestimmen, welche Canvas-Layer neu gezeichnet und welche GPU-Texturen hochgeladen werden.
+6. Der gewählte Backend-Shader präsentiert die Szene ohne globale Subpixelverzerrung.
+7. Renderer- und Scheduler-Snapshots liefern Messwerte für Tests und lokale Audits.
+
+## Fehlerbehandlung
+
+- Schlägt WebGPU fehl, wird der Grund erfasst und einmalig WebGL2 versucht.
+- Schlägt WebGL2 fehl oder geht der Context dauerhaft verloren, bleibt Canvas2D verfügbar.
+- Ein Context Restore verwirft Textur-Dirty-Flags, sodass alle notwendigen Ressourcen genau einmal neu hochgeladen werden.
+- Fehlt `ResizeObserver`, aktualisieren `resize`, `orientationchange` und `fullscreenchange` das Layoutmodell.
+- Scheitert die Service-Worker-Registrierung, bleibt das Spiel ohne Offline-Cache vollständig funktionsfähig.
+
+## Teststrategie und Abnahmekriterien
+
+### Automatisierte Renderer-Tests
+
+- Kameraquellen sind bei Scene-Scale 1 und 2 auf dem jeweiligen Texelraster eingerastet.
+- Shader enthalten keine Ein-Pixel-Scanline-Formel und keine kontinuierliche globale UV-Verzerrung.
+- Fraktionale DPR-Kombinationen 1,25, 1,5, 1,6, 2,625 und 3 deaktivieren instabile Scanlines.
+- WebGL2 und WebGPU erzeugen für dieselbe statische Szene über mehrere Präsentationen identische Pixel.
+- WebGL2 verwendet `texStorage2D`; unveränderte Texturen erhöhen den Uploadzähler nicht.
+- Context Loss und Backend-Fallback liefern einen maschinenlesbaren Grund.
+- Präsentationspacer bleiben bei simulierten 60, 120 und 175 Hz stabil.
+
+### Automatisierte Spieltests
+
+- Jeder Spielzustand besitzt eine deklarierte Renderpolitik: kontinuierlich, einmalig oder verborgen.
+- Karte, Onboarding, Pause und Game Over erhöhen nach dem initialen Frame den Renderer-Framezähler nicht weiter.
+- Layoutmessungen werden bei unverändertem Viewport nicht im Renderloop wiederholt.
+- Mobile Spielfeldhöhe entspricht Viewport minus HUD und Safe Area.
+- Service Worker cached nur versionierte Assets und aktualisiert HTML sowie Leveldaten weiterhin über das Netz.
+
+### Browser- und visuelle Tests
+
+Playwright prüft Chromium in folgenden Kombinationen:
+
+- Desktop bei simulierten 60, 120 und 175 Hz;
+- Mobile Portrait 390 × 844 bei DPR 3;
+- Mobile Portrait 412 × 915 bei DPR 2,625;
+- Mobile Landscape 915 × 412 bei DPR 2,625;
+- WebGL2, WebGPU sofern verfügbar, und Canvas2D;
+- normales Rendering und reduzierte Bewegung.
+
+Für WebGL2 und Canvas2D werden Referenzscreenshots erzeugt. Kurze Videos decken Laufbewegung, Kamera, Pause, Kartenwechsel und Rotation ab. Im statischen Pausentest darf außerhalb absichtlich animierter DOM-Elemente keine zeitliche Pixeldifferenz im Spielbild entstehen.
+
+### Performance-Abnahme
+
+- Aktive Präsentation überschreitet auf Qualitätsprofilen nicht 60 FPS und auf Performanceprofil nicht 30 FPS.
+- Karte, Pause, Game Over und verdeckte Canvas verursachen nach dem Einmal-Rendering null fortlaufende Szenenuploads.
+- Im mobilen Portrait wird kein Backbuffer für die vom HUD verdeckte Fläche angelegt.
+- Während fünf Sekunden aktivem Spiel entstehen keine Textur-Reallokationen.
+- Der bestehende Benchmark muss die Profile Notebook, Mobile und Weak Mobile weiterhin erfüllen.
+- Der erneute Web-Performance-Audit darf auf Mobile keinen schlechteren LCP als 2,5 Sekunden und keinen CLS über 0,1 zeigen.
+
+## Verifikation vom 11. August 2026
+
+### Methode und Grenzen
+
+Der geprüfte Spielstand basiert auf Renderer-Commit
+`925b1708dd8cd60f9cf4b0168d7674d8656ebdf2`. `npm ci` installierte 47 Pakete ohne
+gemeldete Schwachstelle; das anschließende Gate bestand 93/93 Node-Tests, den
+Produktions-Build und 8/8 Browserfälle. Nach dem ersten CLS-Fix bestand der damalige
+Bestand 96/96 Node-Tests. Das Review-Fix-Gate für Save-Kanonisierung und den ersten
+Font-Preload bestand 98/98 Node-Tests. Der abschließende Desktop-Restore- und
+Gameplay-Font-Fix bestand 99/99 Node-Tests, den Produktions-Build und 8/8 Browserfälle.
+Flüchtige Browser-Run-Verzeichnisse werden nur im Audit-Report geführt, damit diese
+produktnahe Spezifikation nicht durch jeden erneuten grünen Lauf veraltet.
+
+Der primäre Chrome-DevTools-Trace verwendete Chromium 151.0.7922.34, einen neuen
+isolierten Browser-Context ohne Spielstand oder warmen Cache, 412 × 915 CSS-Pixel,
+DPR 2,625, Fast 4G und 4× CPU-Drosselung. Der Produktions-Build lief auf einem lokalen
+HTTP-Server, dessen Port atomar durch `listen(0)` vergeben wurde. Der Server setzt
+`Cache-Control: no-store` und komprimiert nicht; Transferwerte sind deshalb konservative
+Labordaten und nicht mit GitHub-Pages-CDN-Werten gleichzusetzen. CrUX-Felddaten waren
+für die lokale URL nicht verfügbar und werden nicht behauptet.
+
+### Kalter Seitenstart
+
+| Messwert | Ergebnis | Abnahme |
+| --- | ---: | --- |
+| TTFB | 7,2 ms | gut |
+| FCP | 1.248 ms | gut |
+| LCP | 1.860 ms | ≤ 2.500 ms, bestanden |
+| CLS | 0,0023 | ≤ 0,10, bestanden |
+| TBT-Näherung / Long Tasks | 357 ms / 3 gesamt | 2 nach FCP, transparent ausgewiesen |
+
+Der passive Observer-Lauf enthielt einen 221-ms-Long-Task vor FCP sowie 392 ms und
+65 ms lange Tasks nach FCP. Die TBT-Näherung summiert für die beiden späteren Tasks nur
+den Anteil oberhalb von jeweils 50 ms: `(392 - 50) + (65 - 50) = 357 ms`. Das Tool
+lieferte keinen Lighthouse-Performance-Score oder TTI-Wert; deshalb wird diese
+Long-Tasks-API-Näherung nicht als erfundener Lighthouse-TBT ausgegeben. Die separaten
+fünfsekündigen stabilen Laufzeitzustände enthielten keine Long Tasks.
+
+Vor dem Font-Fix lag FCP bei 1.136 ms, während der sichtbare Silkscreen-700-Schnitt noch
+im Status `loading` war und erst bei 1.303 ms `loadingdone` erreichte. Das belegte einen
+sichtbaren Fallback-Frame. Die beiden Source-Asset-Preloads für die im ersten
+Gameplay-Frame sichtbaren Silkscreen-Schnitte starteten im finalen passiven Mobile-Lauf
+bei 225 beziehungsweise 226 ms und endeten bei 431 beziehungsweise 447 ms; Vite
+schreibt sie beim Build in gehashte relative Assetpfade um. Eine separate Font-Timeline
+prüfte die verwendeten Schnitte an den tatsächlich gezeichneten Frames: Silkscreen 400
+und 700 waren beim ersten relevanten Textframe geladen; DM Mono 400 war auch bei der
+späteren Map-/Onboarding-Einblendung verfügbar. Die Timeline-Instrumentierung wird
+nicht für Web-Vitals verwendet.
+
+Dokument plus sechs Page-Ressourcen übertrugen lokal 494.774 Byte: ein
+JavaScript-Bundle, ein Stylesheet, drei lokale WOFF2-Einträge und das Favicon.
+Hintergrundabrufe der Service-Worker-Installation sind in dieser
+PerformanceResourceTiming-Summe nicht enthalten. Es gab keine Drittanbieter-Font-
+Anfrage. Der versionierte Service Worker übernahm anschließend die Seite, sein
+Asset-Allowlisting enthält ausschließlich die erzeugten `/assets/`-Dateien.
+
+Vor dem Fix lag CLS reproduzierbar bei 0,1519: `map-active` wurde erst nach
+Renderer-Initialisierung gesetzt und verschob Board und HUD in den Vollviewport. Ein
+PerformanceObserver belegte den zustandsabhängigen Klassenwechsel als Quelle. Der
+synchronisierte Bootstrap senkte denselben frischen Trace auf CLS 0,00; Tests decken
+frischen Besuch, Map-Save, mobile und Desktop-Gameplay-Saves, defektes JSON, parsebare
+unzulässige Typen und nicht unterstützte Save-Versionen ab. Ein kalter mobiler v10-Fall
+blieb bei `map-active onboarding-open` und CLS 0.
+
+Ein separater kalter Desktop-Restore eines unterstützten Gameplay-Saves belegte die
+Restlücke: Die synchron gesetzte Klasse war vor FCP stabil, doch die vom fixierten Board
+verdeckte äußere App-Shell blieb im Layout und erzeugte CLS 0,1786. Der Fokusmodus nimmt
+Topbar, Sidepanel und Footer nun aus dem Flow und fixiert das äußere Spiellayout von
+Beginn an. Der identische Restore-Lauf maß danach TTFB 3,4 ms, FCP 1.204 ms,
+LCP 1.668 ms und CLS 0,00088; beide Silkscreen-Schnitte und DM Mono 400 waren vor FCP
+geladen.
+
+### Fünfsekündige Laufzeitmatrix
+
+| Backend / Zustand | Dauer | Präsentationen | Upload-Bytes | Textur-Reallokationen | Static-World-Builds | Long Tasks / CLS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| WebGL2 / Karte | 5,002 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| WebGL2 / aktiv | 5,045 s | 203 | 141.353.028 | 0 | 0 | 0 / 0 |
+| WebGL2 / Pause | 5,008 s | 0 | 0 | 0 | 0 | 0 / 0 |
+| Canvas2D / Karte | 5,005 s | 0 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / aktiv | 5,014 s | 301 | n/a | n/a | 0 | 0 / 0 |
+| Canvas2D / Pause | 5,005 s | 0 | n/a | n/a | 0 | 0 / 0 |
+
+WebGL2 präsentierte damit rund 40,2 FPS im headless Prüflauf; Canvas2D lag bei rund
+60,0 FPS. Beide blieben innerhalb des 60-FPS-Vertrags.
+Die WebGL2-Szenenuploads während aktiver Bewegung sind beabsichtigt; statische Weltlayer
+wurden nicht neu gebaut. Karte und Pause blieben nach dem Settle vollständig schlafen.
+Canvas2D besitzt keinen GPU-Upload- oder Textur-Reallokationspfad, daher sind diese
+Felder nicht als künstliche Nullmessung ausgewiesen.
+
+Der mobile Qualitätsfall ergab für das aktive Spiel 412 × 727 CSS-Pixel nach dem HUD,
+tatsächlichen DPR 2,625, effektiven Renderer-DPR 2 und einen Backbuffer von 824 × 1.454.
+Es gab weder Console-/Page-/Promise-Fehler noch Context Loss, Backend-Fallback oder
+Shaderfehler. Repräsentative Map-, Aktiv- und Pause-Screenshots von WebGL2 sowie ein
+Canvas2D-Aktivbild wurden visuell geprüft: HUD-Grenze, Kamera, Pixelraster und Overlay
+waren vollständig und ohne leere Frames, Flimmerbalken oder Clipping.
+
+### Accessibility und Bewegungsreduktion
+
+Der mobile Lighthouse-Navigationsaudit erzielte Accessibility 100 und Best Practices
+100. Der Accessibility-Tree enthielt einen benannten modalen Dialog, programmatisch
+beschriftete Vorname-/Altersfelder, einen benannten Submit-Button und polite Live-
+Regionen. Tastaturnavigation setzte `:focus-visible`; das fokussierte Zahlenfeld hatte
+einen sichtbaren 3-Pixel-Mint-Fokusring. Das automatisierte Reduced-Motion-Szenario
+pausierte Kartenbewegung und setzte Scanlines sowie RGB-Split auf null. Lighthouse
+liefert über das verwendete DevTools-Tool keinen Performance-Score; deshalb werden nur
+die direkt gemessenen Performancewerte und der reale Accessibility-Score dokumentiert.
+
+
+## PR-Aufteilung
+
+### Renderer PR #14
+
+- texelgenaue Kamera und DPR-stabile Effektprofile;
+- überarbeitete GLSL-/WGSL-Shader;
+- expliziter Resize-Vertrag und Dirty-Upload-Logik;
+- `texStorage2D`, vereinfachte Backend-Auswahl und Diagnostik;
+- Unit-, Benchmark- und Browser-Regressionstests.
+
+### Spiel PR #15
+
+- zustandsabhängiger Render-Scheduler;
+- gecachtes Layoutmodell und echtes mobiles Spielfeld;
+- compositor-freundliche Kartenanimationen;
+- lokale Fonts, Service Worker und Accessibility-Korrektur;
+- automatisierte Zustands-, Layout- und Playwright-Tests.
+
+PR #15 referenziert nach Abschluss einen konkreten Commit aus Renderer PR #14. Beide PRs bleiben zunächst Entwürfe, bis alle automatisierten und visuellen Abnahmen dokumentiert sind.

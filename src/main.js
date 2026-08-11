@@ -1,10 +1,15 @@
 import './style.css';
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+import '@fontsource/silkscreen/400.css';
+import '@fontsource/silkscreen/700.css';
 import { mount } from 'svelte';
 import {
   DIRECTIONS,
   DirectionalSwipeInput,
   FixedStepLoop,
   PassauPixelRenderer,
+  PresentationFramePacer,
   chooseCatDirection as chooseSharedCatDirection,
   compileWallGrid,
   createLevelDocument,
@@ -12,6 +17,7 @@ import {
   movePlayerActor,
   queuePlayerDirection,
   reachableTileKeys,
+  recommendedPresentationRate,
 } from '@franz-lola/pixel-renderer';
 import { aggregateProgress } from './game/progress-system.js';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
@@ -23,6 +29,7 @@ import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game
 import { respawnCat } from './game/actor-respawn.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
+import { registerGameServiceWorker } from './platform/register-service-worker.js';
 import UiApp from './ui/App.svelte';
 import { createMapGeometry } from './ui/map-geometry.js';
 import {
@@ -36,6 +43,13 @@ import {
   resolveReducedMotionPreference,
   settingsContextForState,
 } from './ui/ui-preferences.js';
+import { renderPolicyForState } from './render/render-policy.js';
+import { createRenderScheduler } from './render/render-scheduler.js';
+import {
+  createGameplayLayout,
+  highestVisibleBlockerBottom,
+  resolveObservedDevicePixelRatio,
+} from './render/gameplay-layout.js';
 
 const canvas = document.querySelector('#game');
 const rendererBackendParameter = new URLSearchParams(location.search).get('renderer');
@@ -50,6 +64,12 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   powerPreference: 'high-performance',
 });
 const simulationLoop = new FixedStepLoop({ updatesPerSecond: 120 });
+const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
+const renderScheduler = createRenderScheduler({
+  render: (_reason, timestamp) => render(timestamp),
+  pacer: presentationPacer,
+});
+const gameplayLayout = createGameplayLayout();
 const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
 
@@ -57,11 +77,11 @@ const COLS = 25;
 const ROWS = 25;
 const TILE = 24;
 const BOARD_SIZE = COLS * TILE;
-const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
-const SAVE_VERSION = 9;
+const MIN_SAVE_VERSION = Number(document.body.dataset.minSaveVersion);
+const SAVE_VERSION = Number(document.body.dataset.saveVersion);
 const PUBLISHED_EVENT_KEYS = publishedEventStorageKeys();
 const EASTER_EGG_COUNT = PUBLISHED_EVENT_KEYS.length;
 const SWIPE_ACTIVATION_DISTANCE = 4;
@@ -91,6 +111,7 @@ const CAT_STARTS = [
 const ui = {
   appShell: document.querySelector('.app-shell'),
   boardColumn: document.querySelector('.board-column'),
+  boardFrame: document.querySelector('.board-frame'),
   catRadar: document.querySelector('#cat-radar'),
   announcement: document.querySelector('#announcement'),
 };
@@ -162,13 +183,29 @@ let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
+let appliedGameplayLayoutRevision = -1;
+let lastRadarPaint = Number.NEGATIVE_INFINITY;
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
 let onboardingLoginAttempts = 0;
 let onboardingGuidePage = 0;
 let activeLevelDocument = null;
+let staticWorldRevision = 0;
 const audioService = new BrowserAudioService(() => soundEnabled);
+
+function requestRender(reason) {
+  renderScheduler.request(reason);
+}
+
+function invalidateStaticWorld(reason) {
+  staticWorldRevision += 1;
+  requestRender(`world:${reason}`);
+}
+
+function currentRenderPolicy() {
+  return renderPolicyForState(state, settingsReturnState, uiSession.snapshot().onboarding.open);
+}
 
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
@@ -211,6 +248,7 @@ function applyReducedMotion() {
 function toggleReducedMotion() {
   reducedMotion = !reducedMotion;
   applyReducedMotion();
+  requestRender('settings:reduced-motion');
   saveGame();
 }
 
@@ -238,12 +276,14 @@ function showOnboarding() {
   });
   ui.appShell.inert = true;
   document.body.classList.add('onboarding-open');
+  requestRender('onboarding:open');
 }
 
 function hideOnboarding() {
   uiSession.patch('onboarding', { open: false });
   ui.appShell.inert = false;
   document.body.classList.remove('onboarding-open');
+  requestRender('onboarding:close');
 }
 
 function validateOnboardingLogin(nameValue, ageValue) {
@@ -313,6 +353,7 @@ function moveOnboardingGuide(direction) {
 }
 
 function prepareOnboardingGuide() {
+  const languageChanged = language !== onboardingLanguage;
   language = onboardingLanguage;
   difficulty = onboardingDifficulty;
   lives = difficultyConfig().lives;
@@ -320,6 +361,7 @@ function prepareOnboardingGuide() {
   levelRunScore = 0;
   rebaseLevelStatsForDifficulty();
   buildLevel();
+  if (languageChanged) invalidateStaticWorld('language');
   runStarted = false;
   applyLanguage();
   updateLocationUi();
@@ -471,6 +513,7 @@ function setDifficulty(nextDifficulty) {
     hitTimer = 0;
     if (state === 'menu' && settingsReturnState === 'hit') settingsReturnState = 'playing';
     else if (state === 'hit') state = 'playing';
+    requestRender('state:playing');
   }
   applyDifficultyUi();
   updateLocationUi();
@@ -604,6 +647,7 @@ function applyLanguage() {
 function setLanguage(nextLanguage) {
   if (!TEXT[nextLanguage] || nextLanguage === language) return;
   language = nextLanguage;
+  invalidateStaticWorld('language');
   applyLanguage();
   saveGame();
 }
@@ -622,7 +666,7 @@ function enterMobileGameMode() {
     document.body.style.top = `-${mobileScrollPosition}px`;
     document.body.classList.add('mobile-game-active');
   }
-  resizeCanvas();
+  measureGameplayLayout('mobile-enter');
   return !alreadyActive;
 }
 
@@ -630,7 +674,7 @@ function leaveMobileGameMode(returnToBoard = false) {
   const wasActive = document.body.classList.contains('mobile-game-active');
   document.body.classList.remove('mobile-game-active');
   document.body.style.top = '';
-  resizeCanvas();
+  measureGameplayLayout('mobile-leave');
 
   if (wasActive) {
     requestAnimationFrame(() => {
@@ -712,6 +756,7 @@ function openMap() {
   closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  requestRender('state:map');
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
   hideOverlay();
@@ -739,6 +784,7 @@ function commitMapSelectionStart() {
   }
   runStarted = true;
   state = 'intro';
+  requestRender('state:intro');
   audioService.playLevel(selectedLevelId, 'intro');
   renderPassauMap();
   setPauseButtons(false);
@@ -787,6 +833,7 @@ function beginCutscenePresentation() {
 function revealGameUiAfterCutscene() {
   document.body.classList.remove('cutscene-active', 'cutscene-ui-reveal');
   document.body.classList.add('cutscene-ui-reveal');
+  requestAnimationFrame(() => measureGameplayLayout('cutscene-ui-reveal'));
   cutsceneUiRevealTimer = setTimeout(() => {
     document.body.classList.remove('cutscene-ui-reveal');
     cutsceneUiRevealTimer = null;
@@ -811,6 +858,7 @@ function syncLevelCutsceneUi(snapshot = levelCutscenePlayer.snapshot()) {
 function startLevelCutscene() {
   if (!levelCutscenePlayer.start(activeLevelDocument, { id: 'intro', language })) return false;
   state = 'cutscene';
+  requestRender('state:cutscene');
   audioService.playLevel(selectedLevelId, 'cutscene');
   beginCutscenePresentation();
   setPauseButtons(false);
@@ -827,6 +875,7 @@ function enterLevelPlay() {
   state = 'playing';
   setPauseButtons(false);
   hideOverlay();
+  requestRender('state:playing');
   if (leavingCutscene) revealGameUiAfterCutscene();
   else clearCutscenePresentation();
   ui.announcement.textContent = `${t('playAnnouncement')}: ${localized(currentLocation().name)}`;
@@ -846,6 +895,7 @@ function resetGameProgress() {
   leaveMobileGameMode(true);
   document.body.classList.add('map-active');
   state = 'map';
+  requestRender('state:map');
   score = 0;
   best = 0;
   level = 1;
@@ -889,6 +939,7 @@ function showNewGameConfirmation() {
   if (state === 'playing' || state === 'hit') {
     state = 'paused';
     setPauseButtons(true);
+    requestRender('state:paused');
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
@@ -899,6 +950,7 @@ function showNewGameConfirmation() {
       hideOverlay();
     }
     setPauseButtons(state === 'paused');
+    requestRender(`state:${state}`);
   };
   showOverlay(
     'newGameKicker',
@@ -939,6 +991,7 @@ function showDeleteBrowserDataConfirmation() {
   if (state === 'playing' || state === 'hit') {
     state = 'paused';
     setPauseButtons(true);
+    requestRender('state:paused');
   }
   const cancel = () => {
     state = previous.state === 'hit' ? 'playing' : previous.state;
@@ -949,6 +1002,7 @@ function showDeleteBrowserDataConfirmation() {
       hideOverlay();
     }
     setPauseButtons(state === 'paused');
+    requestRender(`state:${state}`);
   };
   showOverlay(
     'deleteDataKicker',
@@ -978,7 +1032,11 @@ function loadGame() {
   const parsed = saveStore.readJson(SAVE_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
   if (parsed.version === SAVE_VERSION) return parsed;
-  if ([2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return migrateLegacySave(parsed);
+  if (
+    Number.isInteger(parsed.version)
+    && parsed.version >= MIN_SAVE_VERSION
+    && parsed.version < SAVE_VERSION
+  ) return migrateLegacySave(parsed);
   return null;
 }
 
@@ -1081,6 +1139,7 @@ function buildLevel() {
   levelEventElapsed = 0;
 
   resetActors();
+  invalidateStaticWorld('build-level');
 }
 
 function reachableOpenKeys() {
@@ -1251,6 +1310,7 @@ function restoreGame(save) {
         audioService.setLevelMode('playing');
         setPauseButtons(false);
         hideOverlay();
+        requestRender('state:playing');
         saveGame();
       },
       () => ({
@@ -1262,6 +1322,7 @@ function restoreGame(save) {
     );
   }
   syncLevelAudioForState();
+  requestRender(`state:${state}`);
 }
 
 function toKey(x, y) {
@@ -1319,6 +1380,7 @@ function startGame(reset = false) {
   setPauseButtons(false);
   hideOverlay();
   updateHud();
+  requestRender('state:playing');
   ui.announcement.textContent = t('playAnnouncement');
   saveGame();
 }
@@ -1333,14 +1395,17 @@ function togglePause() {
       audioService.setLevelMode('playing');
       setPauseButtons(false);
       hideOverlay();
+      requestRender('state:playing');
       saveGame();
     });
+    requestRender('state:paused');
     saveGame();
   } else if (state === 'paused') {
     state = 'playing';
     audioService.setLevelMode('playing');
     setPauseButtons(false);
     hideOverlay();
+    requestRender('state:playing');
     saveGame();
   }
 }
@@ -1416,6 +1481,7 @@ function openSettings() {
   settingsOpen = true;
   syncSettingsMenu();
   document.body.classList.add('settings-open');
+  requestRender('settings:open');
 }
 
 function closeSettings(returnFocus = true) {
@@ -1433,6 +1499,7 @@ function closeSettings(returnFocus = true) {
     focusTarget?.focus();
   }
   settingsReturnFocus = null;
+  requestRender('settings:close');
 }
 
 function toggleSettingsPause() {
@@ -1440,6 +1507,7 @@ function toggleSettingsPause() {
   settingsReturnState = settingsReturnState === 'paused' ? 'playing' : 'paused';
   audioService.setLevelMode(settingsReturnState === 'paused' ? 'paused' : 'playing');
   syncSettingsMenu();
+  requestRender(`state:${settingsReturnState}`);
   saveGame();
 }
 
@@ -1484,11 +1552,13 @@ function refreshOverlay() {
     controlHint: isMobileGameLayout() ? t('controlIntroHint') : t('controlMenuHint'),
     keyHint: t('keyHint'),
   });
+  requestRender('overlay:show');
 }
 
 function hideOverlay() {
   currentOverlay = null;
   uiSession.patch('overlay', { open: false });
+  requestRender('overlay:hide');
 }
 
 function activateOverlayPrimary() {
@@ -1579,6 +1649,7 @@ function unlockLevelEvent(event) {
   const message = localized(event.message);
   unlockedEggs.add(storageKey);
   activeEasterEgg = { id: event.id, message, timer: 4.5 };
+  invalidateStaticWorld('event-unlock');
   score += event.reward;
   levelRunScore += event.reward;
   uiSession.patch('levelOverlays', { easterToast: `${message} +${event.reward}` });
@@ -1609,6 +1680,7 @@ function update(dt) {
     activeEasterEgg.timer -= dt;
     if (activeEasterEgg.timer <= 0) {
       activeEasterEgg = null;
+      invalidateStaticWorld('event-deactivate');
       uiSession.patch('levelOverlays', { easterToast: null });
     }
   }
@@ -1619,6 +1691,7 @@ function update(dt) {
       else {
         resetActors();
         state = 'playing';
+        requestRender('state:playing');
       }
     }
     return;
@@ -1697,6 +1770,7 @@ function collectTreats() {
   let collected = false;
 
   if (pellets.delete(key)) {
+    invalidateStaticWorld('pellet-collected');
     score += 10;
     levelRunScore += 10;
     collected = true;
@@ -1734,6 +1808,7 @@ function checkCollisions() {
     } else {
       lives -= 1;
       state = 'hit';
+      requestRender('state:hit');
       hitTimer = 1.1;
       beep(95, 0.32, 0.08, 'sawtooth');
       vibrate([70, 35, 100]);
@@ -1746,6 +1821,7 @@ function checkCollisions() {
 
 function completeLevel() {
   state = 'won';
+  requestRender('state:won');
   audioService.setLevelMode('won');
   completedLevelIds.add(selectedLevelId);
   concertUnlocked = completedLevelIds.size === PASSAU_LEVELS.length;
@@ -1810,6 +1886,7 @@ function advanceMapEndgame() {
 
 function finishGame() {
   state = 'over';
+  requestRender('state:over');
   audioService.setLevelMode('over');
   best = Math.max(best, score);
   updateHud();
@@ -1836,11 +1913,11 @@ function vibrate(pattern) {
   if ('vibrate' in navigator) navigator.vibrate(pattern);
 }
 
-function render() {
-  if (!activeLevelDocument || !player) return;
-  const viewportWidth = Math.max(1, canvas.clientWidth);
-  const viewportHeight = Math.max(1, canvas.clientHeight);
-  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
+function render(frameTimestamp) {
+  if (!pixelRenderer || !activeLevelDocument || !player) return;
+  const forceRadarPaint = !Number.isFinite(frameTimestamp);
+  const paintTimestamp = forceRadarPaint ? performance.now() : frameTimestamp;
+  const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
   const renderState = pixelRenderer.render(cutsceneSnapshot ? {
     level: activeLevelDocument,
@@ -1877,6 +1954,8 @@ function render() {
     } : undefined,
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
     reducedMotion,
+    staticRevision: staticWorldRevision,
+    sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
@@ -1890,13 +1969,16 @@ function render() {
   canvas.dataset.cutsceneTime = state === 'cutscene' ? levelCutscenePlayer.time.toFixed(3) : '';
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  updateCatRadar(
-    renderState.camera.source.x,
-    renderState.camera.source.y,
-    renderState.camera.source.width,
-    renderState.camera.source.height,
-    playViewport,
-  );
+  if (forceRadarPaint || paintTimestamp - lastRadarPaint >= 50) {
+    updateCatRadar(
+      renderState.camera.source.x,
+      renderState.camera.source.y,
+      renderState.camera.source.width,
+      renderState.camera.source.height,
+      playViewport,
+    );
+    lastRadarPaint = paintTimestamp;
+  }
 }
 
 function launchLevelConfetti() {
@@ -1925,68 +2007,67 @@ function isCameraGameView() {
   return state !== 'map';
 }
 
-function gameplayViewport(viewportWidth, viewportHeight) {
-  if (!isCameraGameView()) return { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
-  const canvasRect = canvas.getBoundingClientRect();
-  const blockers = [document.querySelector('#mobile-game-header'), document.querySelector('#level-status')];
-  const safeTop = blockers.reduce((bottom, element) => {
-    if (!element || getComputedStyle(element).display === 'none') return bottom;
-    const rect = element.getBoundingClientRect();
-    return Math.max(bottom, rect.bottom - canvasRect.top + 8);
-  }, 0);
-  const y = Math.min(Math.max(0, safeTop), Math.max(0, viewportHeight - 120));
-  return { x: 0, y, width: viewportWidth, height: Math.max(120, viewportHeight - y) };
+function isBoardFullscreen() {
+  return document.fullscreenElement === ui.boardColumn
+    || document.webkitFullscreenElement === ui.boardColumn;
 }
 
-function presentScene() {
-  const viewportWidth = Math.max(1, canvas.clientWidth);
-  const viewportHeight = Math.max(1, canvas.clientHeight);
-  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
-  let sourceX = 0;
-  let sourceY = 0;
-  let sourceWidth = BOARD_SIZE;
-  let sourceHeight = BOARD_SIZE;
+function observedDevicePixelRatio(entries, cssWidth) {
+  const canvasEntry = entries.find((entry) => entry.target === canvas);
+  const devicePixelSize = canvasEntry?.devicePixelContentBoxSize;
+  const box = Array.isArray(devicePixelSize) ? devicePixelSize[0] : devicePixelSize;
+  const contentWidth = Number(canvasEntry?.contentRect?.width) || cssWidth;
+  const deviceWidth = Number(box?.inlineSize);
+  return resolveObservedDevicePixelRatio({
+    deviceWidth,
+    contentWidth,
+    browserPixelRatio: window.devicePixelRatio || 1,
+  });
+}
 
-  if (isCameraGameView()) {
-    const coverScale = Math.max(
-      playViewport.width / BOARD_SIZE,
-      playViewport.height / BOARD_SIZE,
-    ) * CAMERA_ZOOM;
-    sourceWidth = playViewport.width / coverScale;
-    sourceHeight = playViewport.height / coverScale;
-    const playerX = player.x * TILE + TILE / 2;
-    const playerY = player.y * TILE + TILE / 2;
-    sourceX = Math.max(0, Math.min(BOARD_SIZE - sourceWidth, playerX - sourceWidth / 2));
-    sourceY = Math.max(0, Math.min(BOARD_SIZE - sourceHeight, playerY - sourceHeight / 2));
-  }
+function measureGameplayLayout(reason, entries = []) {
+  const mobile = isMobileGameLayout() || isBoardFullscreen();
+  const boardRect = ui.boardColumn.getBoundingClientRect();
+  const blockerMeasurements = mobile
+    ? [...document.querySelectorAll('[data-gameplay-blocker]')].map((element) => {
+      if (element.hidden) return null;
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        return { visible: false };
+      }
+      return {
+        bottom: boardRect.top + element.offsetTop + element.offsetHeight,
+        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+      };
+    })
+    : [];
+  const headerBottom = highestVisibleBlockerBottom(blockerMeasurements, boardRect.top);
+  const headerHeight = mobile ? Math.max(0, headerBottom - boardRect.top) : 0;
+  ui.boardColumn.style.setProperty('--mobile-game-header-height', `${Math.round(headerHeight)}px`);
 
-  displayCtx.setTransform(1, 0, 0, 1, 0, 0);
-  displayCtx.clearRect(0, 0, canvas.width, canvas.height);
-  displayCtx.imageSmoothingEnabled = false;
-  displayCtx.drawImage(
-    sceneCanvas,
-    sourceX * SCENE_PIXEL_RATIO,
-    sourceY * SCENE_PIXEL_RATIO,
-    sourceWidth * SCENE_PIXEL_RATIO,
-    sourceHeight * SCENE_PIXEL_RATIO,
-    playViewport.x * canvas.width / viewportWidth,
-    playViewport.y * canvas.height / viewportHeight,
-    playViewport.width * canvas.width / viewportWidth,
-    playViewport.height * canvas.height / viewportHeight,
-  );
-  const playerScreenX = playViewport.x
-    + ((player.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
-  const playerScreenY = playViewport.y
-    + ((player.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
-  canvas.dataset.playerScreenX = playerScreenX.toFixed(1);
-  canvas.dataset.playerScreenY = playerScreenY.toFixed(1);
-  canvas.dataset.playerX = player.x.toFixed(3);
-  canvas.dataset.playerY = player.y.toFixed(3);
-  canvas.dataset.playerDirection = player.dir.name;
-  canvas.dataset.playerNextDirection = player.nextDir.name;
-  canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
-  canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport);
+  const canvasRect = canvas.getBoundingClientRect();
+  const hudBottom = highestVisibleBlockerBottom(blockerMeasurements, canvasRect.top);
+  const layout = gameplayLayout.update({
+    canvasWidth: canvasRect.width,
+    canvasHeight: canvasRect.height,
+    hudBottom,
+    canvasTop: canvasRect.top,
+    devicePixelRatio: observedDevicePixelRatio(entries, canvasRect.width),
+    safeTop: 0,
+    safeBottom: 0,
+    mobile,
+  });
+
+  if (!pixelRenderer || layout.revision === appliedGameplayLayoutRevision) return layout;
+  pixelRenderer.resize({
+    width: layout.cssWidth,
+    height: layout.cssHeight,
+    devicePixelRatio: layout.devicePixelRatio,
+    reason,
+  });
+  appliedGameplayLayoutRevision = layout.revision;
+  requestRender(`layout:${reason}`);
+  return layout;
 }
 
 function ensureCatRadarIndicators() {
@@ -2060,13 +2141,10 @@ function frame(now) {
     autoSaveElapsed += dt;
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
   });
-  render();
+  renderScheduler.frame(now, currentRenderPolicy());
   requestAnimationFrame(frame);
 }
 
-function resizeCanvas() {
-  pixelRenderer?.resize();
-}
 
 document.addEventListener('keydown', (event) => {
   if (uiSession.snapshot().onboarding.open) return;
@@ -2089,7 +2167,7 @@ document.addEventListener('keydown', (event) => {
     audioService.setLevelMode('paused');
     setPauseButtons(true);
     hideOverlay();
-    render();
+    requestRender('state:paused');
     return;
   }
   if (import.meta.env.DEV && event.code === 'F6' && ['playing', 'paused'].includes(state)) {
@@ -2108,7 +2186,7 @@ document.addEventListener('keydown', (event) => {
     state = 'paused';
     setPauseButtons(true);
     hideOverlay();
-    render();
+    requestRender('debug:camera-position');
     return;
   }
   const debugCompleteLevel = ['F8', 'F9'].includes(event.code) || (event.altKey && event.code === 'KeyL');
@@ -2119,7 +2197,10 @@ document.addEventListener('keydown', (event) => {
         .filter((item) => item.id !== selectedLevelId)
         .map((item) => item.id));
     }
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return;
@@ -2229,6 +2310,11 @@ mount(UiApp, {
 });
 mountUiSurfaces(uiSession);
 
+void registerGameServiceWorker({
+  navigator: window.navigator,
+  baseUrl: new URL(import.meta.env.BASE_URL, window.location.href),
+  production: import.meta.env.PROD,
+});
 document.addEventListener('click', (event) => {
   if (!(event.target instanceof Element)) return;
   const button = event.target.closest('button');
@@ -2245,19 +2331,29 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
+  if (!document.hidden) {
+    simulationLoop.reset();
+    renderScheduler.reset();
+    requestRender('visibility:return');
+  }
 });
 
 document.addEventListener('touchmove', (event) => {
   if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
 }, { passive: false });
 
-window.addEventListener('resize', () => {
-  resizeCanvas();
-});
-const canvasResizeObserver = 'ResizeObserver' in window
-  ? new ResizeObserver(() => resizeCanvas())
+window.addEventListener('resize', () => measureGameplayLayout('window-resize'));
+window.addEventListener('orientationchange', () => measureGameplayLayout('orientation-change'));
+document.addEventListener('fullscreenchange', () => measureGameplayLayout('fullscreen-change'));
+const gameplayLayoutResizeObserver = 'ResizeObserver' in window
+  ? new ResizeObserver((entries) => measureGameplayLayout('resize-observer', entries))
   : null;
-canvasResizeObserver?.observe(canvas);
+const gameplayBlockers = [...document.querySelectorAll('[data-gameplay-blocker]')];
+gameplayLayoutResizeObserver?.observe(canvas);
+gameplayLayoutResizeObserver?.observe(ui.boardFrame);
+gameplayBlockers.forEach((element) => gameplayLayoutResizeObserver?.observe(element));
+measureGameplayLayout('initial');
+canvas.addEventListener('webglcontextrestored', () => requestRender('context:restored'));
 window.addEventListener('pagehide', () => {
   saveGame(true);
   audioService.destroy();
@@ -2266,6 +2362,8 @@ window.addEventListener('pagehide', () => {
 
 pixelRendererReady.then((renderer) => {
   pixelRenderer = renderer;
+  presentationPacer.setFramesPerSecond(recommendedPresentationRate(renderer.rendererInfo().quality));
+  renderScheduler.reset();
   if (storedGame) restoreGame(storedGame);
   else {
     buildLevel();
@@ -2274,7 +2372,7 @@ pixelRendererReady.then((renderer) => {
     openMap();
   }
   if (requiresOnboarding) showOnboarding();
-  resizeCanvas();
+  measureGameplayLayout('renderer-ready');
   requestAnimationFrame(frame);
 }).catch((error) => {
   console.error('Renderer konnte nicht initialisiert werden.', error);
@@ -2283,7 +2381,12 @@ pixelRendererReady.then((renderer) => {
 
 if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
-  window.__GASSI_RENDERER_DEBUG__ = () => pixelRenderer?.rendererInfo() ?? { backend: 'initializing' };
+  window.__GASSI_RENDERER_DEBUG__ = () => ({
+    ...(pixelRenderer?.rendererInfo() ?? { backend: 'initializing' }),
+    scheduler: renderScheduler.snapshot(),
+    staticWorldRevision,
+    renderPolicy: currentRenderPolicy(),
+  });
   window.__GASSI_DEBUG__ = () => ({
     state,
     player: { x: player.x, y: player.y, direction: player.dir.name, nextDirection: player.nextDir.name },
@@ -2311,7 +2414,7 @@ if (import.meta.env.DEV) {
   window.__GASSI_DEBUG_STEP__ = (seconds) => {
     const steps = Math.max(0, Math.round(seconds * 60));
     for (let index = 0; index < steps; index += 1) update(1 / 60);
-    render();
+    requestRender('debug:step');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_SET_PLAYER__ = (x, y) => {
@@ -2320,11 +2423,14 @@ if (import.meta.env.DEV) {
     player.dir = DIRECTIONS.none;
     player.nextDir = DIRECTIONS.none;
     checkLocationEasterEggs();
-    render();
+    requestRender('debug:player-position');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_COMPLETE__ = () => {
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return window.__GASSI_DEBUG__();
@@ -2333,7 +2439,10 @@ if (import.meta.env.DEV) {
     completedLevelIds = new Set(PASSAU_LEVELS
       .filter((item) => item.id !== selectedLevelId)
       .map((item) => item.id));
-    pellets.clear();
+    if (pellets.size > 0) {
+      pellets.clear();
+      invalidateStaticWorld('debug-pellets-clear');
+    }
     powerPellets.clear();
     completeLevel();
     return window.__GASSI_DEBUG__();
@@ -2341,6 +2450,7 @@ if (import.meta.env.DEV) {
   window.__GASSI_DEBUG_CUTSCENE__ = (cutscene) => {
     activeLevelDocument = createLevelDocument({ ...activeLevelDocument, cutscenes: [cutscene] });
     pixelRenderer.setLevel(activeLevelDocument);
+    invalidateStaticWorld('debug-content-import');
     hideOnboarding();
     document.body.classList.remove('map-active');
     enterMobileGameMode();
@@ -2348,7 +2458,7 @@ if (import.meta.env.DEV) {
     hideOverlay();
     runStarted = true;
     startLevelCutscene();
-    render();
+    requestRender('debug:cutscene');
     return window.__GASSI_DEBUG__();
   };
 }
