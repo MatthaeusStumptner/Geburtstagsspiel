@@ -86,20 +86,21 @@ export function assertActionableBoundingBox({ visible, enabled, box, viewport },
 export function assertDprContract({ browserDpr, expectedDpr, renderer, cssWidth, cssHeight, bufferWidth, bufferHeight }, scenario) {
   assert.equal(browserDpr, expectedDpr, `[${scenario}] browser DPR differs from the scenario`);
   assert.ok(renderer && renderer.display, `[${scenario}] renderer display diagnostics are missing`);
-  const cap = Math.min(2, browserDpr);
+  const cap = { performance: 1.25, balanced: 1.6, quality: 2 }[renderer.quality];
+  assert.ok(Number.isFinite(cap), `[${scenario}] renderer quality has no DPR cap`);
   const rendererRatio = requiredFinite(renderer.pixelRatio, 'renderer.pixelRatio', scenario);
   const actualRatio = requiredFinite(renderer.display.actualPixelRatio, 'display.actualPixelRatio', scenario);
   const effectiveRatio = requiredFinite(renderer.display.pixelRatio, 'display.pixelRatio', scenario);
-  for (const [name, ratio] of [['renderer.pixelRatio', rendererRatio], ['display.actualPixelRatio', actualRatio], ['display.pixelRatio', effectiveRatio]]) {
-    assert.ok(ratio > 0 && ratio <= cap, `[${scenario}] ${name} is outside the renderer DPR cap`);
-  }
+  assert.ok(Math.abs(actualRatio - browserDpr) <= 0.01, `[${scenario}] renderer actual DPR differs from browser DPR`);
+  assert.equal(rendererRatio, effectiveRatio, `[${scenario}] renderer effective DPR fields disagree`);
+  assert.ok(effectiveRatio > 0 && effectiveRatio <= cap, `[${scenario}] renderer effective DPR exceeds the ${renderer.quality} cap`);
   for (const [name, value] of [['cssWidth', cssWidth], ['cssHeight', cssHeight], ['bufferWidth', bufferWidth], ['bufferHeight', bufferHeight]]) requiredFinite(value, name, scenario);
   const displayWidth = requiredFinite(renderer.display.width, 'display.width', scenario);
   const displayHeight = requiredFinite(renderer.display.height, 'display.height', scenario);
   assert.equal(displayWidth, cssWidth, `[${scenario}] renderer display width differs from CSS width`);
   assert.equal(displayHeight, cssHeight, `[${scenario}] renderer display height differs from CSS height`);
-  assert.equal(bufferWidth, Math.max(1, Math.round(cssWidth * actualRatio)), `[${scenario}] backbuffer width does not match CSS width × actual DPR`);
-  assert.equal(bufferHeight, Math.max(1, Math.round(cssHeight * actualRatio)), `[${scenario}] backbuffer height does not match CSS height × actual DPR`);
+  assert.equal(bufferWidth, Math.max(1, Math.round(cssWidth * effectiveRatio)), `[${scenario}] backbuffer width does not match CSS width × effective DPR`);
+  assert.equal(bufferHeight, Math.max(1, Math.round(cssHeight * effectiveRatio)), `[${scenario}] backbuffer height does not match CSS height × effective DPR`);
   assert.equal(renderer.display.bufferWidth, bufferWidth, `[${scenario}] renderer/canvas buffer width mismatch`);
   assert.equal(renderer.display.bufferHeight, bufferHeight, `[${scenario}] renderer/canvas buffer height mismatch`);
 }

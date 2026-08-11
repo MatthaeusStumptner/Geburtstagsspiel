@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   assertActionableBoundingBox,
   assertDprContract,
@@ -68,12 +69,28 @@ test('map markers must be actionable and inside the viewport', () => {
   assert.doesNotThrow(() => assertActionableBoundingBox({ visible: true, enabled: true, box: { x: 10, y: 20, width: 20, height: 20 }, viewport: { width: 390, height: 844 } }, 'valid'));
 });
 
-test('DPR contract distinguishes browser DPR from the finite capped renderer ratio', () => {
-  const renderer = { pixelRatio: 1, display: { width: 412, height: 727, actualPixelRatio: 1, pixelRatio: 1, bufferWidth: 412, bufferHeight: 727 } };
-  assert.doesNotThrow(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 727, bufferWidth: 412, bufferHeight: 727 }, 'valid'));
-  assert.throws(() => assertDprContract({ browserDpr: 2, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 727, bufferWidth: 412, bufferHeight: 727 }, 'browser'), /browser DPR/);
-  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: { ...renderer, pixelRatio: Number.NaN }, cssWidth: 412, cssHeight: 727, bufferWidth: 412, bufferHeight: 727 }, 'renderer'), /pixelRatio/);
-  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 700, bufferWidth: 412, bufferHeight: 727 }, 'css'), /display height/);
+test('DPR contract distinguishes browser actual DPR from quality-capped effective DPR', () => {
+  const renderer = { quality: 'quality', pixelRatio: 2, display: { width: 412, height: 727, actualPixelRatio: 2.625, pixelRatio: 2, bufferWidth: 824, bufferHeight: 1454 } };
+  assert.doesNotThrow(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'valid'));
+  assert.throws(() => assertDprContract({ browserDpr: 2, expectedDpr: 2.625, renderer, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'browser'), /browser DPR/);
+  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: { ...renderer, display: { ...renderer.display, actualPixelRatio: 1 } }, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'actual'), /actual DPR/);
+  const wrongBuffer = { ...renderer, pixelRatio: 1, display: { ...renderer.display, pixelRatio: 1, bufferWidth: 1082, bufferHeight: 1908 } };
+  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: wrongBuffer, cssWidth: 412, cssHeight: 727, bufferWidth: 1082, bufferHeight: 1908 }, 'effective'), /effective DPR/);
+  assert.throws(() => assertDprContract({ browserDpr: 2.625, expectedDpr: 2.625, renderer: { ...renderer, display: { ...renderer.display, width: 411 } }, cssWidth: 412, cssHeight: 727, bufferWidth: 824, bufferHeight: 1454 }, 'css'), /display width/);
+});
+
+test('integration feeds captured DOM CSS size into DPR validation', async () => {
+  const source = await readFile(new URL('../scripts/browser-game-regression.mjs', import.meta.url), 'utf8');
+  const dprCall = source.match(/function assertGeometryDpr[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(dprCall, /cssWidth:\s*value\.cssSize\?\.width/);
+  assert.match(dprCall, /cssHeight:\s*value\.cssSize\?\.height/);
+});
+
+test('successful fullscreen entry validates mobile geometry and paused overlay', async () => {
+  const source = await readFile(new URL('../scripts/browser-game-regression.mjs', import.meta.url), 'utf8');
+  const fullscreen = source.match(/async function exerciseFullscreen[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(fullscreen, /assertMobileGeometry\(entered, scenario\)/);
+  assert.match(fullscreen, /assertRectNear\(fullscreenPaused\.overlay, fullscreenPaused\.boardFrame/);
 });
 
 test('cleanup attempts every closer even when one rejects', async () => {

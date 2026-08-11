@@ -180,8 +180,8 @@ function assertGeometryDpr(value, scenario) {
     browserDpr: value.browserDpr,
     expectedDpr: scenario.deviceScaleFactor,
     renderer: value.renderer,
-    cssWidth: value.renderer?.display?.width,
-    cssHeight: value.renderer?.display?.height,
+    cssWidth: value.cssSize?.width,
+    cssHeight: value.cssSize?.height,
     bufferWidth: value.buffer?.width,
     bufferHeight: value.buffer?.height,
   }, scenario.name);
@@ -273,10 +273,19 @@ async function exerciseFullscreen(page, scenario, active) {
   await page.waitForFunction(() => Boolean(document.fullscreenElement), null, { timeout: 8_000 });
   const entered = await geometry(page);
   assertGeometryDpr(entered, scenario);
+  if (scenario.mobile) assertMobileGeometry(entered, scenario);
+  await page.keyboard.press('KeyP');
+  await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'fullscreen pause');
+  const fullscreenPaused = await geometry(page);
+  assertGeometryDpr(fullscreenPaused, scenario);
+  if (scenario.mobile) assertMobileGeometry(fullscreenPaused, scenario);
+  assertRectNear(fullscreenPaused.overlay, fullscreenPaused.boardFrame, 1, scenario.name, 'fullscreen pause overlay');
+  await page.locator('#overlay-button').click();
+  await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'fullscreen resume');
   const exitControl = page.locator('[data-fullscreen-control], #mobile-fullscreen-button').first();
   await exitControl.click({ timeout: 12_000 });
   await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 8_000 });
-  return { status: 'exercised', entered };
+  return { status: 'exercised', entered, paused: fullscreenPaused };
 }
 async function returnMap(page, scenario) {
   if (await page.locator('#mobile-game-menu-button').isVisible()) {
