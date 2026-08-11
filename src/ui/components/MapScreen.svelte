@@ -60,7 +60,7 @@
 </script>
 
 {#if view.open && view.geometry}
-  <section class:map-details-open={view.selectionOpen} class:map-motion-active={view.open && !view.selectionOpen} class:map-motion-paused={view.selectionOpen} class="passau-map-screen" id="map-screen" aria-labelledby="map-title">
+  <section class:map-details-open={view.selectionOpen} class:map-motion-active={view.open && !view.selectionOpen && !view.endgameEvent} class:map-motion-paused={!view.open || view.selectionOpen || !!view.endgameEvent} class="passau-map-screen" id="map-screen" aria-labelledby="map-title">
     <div class="map-heading">
       <div>
         <p class="section-label">{view.copy.kicker}</p>
