@@ -16,7 +16,17 @@ export function saveBrowserGameSession(session) {
 
 export function restoreBrowserGameSession(session, state, options) {
   if (!session || typeof session.restore !== 'function') throw new TypeError('Die Game-Session kann nicht wiederhergestellt werden.');
-  return session.restore(state, options);
+  const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+  if (!isObject(state) || !Object.hasOwn(state, 'continuation') && !Object.hasOwn(state, 'legacyFallback')) {
+    return session.restore(state, options);
+  }
+  const continuation = isObject(state.continuation) ? state.continuation : {};
+  const legacyFallback = isObject(state.legacyFallback) ? state.legacyFallback : {};
+  const restoreState = { ...legacyFallback, ...continuation };
+  if (!Number.isFinite(continuation.elapsed) && Object.hasOwn(legacyFallback, 'elapsed')) {
+    restoreState.elapsed = legacyFallback.elapsed;
+  }
+  return session.restore(restoreState, options);
 }
 
 export function setDebugPlayerPosition(session, { x, y }, { evaluateEvents = false } = {}) {

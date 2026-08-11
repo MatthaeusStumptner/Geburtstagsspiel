@@ -38,10 +38,12 @@ export class FixedStepLoop {
   }
 
   restore(state = {}) {
-    const accumulator = Number(state?.accumulator);
-    this.accumulator = Number.isFinite(accumulator) && accumulator >= 0
-      ? Math.min(accumulator, this.stepSeconds)
-      : 0;
+    const accumulator = state?.accumulator;
+    const isReachable = typeof accumulator === 'number'
+      && Number.isFinite(accumulator)
+      && accumulator > -Number.EPSILON
+      && accumulator <= this.stepSeconds;
+    this.accumulator = isReachable ? accumulator : 0;
     this.lastTimestamp = null;
     return this.snapshot();
   }

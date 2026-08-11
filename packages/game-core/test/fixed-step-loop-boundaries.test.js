@@ -52,3 +52,36 @@ test('snapshot and restore retain only the advanceSeconds accumulator', () => {
   assert.equal(updates, 1);
   assert.equal(restored.interpolationAlpha, 0);
 });
+test('restore round-trips the reachable negative epsilon residue and preserves the next update decision', () => {
+  const source = new FixedStepLoop({ updatesPerSecond: 1, maxFrameSeconds: 2 });
+  let initialUpdates = 0;
+  assert.equal(source.advanceSeconds(1 - Number.EPSILON / 2, () => { initialUpdates += 1; }), 1);
+  assert.equal(initialUpdates, 1);
+  const saved = source.snapshot();
+  assert.ok(saved.accumulator < 0 && saved.accumulator > -Number.EPSILON, String(saved.accumulator));
+
+  const restored = new FixedStepLoop({ updatesPerSecond: 1, maxFrameSeconds: 2 });
+  assert.deepEqual(restored.restore(JSON.parse(JSON.stringify(saved))), saved);
+  let sourceUpdates = 0;
+  let restoredUpdates = 0;
+  const nextDelta = 1 - Number.EPSILON;
+  source.advanceSeconds(nextDelta, () => { sourceUpdates += 1; });
+  restored.advanceSeconds(nextDelta, () => { restoredUpdates += 1; });
+  assert.equal(restoredUpdates, sourceUpdates);
+  assert.deepEqual(restored.snapshot(), source.snapshot());
+});
+
+test('restore rejects external accumulator values outside the finite reachable range', () => {
+  const loop = new FixedStepLoop({ updatesPerSecond: 1, maxFrameSeconds: 2 });
+  for (const accumulator of [
+    -Number.EPSILON,
+    -1,
+    1 + Number.EPSILON,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    '0.5',
+    null,
+  ]) {
+    assert.deepEqual(loop.restore({ accumulator }), { accumulator: 0 }, String(accumulator));
+  }
+});

@@ -1241,10 +1241,9 @@ function restoreGame(save) {
     };
   }) : undefined;
   levelEventElapsed = clampNumber(save.levelEventElapsed, 0, 3600, 0);
-  const restoredSnapshot = restoreBrowserGameSession(gameSession, {
-    ...continuation,
-    ...(restoredPlayer ? { player: { ...continuation.player, ...restoredPlayer } } : {}),
-    ...(restoredCats ? { cats: restoredCats.map((cat, index) => ({ ...continuation.cats?.[index], ...cat })) } : {}),
+  const legacyFallback = {
+    ...(restoredPlayer ? { player: restoredPlayer } : {}),
+    ...(restoredCats ? { cats: restoredCats } : {}),
     pellets: restoredPellets,
     powerUps: restoredPowerUps,
     unlockedEvents: [...activeUnlockedEventIds()],
@@ -1255,7 +1254,8 @@ function restoreGame(save) {
     graceTimer: clampNumber(save.graceTimer, 0, difficultyConfig().grace, 0),
     hitTimer: 0,
     state: save.mode === 'won' ? 'won' : save.mode === 'over' || lives <= 0 ? 'lost' : 'playing',
-  });
+  };
+  const restoredSnapshot = restoreBrowserGameSession(gameSession, { continuation, legacyFallback });
   gameSessionScore = restoredSnapshot.score;
   gameSessionSnapshot = null;
   applyGameSessionSnapshot(restoredSnapshot, { processEvents: false });

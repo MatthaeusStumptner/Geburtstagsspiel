@@ -175,19 +175,30 @@ test('CI contract rejects a nested install hidden in a shell command', async () 
   assert.throws(() => assertCriticalCiTopology(mutated));
 });
 test('Pages deploy uploads the game workspace build and content publishing still dispatches it', async () => {
-  const [deploySource, publishSource, rootPackage, gamePackage] = await Promise.all([
+  const [deploySource, publishSource, rootPackage, gamePackage, studioReadme, publisherReadme] = await Promise.all([
     readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8'),
     readFile(new URL('../.github/workflows/publish-content.yml', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
     readFile(new URL('../apps/game/package.json', import.meta.url), 'utf8').then(JSON.parse),
+    readFile(new URL('../apps/studio/README.md', import.meta.url), 'utf8'),
+    readFile(new URL('../apps/publisher/README.md', import.meta.url), 'utf8'),
   ]);
-  const deploySteps = workflowSteps(deploySource);
+  const { workflow: deployWorkflow, steps: deploySteps } = workflowTopology(deploySource);
+  const buildEnvironment = deployWorkflow.jobs.build.env;
   const build = deploySteps.filter(({ run }) => run === 'npm run build');
   const upload = deploySteps.filter(({ uses }) => uses?.startsWith('actions/upload-pages-artifact@'));
   assert.equal(build.length, 1, 'deploy must run the root build once');
   assert.equal(upload.length, 1, 'deploy must upload one Pages artifact');
   assert.match(rootPackage.scripts.build, /npm run build --workspace @franz-lola\/game(?:\s|$)/);
+  assert.match(rootPackage.scripts.build, /npm run build --workspace @franz-lola\/studio(?:\s|$)/);
   assert.match(gamePackage.scripts.build, /(?:^|&&\s*)vite build(?:\s|&&|$)/);
+  assert.deepEqual(buildEnvironment, {
+    VITE_PUBLISHER_URL: '${{ vars.VITE_PUBLISHER_URL }}',
+  });
+  assert.doesNotMatch(JSON.stringify(buildEnvironment), /secrets\.|https?:\/\//i);
+  assert.match(studioReadme, /\.\.\/publisher\/README\.md/);
+  assert.match(studioReadme, /VITE_PUBLISHER_URL/);
+  assert.match(publisherReadme, /VITE_PUBLISHER_URL/);
   assert.equal(upload[0].with.path, 'apps/game/dist');
 
   const dispatch = workflowSteps(publishSource).filter(({ run }) => String(run ?? '').includes('gh workflow run'));
