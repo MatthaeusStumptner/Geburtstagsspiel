@@ -39,12 +39,18 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
       || surface.dirty;
   }
 
+  function isCadenceDue(surface, timestamp) {
+    if (surface.lastPresentedAt === null || timestamp < surface.lastPresentedAt) return true;
+    const interval = 1000 / surface.profile.maxFps;
+    const dueAt = surface.cadenceOrigin + surface.nextCadenceSlot * interval;
+    return timestamp >= dueAt;
+  }
+
   function shouldPresent(surface, timestamp) {
     if (!isRunnable(surface)) return false;
-    if (surface.profile.mode === 'on-demand') return surface.dirty;
     if (surface.profile.mode === 'continuous') return true;
-    return surface.lastPresentedAt === null
-      || timestamp - surface.lastPresentedAt >= 1000 / surface.profile.maxFps;
+    if (surface.profile.mode === 'on-demand') return surface.dirty && isCadenceDue(surface, timestamp);
+    return isCadenceDue(surface, timestamp);
   }
 
   function updateQueue() {
@@ -79,6 +85,15 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
 
     if (surfaces.get(surface.id) !== surface) return;
     surface.lastPresentedAt = timestamp;
+    if (surface.profile.mode !== 'continuous') {
+      const interval = 1000 / surface.profile.maxFps;
+      if (surface.cadenceOrigin === null || timestamp < surface.cadenceOrigin) {
+        surface.cadenceOrigin = timestamp;
+        surface.nextCadenceSlot = 1;
+      } else {
+        surface.nextCadenceSlot = Math.floor((timestamp - surface.cadenceOrigin) / interval + 1e-9) + 1;
+      }
+    }
     surface.counters.renders += 1;
   }
 
@@ -110,6 +125,8 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
       dirty: false,
       lastReason: null,
       lastPresentedAt: null,
+      cadenceOrigin: null,
+      nextCadenceSlot: 0,
       invalidationVersion: 0,
       counters: { renders: 0, invalidations: 0 },
     };
@@ -120,8 +137,13 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
 
   function invalidate(id, reason) {
     const surface = surfaceFor(id);
-    if (!surface.dirty) surface.lastReason = reason;
-    surface.dirty = true;
+    if (!surface.visible) {
+      surface.dirty = false;
+      surface.lastReason = reason;
+    } else {
+      if (!surface.dirty) surface.lastReason = reason;
+      surface.dirty = true;
+    }
     surface.invalidationVersion += 1;
     surface.counters.invalidations += 1;
     updateQueue();

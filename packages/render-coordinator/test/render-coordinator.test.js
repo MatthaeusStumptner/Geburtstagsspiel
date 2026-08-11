@@ -113,7 +113,7 @@ test('permits a render callback to invalidate itself without losing the new work
   coordinator.invalidate('level', 'initial');
   clock.present(0);
   assert.equal(clock.pendingCount(), 1);
-  clock.present(1);
+  clock.present(1000 / 60);
   assert.deepEqual(reasons, ['initial', 'follow-up']);
 });
 
@@ -173,4 +173,115 @@ test('exports immutable profiles and detached immutable snapshots', () => {
   const second = coordinator.snapshot();
   assert.equal(first.surfaces.level.dirty, false);
   assert.equal(second.surfaces.level.dirty, true);
+});
+
+test('uses slot-based animated cadence without long-run drift', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => timestamps.push(timestamp) });
+  const displayStep = 1000 / 60;
+  for (let index = 0; index <= 120; index += 1) clock.present(index * displayStep);
+  assert.equal(timestamps.length, 61);
+  assert.deepEqual(timestamps, Array.from({ length: 61 }, (_, index) => index * (1000 / 30)));
+  assert.equal(new Set(timestamps).size, 61);
+});
+
+test('records hidden invalidations without queuing or retaining dirty work', () => {
+  const clock = createFakeFrameClock();
+  const renders = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'hidden', profile: 'editor', visible: false, render: () => renders.push('render') });
+  coordinator.invalidate('hidden', 'hidden-change');
+  assert.equal(coordinator.snapshot().surfaces.hidden.dirty, false);
+  assert.equal(coordinator.snapshot().surfaces.hidden.lastReason, 'hidden-change');
+  assert.equal(clock.pendingCount(), 0);
+  coordinator.setSurfaceState('hidden', { visible: true });
+  clock.present(0);
+  assert.deepEqual(renders, []);
+  coordinator.invalidate('hidden', 'visible-change');
+  clock.present(1);
+  assert.deepEqual(renders, ['render']);
+});
+
+test('clears visible dirty work on hide while retaining its reason', () => {
+  const clock = createFakeFrameClock();
+  const renders = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'editor', profile: 'editor', render: () => renders.push('render') });
+  coordinator.invalidate('editor', 'before-hide');
+  coordinator.setSurfaceState('editor', { visible: false });
+  coordinator.setSurfaceState('editor', { visible: true });
+  clock.present(0);
+  assert.equal(coordinator.snapshot().surfaces.editor.lastReason, 'before-hide');
+  assert.deepEqual(renders, []);
+});
+
+test('throttles dirty on-demand surfaces without losing their first pending reason', () => {
+  const clock = createFakeFrameClock();
+  const frames = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'static', profile: 'thumbnail-static', render: (frame) => frames.push(frame) });
+  coordinator.invalidate('static', 'initial');
+  clock.present(0);
+  coordinator.invalidate('static', 'second');
+  coordinator.invalidate('static', 'third');
+  clock.present(16);
+  assert.equal(frames.length, 1);
+  assert.equal(coordinator.snapshot().surfaces.static.dirty, true);
+  assert.equal(coordinator.snapshot().surfaces.static.lastReason, 'second');
+  clock.present(999);
+  assert.equal(frames.length, 1);
+  clock.present(1000);
+  assert.equal(frames.length, 2);
+  assert.equal(frames[1].reason, 'second');
+  assert.equal(coordinator.snapshot().surfaces.static.dirty, false);
+});
+
+test('allows editor invalidations at the next eligible display frame', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'editor', profile: 'editor', render: ({ timestamp }) => timestamps.push(timestamp) });
+  coordinator.invalidate('editor', 'initial');
+  clock.present(0);
+  coordinator.invalidate('editor', 'next');
+  clock.present(1000 / 60);
+  assert.deepEqual(timestamps, [0, 1000 / 60]);
+});
+
+test('coordinates throttled on-demand work with animation and callback invalidation', () => {
+  const clock = createFakeFrameClock();
+  const events = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({
+    id: 'editor',
+    profile: 'editor',
+    render: ({ timestamp }) => {
+      events.push(['editor', timestamp]);
+      if (timestamp === 0) coordinator.invalidate('editor', 'callback-follow-up');
+    },
+  });
+  coordinator.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => events.push(['animated', timestamp]) });
+  coordinator.invalidate('editor', 'initial');
+  clock.present(0);
+  clock.present(1000 / 60);
+  assert.deepEqual(events, [
+    ['editor', 0],
+    ['animated', 0],
+    ['editor', 1000 / 60],
+  ]);
+});
+test('handles suspended gaps and backward clock resets without cadence bursts', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'animated', profile: 'thumbnail-animated', render: ({ timestamp }) => timestamps.push(timestamp) });
+  clock.present(0);
+  clock.present(1000);
+  clock.present(1000 + 1000 / 60);
+  clock.present(-10);
+  clock.present(-10 + 1000 / 60);
+  clock.present(-10 + 1000 / 30);
+  assert.deepEqual(timestamps, [0, 1000, -10, -10 + 1000 / 30]);
 });
