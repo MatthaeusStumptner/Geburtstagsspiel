@@ -61,3 +61,11 @@ test('narrow mobile headers keep their embedded status cards readable', async ()
 
   assert.match(narrowLayout, /\.mobile-game-header \.level-status[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 });
+
+test('gameplay blocker measurement ignores reveal transforms', async () => {
+  const [, , main] = await readSources();
+  const measurement = main.match(/const blockerMeasurements = mobile([\s\S]*?): \[\];/)?.[1] ?? '';
+
+  assert.match(measurement, /bottom:\s*boardRect\.top \+ element\.offsetTop \+ element\.offsetHeight/);
+  assert.doesNotMatch(measurement, /bottom:\s*rect\.bottom/);
+});

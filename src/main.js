@@ -2027,8 +2027,10 @@ function measureGameplayLayout(reason, entries = []) {
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
         return { visible: false };
       }
-      const rect = element.getBoundingClientRect();
-      return { bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 };
+      return {
+        bottom: boardRect.top + element.offsetTop + element.offsetHeight,
+        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+      };
     })
     : [];
   const headerBottom = highestVisibleBlockerBottom(blockerMeasurements, boardRect.top);
