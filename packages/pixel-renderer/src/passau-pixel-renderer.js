@@ -7,6 +7,7 @@ import { drawWithVisualEffects } from './visual-effects.js';
 import { resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLimit } from './gpu/effect-profile.js';
 import { resolveStableCropSize } from './gpu/crop-buffer.js';
 import { createPresentationBackend, createSyncPresentationBackend } from './gpu/presentation-backend.js';
+import { createPresentationFrame } from './presentation-frame.js';
 
 const clampRatio = (value, maximum = 2) => Math.min(maximum, Math.max(1, Number(value) || 1));
 const normalizeDisplayDimension = (value) => {
@@ -87,7 +88,7 @@ export class PassauPixelRenderer {
     this.overlayCache = { decorations: null, language: '', width: 0, height: 0, source: null, viewport: null, hasOverlay: false };
     this.gpuCropResizes = 0;
     this.gpuCropSignature = '';
-    this.pixelRatio = clampRatio(pixelRatio ?? globalThis.devicePixelRatio, this.pixelRatioLimit); this.displayMetrics = null; this.zoom = zoom; this.level = null; this.grid = null;
+    this.pixelRatio = clampRatio(pixelRatio ?? globalThis.devicePixelRatio, this.pixelRatioLimit); this.displayMetrics = null; this.frameId = 0; this.zoom = zoom; this.level = null; this.grid = null;
   }
 
   setLevel(levelInput) {
@@ -136,11 +137,12 @@ export class PassauPixelRenderer {
   }
 
   render(snapshot, options = {}) {
+    const frameId = this.frameId += 1;
     const level = snapshot.level ? this.setLevelIfChanged(snapshot.level) : this.level;
     if (!level) throw new Error('Vor dem Rendern muss ein Level gesetzt sein.');
     const alpha = Math.min(1, Math.max(0, Number(options.alpha) || 0));
     const player = interpolate({ ...level.actors.player, ...(snapshot.player ?? {}) }, alpha);
-    const cats = (snapshot.cats ?? level.actors.cats).map((cat, index) => interpolate({ ...(level.actors.cats[index] ?? {}), ...cat }, alpha)); const elapsed = Number(snapshot.elapsed) || 0;
+    const cats = (snapshot.cats ?? level.actors.cats).map((cat, index) => interpolate({ ...(level.actors.cats[index] ?? {}), ...cat }, alpha)); const elapsed = Number.isFinite(snapshot.elapsed) ? snapshot.elapsed : 0; const presentationTime = options.presentationTime ?? elapsed;
     const characters = (snapshot.characters ?? level.actors.characters ?? []).map((character, index) => interpolate({ ...(level.actors.characters?.[index] ?? {}), ...character }, alpha));
     const renderLevel = snapshot.decorations ? { ...level, decorations: snapshot.decorations } : level;
     const frameControlledDecorations = snapshot.decorations != null;
@@ -210,10 +212,56 @@ export class PassauPixelRenderer {
       hasOverlay,
     });
     this.present(camera, profile, elapsed, hasOverlay, overlayChanged, worldTextOverlay, options.sceneChanged !== false);
-    const tile = level.board.tileSize; const playerScreen = projectWorldPoint(camera, { x: player.x * tile + tile / 2, y: player.y * tile + tile / 2 }); const bounds = visibleWorldBounds(camera);
-    const entities = cats.map((cat, index) => { const world = { x: cat.x * tile + tile / 2, y: cat.y * tile + tile / 2 }; return { id: cat.id ?? `cat-${index + 1}`, index, screen: projectWorldPoint(camera, world), onScreen: world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom, distance: Math.hypot(player.x - cat.x, player.y - cat.y), color: cat.color, respawnTimer: cat.respawnTimer ?? 0 }; });
-    const characterEntities = characters.map((character, index) => { const world = { x: character.x * tile + tile / 2, y: character.y * tile + tile / 2 }; return { id: character.id ?? `character-${index + 1}`, index, screen: projectWorldPoint(camera, world), onScreen: world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom, distance: Math.hypot(player.x - character.x, player.y - character.y), color: character.color }; });
-    return { camera, playerScreen, entities, characterEntities, display, renderer: this.rendererInfo() };
+    const tile = level.board.tileSize;
+    const playerWorld = { x: player.x * tile + tile / 2, y: player.y * tile + tile / 2 };
+    const bounds = visibleWorldBounds(camera);
+    const onScreen = (world) => world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom;
+    const playerPresentation = {
+      id: player.id ?? 'player',
+      world: playerWorld,
+      screen: projectWorldPoint(camera, playerWorld),
+    };
+    const catPresentations = cats.map((cat, index) => {
+      const world = { x: cat.x * tile + tile / 2, y: cat.y * tile + tile / 2 };
+      return {
+        id: cat.id ?? `cat-${index + 1}`,
+        index,
+        world,
+        screen: projectWorldPoint(camera, world),
+        onScreen: onScreen(world),
+        distance: Math.hypot(player.x - cat.x, player.y - cat.y),
+        color: cat.color,
+        respawnTimer: cat.respawnTimer ?? 0,
+      };
+    });
+    const characterPresentations = characters.map((character, index) => {
+      const world = { x: character.x * tile + tile / 2, y: character.y * tile + tile / 2 };
+      return {
+        id: character.id ?? `character-${index + 1}`,
+        index,
+        world,
+        screen: projectWorldPoint(camera, world),
+        onScreen: onScreen(world),
+        distance: Math.hypot(player.x - character.x, player.y - character.y),
+        color: character.color,
+      };
+    });
+    const frame = createPresentationFrame({
+      frameId,
+      presentationTime,
+      camera,
+      player: playerPresentation,
+      cats: catPresentations,
+      characters: characterPresentations,
+      display,
+      renderer: this.rendererInfo(),
+    });
+    return Object.freeze({
+      ...frame,
+      playerScreen: frame.player.screen,
+      entities: frame.cats,
+      characterEntities: frame.characters,
+    });
   }
 
   setLevelIfChanged(levelInput) {

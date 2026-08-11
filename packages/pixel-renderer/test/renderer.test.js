@@ -101,6 +101,38 @@ test('reuses externally measured display metrics without reading layout during r
   });
 });
 
+test('returns one immutable presentation frame per render with legacy aliases', () => {
+  const renderer = createTestRenderer();
+  const level = sampleLevel();
+  renderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+  const snapshot = {
+    level,
+    elapsed: 3,
+    player: { id: 'player', x: 2, y: 3, previousX: 0, previousY: 1 },
+    cats: [{ id: 'cat-1', x: 5, y: 2, previousX: 3, previousY: 2, color: '#ff00ff', respawnTimer: 4 }],
+    characters: [{ id: 'character-1', x: 4, y: 3, previousX: 2, previousY: 1, color: '#00ffff' }],
+  };
+
+  const first = renderer.render(snapshot, { alpha: 0.5, cameraEnabled: false, presentationTime: 12.5 });
+  const second = renderer.render(snapshot, { alpha: 0.5, cameraEnabled: false });
+
+  assert.equal(first.kind, 'franz-lola-presentation-frame');
+  assert.equal(first.frameId, 1);
+  assert.equal(second.frameId, 2);
+  assert.equal(first.presentationTime, 12.5);
+  assert.equal(second.presentationTime, 3);
+  assert.equal(first.player.world.x, renderer.level.board.tileSize * 1.5);
+  assert.equal(first.cats[0].world.x, renderer.level.board.tileSize * 4.5);
+  assert.equal(first.cats[0].onScreen, true);
+  assert.equal(first.cats[0].distance, 3);
+  assert.equal(first.cats[0].color, '#ff00ff');
+  assert.equal(first.cats[0].respawnTimer, 4);
+  assert.strictEqual(first.playerScreen, first.player.screen);
+  assert.strictEqual(first.entities, first.cats);
+  assert.strictEqual(first.characterEntities, first.characters);
+  assert.throws(() => { first.cats[0].world.x = 1; }, TypeError);
+});
+
 test('skips backend resize for unchanged externally measured display metrics', () => {
   const backend = fakePresentationBackend();
   const renderer = new PassauPixelRenderer(fakeCanvas({ width: 412, height: 712 }), { presentationBackend: backend });
