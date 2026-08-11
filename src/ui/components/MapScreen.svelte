@@ -60,7 +60,7 @@
 </script>
 
 {#if view.open && view.geometry}
-  <section class:map-details-open={view.selectionOpen} class="passau-map-screen" id="map-screen" aria-labelledby="map-title">
+  <section class:map-details-open={view.selectionOpen} class:map-motion-active={view.open && !view.selectionOpen} class:map-motion-paused={view.selectionOpen} class="passau-map-screen" id="map-screen" aria-labelledby="map-title">
     <div class="map-heading">
       <div>
         <p class="section-label">{view.copy.kicker}</p>
@@ -84,9 +84,19 @@
         <path class="river river-bank" d={view.geometry.danube}></path><path class="river danube" d={view.geometry.danube}></path>
         <path class="river river-bank" d={view.geometry.inn}></path><path class="river inn" d={view.geometry.inn}></path>
         <path class="river river-bank" d={view.geometry.ilz}></path><path class="river ilz" d={view.geometry.ilz}></path>
-        <path class="river-glint river-glint-danube" d={view.geometry.danube}></path>
-        <path class="river-glint river-glint-inn" d={view.geometry.inn}></path>
-        <path class="river-glint river-glint-ilz" d={view.geometry.ilz}></path>
+        <g class="map-glints" aria-hidden="true">
+          <path class="map-glint map-glint-river map-glint-delay-1" d="M 118 420 l 18 4"></path>
+          <path class="map-glint map-glint-river map-glint-delay-2" d="M 330 402 l 20 -2"></path>
+          <path class="map-glint map-glint-river map-glint-delay-3" d="M 534 418 l 18 5"></path>
+          <path class="map-glint map-glint-river map-glint-delay-3" d="M 136 652 l 18 -11"></path>
+          <path class="map-glint map-glint-river map-glint-delay-1" d="M 312 584 l 16 -12"></path>
+          <path class="map-glint map-glint-river map-glint-delay-2" d="M 476 492 l 18 -10"></path>
+          <path class="map-glint map-glint-river map-glint-delay-2" d="M 294 104 l 8 18"></path>
+          <path class="map-glint map-glint-river map-glint-delay-3" d="M 320 250 l 14 12"></path>
+          <path class="map-glint map-glint-river map-glint-delay-1" d="M 408 348 l 16 11"></path>
+          <path class="map-glint map-glint-road map-glint-delay-1" d="M 266 150 l 16 12"></path>
+          <path class="map-glint map-glint-road map-glint-delay-3" d="M 426 520 l 16 12"></path>
+        </g>
         <text class="river-label" x="120" y="432">DONAU</text>
         <text class="river-label" x="176" y="617">INN</text>
         <text class="river-label" x="290" y="88">ILZ</text>
