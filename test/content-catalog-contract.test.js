@@ -163,6 +163,33 @@ test('case-variant canonical JSON collisions fail closed without mutation', asyn
   assert.match(failure.message, /HOME\.LEVEL\.JSON|non-empty canonical directory/i);
 });
 
+test('report ancestor conflicts fail closed before creating canonical content', async (testContext) => {
+  const migration = await import('../tools/migrate-content-catalog.mjs');
+  const catalog = await readContentCatalog(rootUrl);
+  const source = { levels: catalog.levels, objects: catalog.objects.map((entry) => entry.document) };
+  const temporary = await temporaryRoot(testContext);
+  await writeFile(path.join(temporary.root, 'docs'), 'occupied by a file\n', 'utf8');
+  const before = await treeSnapshot(temporary.url);
+
+  const failure = await captureFailure(migration.writeCanonicalCatalog(temporary.url, source));
+  assert.deepEqual(await treeSnapshot(temporary.url), before);
+  assert.deepEqual(await readdir(temporary.root), ['docs']);
+  assert.match(failure.message, /docs|report directory/i);
+});
+
+test('content ancestor conflicts fail closed before creating the report', async (testContext) => {
+  const migration = await import('../tools/migrate-content-catalog.mjs');
+  const catalog = await readContentCatalog(rootUrl);
+  const source = { levels: catalog.levels, objects: catalog.objects.map((entry) => entry.document) };
+  const temporary = await temporaryRoot(testContext);
+  await writeFile(path.join(temporary.root, 'content'), 'occupied by a file\n', 'utf8');
+  const before = await treeSnapshot(temporary.url);
+
+  const failure = await captureFailure(migration.writeCanonicalCatalog(temporary.url, source));
+  assert.deepEqual(await treeSnapshot(temporary.url), before);
+  assert.deepEqual(await readdir(temporary.root), ['content']);
+  assert.match(failure.message, /content|canonical directory/i);
+});
 test('post-migration write rejects missing source paths before importing Studio consumers', async (testContext) => {
   const temporary = await temporaryRoot(testContext);
   const studioSource = path.join(temporary.root, 'apps/studio/src');

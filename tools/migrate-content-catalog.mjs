@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
@@ -227,13 +227,27 @@ function verifyReport(report, catalog) {
   return counts;
 }
 
-async function optionalMetadata(absolute) {
-  try {
-    return await lstat(absolute);
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
+async function canonicalDirectoryIfPresent(root, directory) {
+  const relative = path.relative(root, directory);
+  if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Canonical directory escapes the migration root: ${directory}`);
   }
+  let current = root;
+  for (const segment of relative.split(path.sep)) {
+    const matches = (await readdir(current, { withFileTypes: true }))
+      .filter((entry) => entry.name.toLowerCase() === segment.toLowerCase());
+    if (!matches.length) return null;
+    if (matches.length !== 1) {
+      throw new Error(`Canonical directory names collide case-insensitively below ${relativePath(path.relative(root, current)) || '.'}: ${segment}`);
+    }
+    const [entry] = matches;
+    const entryPath = path.join(current, entry.name);
+    if (entry.name !== segment || !entry.isDirectory()) {
+      throw new Error(`Canonical directory ancestor collision at ${relativePath(path.relative(root, entryPath))}`);
+    }
+    current = entryPath;
+  }
+  return current;
 }
 
 function canonicalWriteTargets(source) {
@@ -253,28 +267,17 @@ function canonicalWriteTargets(source) {
 }
 
 async function assertReportTargetAvailable(root, reportPath) {
-  const reportDirectory = path.dirname(reportPath);
-  const metadata = await optionalMetadata(reportDirectory);
-  if (!metadata) return;
-  if (!metadata.isDirectory()) throw new Error(`Canonical report directory is not a directory: ${relativePath(path.relative(root, reportDirectory))}`);
+  const reportDirectory = await canonicalDirectoryIfPresent(root, path.dirname(reportPath));
+  if (!reportDirectory) return;
   const target = path.basename(reportPath).toLowerCase();
   const collision = (await readdir(reportDirectory)).find((name) => name.toLowerCase() === target);
   if (collision) throw new Error(`--write refuses to overwrite canonical report target: ${relativePath(path.relative(root, path.join(reportDirectory, collision)))}`);
 }
 
 async function assertContentTargetsAvailable(root, targets) {
-  const contentRoot = path.join(root, 'content');
-  const contentMetadata = await optionalMetadata(contentRoot);
-  if (!contentMetadata) return;
-  if (!contentMetadata.isDirectory()) throw new Error('Canonical content root is not a directory: content');
-  const rootEntries = await readdir(contentRoot, { withFileTypes: true });
   for (const { key } of CONTENT_CATALOG_LAYOUT) {
-    const directoryEntry = rootEntries.find((entry) => entry.name.toLowerCase() === key.toLowerCase());
-    if (!directoryEntry) continue;
-    if (directoryEntry.name !== key || !directoryEntry.isDirectory()) {
-      throw new Error(`Canonical directory collision at content/${directoryEntry.name}`);
-    }
-    const directory = path.join(contentRoot, directoryEntry.name);
+    const directory = await canonicalDirectoryIfPresent(root, path.join(root, 'content', key));
+    if (!directory) continue;
     const planned = new Set(targets[key].map((name) => name.toLowerCase()));
     const collision = (await readdir(directory)).find((name) => {
       const folded = name.toLowerCase();
