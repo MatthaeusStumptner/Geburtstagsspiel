@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import {
   assertSourceManifest,
@@ -16,6 +19,29 @@ import {
 const execFileAsync = promisify(execFile);
 const rootUrl = new URL('../', import.meta.url);
 
+async function temporaryRoot(testContext) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'franz-lola-content-catalog-'));
+  testContext.after(async () => {
+    const resolved = path.resolve(root);
+    const temporaryDirectory = `${path.resolve(os.tmpdir())}${path.sep}`;
+    assert.equal(resolved.startsWith(temporaryDirectory), true, resolved);
+    assert.equal(path.basename(resolved).startsWith('franz-lola-content-catalog-'), true, resolved);
+    await rm(resolved, { recursive: true, force: true });
+  });
+  return { root, url: pathToFileURL(`${root}${path.sep}`) };
+}
+
+async function captureFailure(operation) {
+  let failure;
+  try {
+    await operation;
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure instanceof Error, 'operation must reject');
+  return failure;
+}
+
 async function treeSnapshot(directoryUrl) {
   const entries = [];
   async function walk(url, prefix = '') {
@@ -24,8 +50,10 @@ async function treeSnapshot(directoryUrl) {
     for (const entry of children) {
       const childUrl = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, url);
       const relative = `${prefix}${entry.name}`;
-      if (entry.isDirectory()) await walk(childUrl, `${relative}/`);
-      else {
+      if (entry.isDirectory()) {
+        entries.push({ relative: `${relative}/`, type: 'directory' });
+        await walk(childUrl, `${relative}/`);
+      } else {
         const metadata = await stat(childUrl);
         entries.push({ relative, value: await readFile(childUrl, 'utf8'), mtimeMs: metadata.mtimeMs });
       }
@@ -106,4 +134,48 @@ test('catalog migrator CLI rejects unknown modes', async () => {
     execFileAsync(process.execPath, ['tools/migrate-content-catalog.mjs', '--dry-run'], { cwd: new URL('../', import.meta.url) }),
     /--check|--write/,
   );
+});
+test('a late canonical directory conflict leaves the entire target root untouched', async (testContext) => {
+  const migration = await import('../tools/migrate-content-catalog.mjs');
+  const catalog = await readContentCatalog(rootUrl);
+  const source = { levels: catalog.levels, objects: catalog.objects.map((entry) => entry.document) };
+  const temporary = await temporaryRoot(testContext);
+  await mkdir(path.join(temporary.root, 'content'), { recursive: true });
+  await writeFile(path.join(temporary.root, 'content/events'), 'occupied by a file\n', 'utf8');
+  const before = await treeSnapshot(temporary.url);
+
+  const failure = await captureFailure(migration.writeCanonicalCatalog(temporary.url, source));
+  assert.deepEqual(await treeSnapshot(temporary.url), before);
+  assert.match(failure.message, /content[/\\]events|canonical directory/i);
+});
+
+test('case-variant canonical JSON collisions fail closed without mutation', async (testContext) => {
+  const migration = await import('../tools/migrate-content-catalog.mjs');
+  const catalog = await readContentCatalog(rootUrl);
+  const source = { levels: catalog.levels, objects: catalog.objects.map((entry) => entry.document) };
+  const temporary = await temporaryRoot(testContext);
+  await mkdir(path.join(temporary.root, 'content/levels'), { recursive: true });
+  await writeFile(path.join(temporary.root, 'content/levels/HOME.LEVEL.JSON'), '{"sentinel":true}\n', 'utf8');
+  const before = await treeSnapshot(temporary.url);
+
+  const failure = await captureFailure(migration.writeCanonicalCatalog(temporary.url, source));
+  assert.deepEqual(await treeSnapshot(temporary.url), before);
+  assert.match(failure.message, /HOME\.LEVEL\.JSON|non-empty canonical directory/i);
+});
+
+test('post-migration write rejects missing source paths before importing Studio consumers', async (testContext) => {
+  const temporary = await temporaryRoot(testContext);
+  const studioSource = path.join(temporary.root, 'apps/studio/src');
+  await mkdir(studioSource, { recursive: true });
+  await writeFile(path.join(temporary.root, 'package.json'), '{"type":"module"}\n', 'utf8');
+  await writeFile(
+    path.join(studioSource, 'object-library.js'),
+    "import './data/content-catalog.generated.json' with { type: 'json' };\nexport const DEFAULT_OBJECT_ASSETS = [];\n",
+    'utf8',
+  );
+  const before = await treeSnapshot(temporary.url);
+
+  const failure = await captureFailure(migrateContentCatalog(temporary.url, { mode: 'write' }));
+  assert.deepEqual(await treeSnapshot(temporary.url), before);
+  assert.match(failure.message, /source paths differ/i);
 });

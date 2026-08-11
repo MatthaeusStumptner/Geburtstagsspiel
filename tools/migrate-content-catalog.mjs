@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
@@ -63,10 +63,14 @@ function sameValue(left, right) {
   return stableStringifyJsonValue(left) === stableStringifyJsonValue(right);
 }
 
-export function assertSourceManifest(actual, expected = EXPECTED_SOURCE_MANIFEST) {
-  if (!sameValue(actual.sourcePaths, expected.sourcePaths)) {
-    throw new Error(`Source paths differ from the recorded manifest: ${JSON.stringify(actual.sourcePaths)}`);
+function assertSourcePaths(actual, expected = EXPECTED_SOURCE_MANIFEST.sourcePaths) {
+  if (!sameValue(actual, expected)) {
+    throw new Error(`Source paths differ from the recorded manifest: ${JSON.stringify(actual)}`);
   }
+}
+
+export function assertSourceManifest(actual, expected = EXPECTED_SOURCE_MANIFEST) {
+  assertSourcePaths(actual.sourcePaths, expected.sourcePaths);
   if (!sameValue(actual.counts, expected.counts)) {
     throw new Error(`Source counts differ from the recorded manifest: ${JSON.stringify(actual.counts)}`);
   }
@@ -89,7 +93,7 @@ function reusableObjectDocument(asset) {
   };
 }
 
-async function inspectLegacySources(root) {
+async function inspectLegacySourceLayout(root) {
   const gameDirectory = path.join(root, 'apps/game/src/data/levels');
   const gameNames = (await readdir(gameDirectory).catch((error) => error?.code === 'ENOENT' ? [] : Promise.reject(error)))
     .filter((name) => name.endsWith('.json'))
@@ -100,14 +104,15 @@ async function inspectLegacySources(root) {
   if (await exists(studioCatalogPath)) sourcePaths.push(relativePath(path.relative(root, studioCatalogPath)));
   if (await exists(objectModulePath)) sourcePaths.push(relativePath(path.relative(root, objectModulePath)));
   sourcePaths.sort();
+  return { gameDirectory, gameNames, studioCatalogPath, objectModulePath, sourcePaths };
+}
 
+async function inspectLegacySources(root, layout) {
+  const { gameDirectory, gameNames, studioCatalogPath, objectModulePath, sourcePaths } = layout;
   const levels = await Promise.all(gameNames.map(async (name) => JSON.parse(await readFile(path.join(gameDirectory, name), 'utf8'))));
-  const studioCatalog = await readFile(studioCatalogPath, 'utf8').then(JSON.parse).catch(() => null);
-  let objects = [];
-  if (await exists(objectModulePath)) {
-    const module = await import(`${pathToFileURL(objectModulePath).href}?content-migration`);
-    objects = clone(module.DEFAULT_OBJECT_ASSETS ?? []);
-  }
+  const studioCatalog = JSON.parse(await readFile(studioCatalogPath, 'utf8'));
+  const module = await import(`${pathToFileURL(objectModulePath).href}?content-migration`);
+  const objects = clone(module.DEFAULT_OBJECT_ASSETS ?? []);
   const studioLevels = Array.isArray(studioCatalog?.levels) ? studioCatalog.levels : [];
   const manifest = {
     sourcePaths,
@@ -222,15 +227,79 @@ function verifyReport(report, catalog) {
   return counts;
 }
 
-async function writeCanonicalCatalog(root, source) {
-  const reportPath = path.join(root, 'docs/migration/content-checksums.json');
-  if (await exists(reportPath)) throw new Error('--write refuses to overwrite an existing content migration report.');
-  for (const { key } of CONTENT_CATALOG_LAYOUT) {
-    const directory = path.join(root, 'content', key);
-    await mkdir(directory, { recursive: true });
-    const existingJson = (await readdir(directory)).filter((name) => name.endsWith('.json'));
-    if (existingJson.length) throw new Error(`--write refuses a non-empty canonical directory: content/${key}`);
+async function optionalMetadata(absolute) {
+  try {
+    return await lstat(absolute);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
   }
+}
+
+function canonicalWriteTargets(source) {
+  const targets = Object.fromEntries(CONTENT_CATALOG_LAYOUT.map(({ key }) => [key, []]));
+  targets.levels = source.levels.map((level) => `${level.id}.level.json`);
+  targets.objects = source.objects.map((asset) => `${asset.id}.object.json`);
+  for (const { key } of CONTENT_CATALOG_LAYOUT.filter(({ key }) => !['levels', 'objects'].includes(key))) {
+    targets[key] = ['.gitkeep'];
+  }
+  for (const [key, names] of Object.entries(targets)) {
+    const foldedNames = names.map((name) => name.toLowerCase());
+    if (new Set(foldedNames).size !== foldedNames.length) {
+      throw new Error(`Canonical target names collide case-insensitively in content/${key}: ${JSON.stringify(names)}`);
+    }
+  }
+  return targets;
+}
+
+async function assertReportTargetAvailable(root, reportPath) {
+  const reportDirectory = path.dirname(reportPath);
+  const metadata = await optionalMetadata(reportDirectory);
+  if (!metadata) return;
+  if (!metadata.isDirectory()) throw new Error(`Canonical report directory is not a directory: ${relativePath(path.relative(root, reportDirectory))}`);
+  const target = path.basename(reportPath).toLowerCase();
+  const collision = (await readdir(reportDirectory)).find((name) => name.toLowerCase() === target);
+  if (collision) throw new Error(`--write refuses to overwrite canonical report target: ${relativePath(path.relative(root, path.join(reportDirectory, collision)))}`);
+}
+
+async function assertContentTargetsAvailable(root, targets) {
+  const contentRoot = path.join(root, 'content');
+  const contentMetadata = await optionalMetadata(contentRoot);
+  if (!contentMetadata) return;
+  if (!contentMetadata.isDirectory()) throw new Error('Canonical content root is not a directory: content');
+  const rootEntries = await readdir(contentRoot, { withFileTypes: true });
+  for (const { key } of CONTENT_CATALOG_LAYOUT) {
+    const directoryEntry = rootEntries.find((entry) => entry.name.toLowerCase() === key.toLowerCase());
+    if (!directoryEntry) continue;
+    if (directoryEntry.name !== key || !directoryEntry.isDirectory()) {
+      throw new Error(`Canonical directory collision at content/${directoryEntry.name}`);
+    }
+    const directory = path.join(contentRoot, directoryEntry.name);
+    const planned = new Set(targets[key].map((name) => name.toLowerCase()));
+    const collision = (await readdir(directory)).find((name) => {
+      const folded = name.toLowerCase();
+      return folded.endsWith('.json') || planned.has(folded);
+    });
+    if (collision) throw new Error(`--write refuses a collision in content/${key}: ${collision}`);
+  }
+}
+
+export async function assertCanonicalWriteTargets(rootUrl, source) {
+  const root = rootPath(rootUrl);
+  const reportPath = path.join(root, 'docs/migration/content-checksums.json');
+  const targets = canonicalWriteTargets(source);
+  await assertReportTargetAvailable(root, reportPath);
+  await assertContentTargetsAvailable(root, targets);
+}
+
+export async function writeCanonicalCatalog(rootUrl, source) {
+  const root = rootPath(rootUrl);
+  const reportPath = path.join(root, 'docs/migration/content-checksums.json');
+  await assertCanonicalWriteTargets(root, source);
+  for (const { key } of CONTENT_CATALOG_LAYOUT) {
+    await mkdir(path.join(root, 'content', key), { recursive: true });
+  }
+  await mkdir(path.dirname(reportPath), { recursive: true });
   for (const level of source.levels) {
     await writeFile(path.join(root, 'content/levels', `${level.id}.level.json`), `${JSON.stringify(level, null, 2)}\n`, 'utf8');
   }
@@ -253,12 +322,16 @@ export async function migrateContentCatalog(rootUrl, { mode } = {}) {
   const root = rootPath(rootUrl);
   const reportPath = path.join(root, 'docs/migration/content-checksums.json');
   if (mode === 'write') {
-    const source = await inspectLegacySources(root);
+    const sourceLayout = await inspectLegacySourceLayout(root);
+    assertSourcePaths(sourceLayout.sourcePaths);
+    const source = await inspectLegacySources(root, sourceLayout);
     validateSources(source);
     return writeCanonicalCatalog(root, source);
   }
   if (!(await exists(reportPath))) {
-    const source = await inspectLegacySources(root);
+    const sourceLayout = await inspectLegacySourceLayout(root);
+    assertSourcePaths(sourceLayout.sourcePaths);
+    const source = await inspectLegacySources(root, sourceLayout);
     validateSources(source);
     return { mode: 'check', state: 'ready', counts: clone(EXPECTED_COUNTS), sourceManifest: source.manifest };
   }
