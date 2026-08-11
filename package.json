@@ -13,5 +13,6 @@
     "benchmark:renderer": "npm run benchmark:assert --workspace @franz-lola/pixel-renderer",
     "verify": "npm run test && npm run build && npm run test:browser"
   },
+  "overrides": { "wrangler": "4.118.0", "undici": "7.29.0" },
   "engines": { "node": ">=22.14.0" }
 }

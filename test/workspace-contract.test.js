@@ -66,3 +66,13 @@ test('studio and publisher use the local renderer and one root lock', async () =
   assert.deepEqual(result.externalRendererPins, []);
   assert.deepEqual(result.violations, []);
 });
+
+test('root overrides preserve publisher dependency resolutions', async () => {
+  const root = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const lock = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'));
+  const resolvedVersion = (name) => Object.entries(lock.packages)
+    .find(([location]) => location === `node_modules/${name}` || location.endsWith(`/node_modules/${name}`))?.[1].version;
+  assert.deepEqual(root.overrides, { wrangler: '4.118.0', undici: '7.29.0' });
+  assert.equal(resolvedVersion('wrangler'), '4.118.0');
+  assert.equal(resolvedVersion('undici'), '7.29.0');
+});
