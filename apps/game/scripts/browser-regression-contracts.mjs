@@ -65,12 +65,97 @@ export function assertHighRefreshResult({ presentationDelta, positionError, tole
   assert.ok(positionError <= tolerance, `[${scenario}] player drift exceeds one fixed step`);
 }
 
+function readRadarSnapshot(radar, scenario) {
+  assert.ok(radar && typeof radar === 'object', `[${scenario}] radar diagnostics are missing`);
+  const updateCount = requiredFinite(radar.updateCount, 'radar.updateCount', scenario);
+  assert.ok(Number.isSafeInteger(updateCount) && updateCount >= 0, `[${scenario}] radar.updateCount must be a non-negative safe integer`);
+  assert.ok(radar.frame && typeof radar.frame === 'object', `[${scenario}] radar frame diagnostics are missing`);
+  assert.ok(Number.isSafeInteger(radar.frame.frameId) && radar.frame.frameId > 0, `[${scenario}] radar frameId must be positive`);
+  const viewport = radar.frame.camera?.viewport;
+  assert.ok(viewport && typeof viewport === 'object', `[${scenario}] radar viewport diagnostics are missing`);
+  for (const key of ['x', 'y', 'width', 'height']) requiredFinite(viewport[key], `radar.viewport.${key}`, scenario);
+  assert.ok(viewport.width > 0 && viewport.height > 0, `[${scenario}] radar viewport must be positive`);
+  const playerScreen = radar.frame.player?.screen;
+  assert.ok(playerScreen && typeof playerScreen === 'object', `[${scenario}] radar player screen diagnostics are missing`);
+  for (const key of ['x', 'y']) requiredFinite(playerScreen[key], `radar.player.screen.${key}`, scenario);
+  const cats = requiredArray(radar.frame.cats, 'radar frame cats', scenario);
+  cats.forEach((cat, index) => {
+    assert.ok(cat && typeof cat.id === 'string' && cat.id.length > 0, `[${scenario}] radar cat ${index} id is missing`);
+    for (const key of ['x', 'y']) requiredFinite(cat.screen?.[key], `radar.cat.${cat.id}.screen.${key}`, scenario);
+    assert.equal(typeof cat.onScreen, 'boolean', `[${scenario}] radar cat ${cat.id} onScreen is missing`);
+    requiredFinite(cat.respawnTimer, `radar.cat.${cat.id}.respawnTimer`, scenario);
+  });
+  assert.ok(radar.state && typeof radar.state.visible === 'boolean', `[${scenario}] radar state diagnostics are missing`);
+  const indicators = requiredArray(radar.state.indicators, 'radar indicators', scenario);
+  indicators.forEach((indicator, index) => {
+    assert.ok(indicator && typeof indicator.id === 'string' && indicator.id.length > 0, `[${scenario}] radar indicator ${index} id is missing`);
+    for (const key of ['x', 'y', 'angle', 'distance']) requiredFinite(indicator[key], `radar.indicator.${indicator.id}.${key}`, scenario);
+    assert.equal(typeof indicator.hidden, 'boolean', `[${scenario}] radar indicator ${indicator.id} hidden is missing`);
+  });
+  return radar;
+}
+
+function angleDifference(left, right) {
+  return Math.abs(((left - right + 180) % 360 + 360) % 360 - 180);
+}
+
+export function assertRadarPresentationContract({ presentationDelta, baselineRadar, measuredRadar, samples }, scenario) {
+  requiredFinite(presentationDelta, 'presentation delta', scenario);
+  const baseline = readRadarSnapshot(baselineRadar, `${scenario}:baseline`);
+  const measured = readRadarSnapshot(measuredRadar, `${scenario}:measured`);
+  const radarDelta = measured.updateCount - baseline.updateCount;
+  assert.equal(radarDelta, presentationDelta, `[${scenario}] radar update delta differs from presentation delta`);
+  const sampled = requiredArray(samples, 'radar samples', scenario);
+  assert.ok(sampled.length > 0, `[${scenario}] radar samples are empty`);
+  let visibleBubbleCount = 0;
+
+  sampled.forEach((sample, sampleIndex) => {
+    const label = `${scenario}:radar-sample-${sampleIndex}`;
+    const radar = readRadarSnapshot(sample?.radar, label);
+    const viewport = sample?.viewport;
+    assert.ok(viewport && typeof viewport === 'object', `[${label}] gameplay viewport geometry is missing`);
+    for (const edge of ['left', 'top', 'right', 'bottom']) requiredFinite(viewport[edge], `gameplay viewport.${edge}`, label);
+    assert.ok(viewport.right > viewport.left && viewport.bottom > viewport.top, `[${label}] gameplay viewport geometry is empty`);
+    const bubbles = requiredArray(sample?.bubbles, 'radar bubbles', label);
+    const visibleIndicators = radar.state.indicators.filter((indicator) => !indicator.hidden);
+    assert.equal(bubbles.length, visibleIndicators.length, `[${label}] visible radar bubble count differs from state`);
+
+    bubbles.forEach((bubble) => {
+      visibleBubbleCount += 1;
+      assert.ok(bubble && typeof bubble.id === 'string' && bubble.id.length > 0, `[${label}] radar bubble id is missing`);
+      for (const edge of ['left', 'top', 'right', 'bottom']) requiredFinite(bubble[edge], `radar bubble ${bubble.id}.${edge}`, label);
+      const actualAngle = requiredFinite(bubble.angle, `radar bubble ${bubble.id}.angle`, label);
+      assert.ok(bubble.left >= viewport.left - 1 && bubble.top >= viewport.top - 1
+        && bubble.right <= viewport.right + 1 && bubble.bottom <= viewport.bottom + 1,
+      `[${label}] radar bubble ${bubble.id} leaves the gameplay viewport`);
+      const cat = radar.frame.cats.find((candidate) => candidate.id === bubble.id);
+      assert.ok(cat, `[${label}] radar bubble ${bubble.id} has no matching frame entity`);
+      const expectedAngle = Math.atan2(
+        cat.screen.y - radar.frame.player.screen.y,
+        cat.screen.x - radar.frame.player.screen.x,
+      ) * 180 / Math.PI + 90;
+      assert.ok(angleDifference(actualAngle, expectedAngle) <= 0.5,
+        `[${label}] radar bubble ${bubble.id} differs by more than 0.5 degrees from its frame entity`);
+    });
+  });
+
+  assert.ok(visibleBubbleCount > 0, `[${scenario}] radar samples contain no visible bubbles`);
+  return { radarDelta, visibleBubbleCount };
+}
+
 export function assertReducedPostProcess(postProcess, scenario) {
   assert.ok(postProcess && typeof postProcess === 'object', `[${scenario}] reduced-motion postProcess diagnostics are missing`);
   const scanlines = requiredFinite(postProcess.scanlines, 'postProcess.scanlines', scenario);
   const rgbSplitTexels = requiredFinite(postProcess.rgbSplitTexels, 'postProcess.rgbSplitTexels', scenario);
   assert.equal(scanlines, 0, `[${scenario}] reduced motion left scanlines enabled`);
   assert.equal(rgbSplitTexels, 0, `[${scenario}] reduced motion left RGB split enabled`);
+}
+
+export function assertReducedRadarMotion({ animationName, beforeTransform, afterTransform }, scenario) {
+  assert.equal(animationName, 'none', `[${scenario}] reduced motion left decorative animation enabled`);
+  assert.ok(typeof beforeTransform === 'string' && beforeTransform.length > 0, `[${scenario}] initial radar transform is missing`);
+  assert.ok(typeof afterTransform === 'string' && afterTransform.length > 0, `[${scenario}] updated radar transform is missing`);
+  assert.notEqual(afterTransform, beforeTransform, `[${scenario}] reduced motion suppressed the direct radar position update`);
 }
 
 export function assertActionableBoundingBox({ visible, enabled, box, viewport }, scenario) {

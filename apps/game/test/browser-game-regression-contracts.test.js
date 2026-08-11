@@ -6,8 +6,10 @@ import {
   assertDprContract,
   assertFinalHealth,
   assertHighRefreshResult,
+  assertRadarPresentationContract,
   assertRectNear,
   assertReducedPostProcess,
+  assertReducedRadarMotion,
   assertVideoEvidence,
   readRendererCounters,
   settleCleanup,
@@ -61,6 +63,82 @@ test('high-refresh and reduced-motion diagnostics are required and finite', () =
   assert.throws(() => assertReducedPostProcess(null, 'missing'), /postProcess/);
   assert.throws(() => assertReducedPostProcess({ scanlines: Number.NaN, rgbSplitTexels: 0 }, 'nan'), /scanlines/);
   assert.doesNotThrow(() => assertReducedPostProcess({ scanlines: 0, rgbSplitTexels: 0 }, 'valid'));
+});
+
+test('reduced motion removes radar pulsing without suppressing direct position updates', () => {
+  assert.doesNotThrow(() => assertReducedRadarMotion({
+    animationName: 'none',
+    beforeTransform: 'translate3d(372px, 120px, 0)',
+    afterTransform: 'translate3d(28px, 180px, 0)',
+  }, 'valid'));
+  assert.throws(() => assertReducedRadarMotion({
+    animationName: 'cat-radar-pulse',
+    beforeTransform: 'translate3d(372px, 120px, 0)',
+    afterTransform: 'translate3d(28px, 180px, 0)',
+  }, 'animated'), /decorative animation/);
+  assert.throws(() => assertReducedRadarMotion({
+    animationName: 'none',
+    beforeTransform: 'translate3d(372px, 120px, 0)',
+    afterTransform: 'translate3d(372px, 120px, 0)',
+  }, 'stale'), /position update/);
+});
+
+function radarSnapshot(updateCount = 122) {
+  return {
+    updateCount,
+    frame: {
+      frameId: 122,
+      camera: { viewport: { x: 0, y: 40, width: 400, height: 300 } },
+      player: { screen: { x: 200, y: 190 } },
+      cats: [{ id: 'lola', screen: { x: 520, y: 140 }, onScreen: false, respawnTimer: 0 }],
+    },
+    state: {
+      visible: true,
+      indicators: [{ id: 'lola', hidden: false, x: 372, y: 163.125, angle: 81.119, distance: 12, danger: false, color: '#f25f5c' }],
+    },
+  };
+}
+
+function radarSample(overrides = {}) {
+  return {
+    radar: radarSnapshot(),
+    viewport: { left: 10, top: 60, right: 410, bottom: 360 },
+    bubbles: [{ id: 'lola', left: 365, top: 206, right: 399, bottom: 240, angle: 81.119 }],
+    ...overrides,
+  };
+}
+
+test('radar presentation contract is finite, frame-synchronous, viewport-clamped, and angle-true', () => {
+  assert.doesNotThrow(() => assertRadarPresentationContract({
+    presentationDelta: 120,
+    baselineRadar: radarSnapshot(2),
+    measuredRadar: radarSnapshot(122),
+    samples: [radarSample()],
+  }, 'valid'));
+  assert.throws(() => assertRadarPresentationContract({
+    presentationDelta: 120,
+    baselineRadar: radarSnapshot(2),
+    measuredRadar: radarSnapshot(121),
+    samples: [radarSample()],
+  }, 'delta'), /radar update delta/);
+  assert.throws(() => assertRadarPresentationContract({
+    presentationDelta: 120,
+    baselineRadar: radarSnapshot(2),
+    measuredRadar: { ...radarSnapshot(122), updateCount: Number.NaN },
+    samples: [radarSample()],
+  }, 'finite'), /finite/);
+  assert.throws(() => assertRadarPresentationContract({
+    presentationDelta: 120,
+    baselineRadar: radarSnapshot(2),
+    measuredRadar: radarSnapshot(122),
+    samples: [radarSample({ bubbles: [{ id: 'lola', left: 365, top: 206, right: 425, bottom: 240, angle: 81.119 }] })],
+  }, 'outside'), /gameplay viewport/);
+  assert.throws(() => assertRadarPresentationContract({
+    presentationDelta: 120,
+    baselineRadar: radarSnapshot(2),
+    measuredRadar: radarSnapshot(122),
+    samples: [radarSample({ bubbles: [{ id: 'lola', left: 365, top: 206, right: 399, bottom: 240, angle: 82 }] })],
+  }, 'angle'), /0.5 degrees/);
 });
 
 test('map markers must be actionable and inside the viewport', () => {

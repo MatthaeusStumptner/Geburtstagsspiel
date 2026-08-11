@@ -11,8 +11,10 @@ import {
   assertDprContract,
   assertFinalHealth,
   assertHighRefreshResult,
+  assertRadarPresentationContract,
   assertRectNear,
   assertReducedPostProcess,
+  assertReducedRadarMotion,
   assertVideoEvidence,
   readRendererCounters,
   settleCleanup,
@@ -84,17 +86,49 @@ function initBrowserState({ save, rafHz }) {
   const nativeRaf = window.requestAnimationFrame.bind(window);
   const nativeCancel = window.cancelAnimationFrame.bind(window);
   const step = 1000 / rafHz;
-  let lastNative = Number.NaN; let virtualTimestamp = 0; let nativeFrames = 0; let epoch = 0; let marked = false; let captured = null;
+  let lastNative = Number.NaN; let virtualTimestamp = 0; let nativeFrames = 0; let epoch = 0; let marked = false; let captured = null; let radarSamples = [];
+  const sampleRadar = () => {
+    const radar = window.__GASSI_DEBUG__?.().radar;
+    const container = document.querySelector('#cat-radar');
+    if (!radar?.frame || !container) return null;
+    const containerRect = container.getBoundingClientRect();
+    const viewport = radar.frame.camera.viewport;
+    return {
+      radar,
+      viewport: {
+        left: containerRect.left + viewport.x,
+        top: containerRect.top + viewport.y,
+        right: containerRect.left + viewport.x + viewport.width,
+        bottom: containerRect.top + viewport.y + viewport.height,
+      },
+      bubbles: [...container.querySelectorAll('.cat-indicator:not([hidden])')].map((indicator) => {
+        const rect = indicator.getBoundingClientRect();
+        const arrow = indicator.querySelector('.cat-indicator-arrow');
+        return {
+          id: indicator.dataset.catId,
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          angle: Number.parseFloat(arrow?.style.getPropertyValue('--cat-angle')),
+        };
+      }),
+    };
+  };
   window.requestAnimationFrame = (callback) => nativeRaf((nativeTimestamp) => {
     if (nativeTimestamp !== lastNative) { lastNative = nativeTimestamp; virtualTimestamp += step; nativeFrames += 1; }
     callback(virtualTimestamp);
+    if (marked && !captured) {
+      const radarSample = sampleRadar();
+      if (radarSample) radarSamples.push(radarSample);
+    }
     if (marked && !captured && virtualTimestamp - epoch >= 2_000 && window.__GASSI_DEBUG__ && window.__GASSI_RENDERER_DEBUG__) {
-      captured = { game: window.__GASSI_DEBUG__(), renderer: window.__GASSI_RENDERER_DEBUG__(), raf: { hz: rafHz, step, nativeFrames, virtualTimestamp, elapsed: virtualTimestamp - epoch } };
+      captured = { game: window.__GASSI_DEBUG__(), renderer: window.__GASSI_RENDERER_DEBUG__(), radarSamples, raf: { hz: rafHz, step, nativeFrames, virtualTimestamp, elapsed: virtualTimestamp - epoch } };
     }
   });
   window.cancelAnimationFrame = nativeCancel;
   window.__PW_RAF__ = {
-    mark() { epoch = virtualTimestamp; marked = true; captured = null; return epoch; },
+    mark() { epoch = virtualTimestamp; marked = true; captured = null; radarSamples = []; return epoch; },
     elapsed() { return virtualTimestamp - epoch; },
     captured() { return captured; },
     snapshot() { return { hz: rafHz, step, nativeFrames, virtualTimestamp, elapsed: virtualTimestamp - epoch }; },
@@ -223,6 +257,11 @@ async function enterLevel(page, scenario) {
   const skip = page.locator('#level-cutscene-skip');
   if (await skip.isVisible({ timeout: 2_000 }).catch(() => false)) await skip.click();
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'active gameplay');
+  await page.evaluate(() => {
+    if (typeof window.__GASSI_DEBUG_SET_CATS__ !== 'function') throw new Error('Cat debug positioning is unavailable');
+    window.__GASSI_DEBUG_SET_CATS__([{ x: 40, y: 4 }]);
+  });
+  await waitFor(page, scenario.name, ({ game }) => game?.radar?.state?.visible === true, 'active offscreen cat radar');
   await page.keyboard.press('ArrowLeft');
 }
 
@@ -230,7 +269,7 @@ async function highRefreshWindow(page, scenario) {
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz baseline pause');
   await page.keyboard.press('ArrowLeft');
-  const baseline = await page.evaluate(() => ({ player: window.__GASSI_DEBUG__().player, renderer: window.__GASSI_RENDERER_DEBUG__(), mark: window.__PW_RAF__.mark() }));
+  const baseline = await page.evaluate(() => ({ player: window.__GASSI_DEBUG__().player, radar: window.__GASSI_DEBUG__().radar, renderer: window.__GASSI_RENDERER_DEBUG__(), mark: window.__PW_RAF__.mark() }));
   await page.locator('#overlay-button').click();
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'high-Hz resume');
   await page.waitForFunction(() => window.__PW_RAF__.captured(), null, { timeout: 10_000 });
@@ -241,7 +280,27 @@ async function highRefreshWindow(page, scenario) {
     - readRendererCounters(baseline.renderer, scenario.name).rendererFrames;
   const positionError = Math.hypot(measured.game.player.x - EXPECTED_HOME_POSITION.x, measured.game.player.y - EXPECTED_HOME_POSITION.y);
   assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE }, scenario.name);
-  return { baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, raf: measured.raf };
+  const radar = assertRadarPresentationContract({ presentationDelta, baselineRadar: baseline.radar, measuredRadar: measured.game.radar, samples: measured.radarSamples }, scenario.name);
+  return { baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, radar, raf: measured.raf };
+}
+
+async function reducedRadarMotion(page, scenario) {
+  const before = await page.evaluate(() => {
+    const indicator = document.querySelector('.cat-indicator:not([hidden])');
+    if (!indicator) throw new Error('Visible radar indicator is missing');
+    indicator.classList.add('danger');
+    return {
+      animationName: getComputedStyle(indicator, '::before').animationName,
+      beforeTransform: indicator.style.transform,
+      updateCount: window.__GASSI_DEBUG__().radar.updateCount,
+    };
+  });
+  await page.evaluate(() => window.__GASSI_DEBUG_SET_CATS__([{ x: -10, y: 4 }]));
+  await waitFor(page, scenario.name, ({ game }) => game?.radar?.updateCount > before.updateCount && game.radar.state.visible, 'reduced-motion radar position update');
+  const afterTransform = await page.locator('.cat-indicator:not([hidden])').first().evaluate((indicator) => indicator.style.transform);
+  const result = { ...before, afterTransform };
+  assertReducedRadarMotion(result, scenario.name);
+  return result;
 }
 
 async function resizeRoundTrip(page, scenario, artifactDir) {
@@ -382,6 +441,7 @@ async function runScenario(browser, baseUrl, scenario) {
     await enterLevel(page, scenario); await delay(320);
     screenshots.push(await shot(page, artifactDir, 'active-level'));
     const active = await geometry(page); assertGeometryDpr(active, scenario); if (scenario.mobile) assertMobileGeometry(active, scenario);
+    const reducedRadar = scenario.reducedMotion === 'reduce' ? await reducedRadarMotion(page, scenario) : null;
     const fullscreen = await exerciseFullscreen(page, scenario, active);
     const highRefresh = scenario.rafHz ? await highRefreshWindow(page, scenario) : null;
     if (!scenario.rafHz) { await page.keyboard.press('KeyP'); await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'pause'); }
@@ -404,7 +464,7 @@ async function runScenario(browser, baseUrl, scenario) {
       quality: late.renderer?.quality, pixelRatio: late.renderer?.pixelRatio, display: late.renderer?.display,
       counters: readRendererCounters(late.renderer, `${scenario.name}:result`),
       geometry: { active, paused, resize }, staticSleep: { paused: pausedSleep, map: mapSleep }, highRefresh,
-      reducedMotion: { map: reducedMap, renderer: reducedRenderer }, fullscreen,
+      reducedMotion: { map: reducedMap, renderer: reducedRenderer, radar: reducedRadar }, fullscreen,
       screenshots, pausedFrameHash: hash(frameOne), ignoredDriverWarnings, elapsedMs: Date.now() - startedAt,
     };
   } catch (error) {

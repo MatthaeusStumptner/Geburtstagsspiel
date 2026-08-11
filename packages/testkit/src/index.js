@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { goldenProjects } from './fixtures.js';
+export { fixturePresentationFrame } from './fixtures.js';
 
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;

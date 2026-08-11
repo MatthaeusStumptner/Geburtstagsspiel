@@ -45,6 +45,8 @@ import {
 } from './ui/ui-preferences.js';
 import { renderPolicyForState } from './render/render-policy.js';
 import { createRenderScheduler } from './render/render-scheduler.js';
+import { calculateCatRadar } from './render/cat-radar-model.js';
+import { updateCatRadarView } from './render/cat-radar-view.js';
 import {
   createGameplayLayout,
   highestVisibleBlockerBottom,
@@ -183,7 +185,9 @@ let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
 let appliedGameplayLayoutRevision = -1;
-let lastRadarPaint = Number.NEGATIVE_INFINITY;
+let catRadarUpdateCount = 0;
+let lastCatRadarFrame = null;
+let lastCatRadarState = { visible: false, indicators: [] };
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
@@ -1720,10 +1724,8 @@ function vibrate(pattern) {
   if ('vibrate' in navigator) navigator.vibrate(pattern);
 }
 
-function render(frameTimestamp) {
+function render() {
   if (!pixelRenderer || !activeLevelDocument || !player) return;
-  const forceRadarPaint = !Number.isFinite(frameTimestamp);
-  const paintTimestamp = forceRadarPaint ? performance.now() : frameTimestamp;
   const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
   const renderState = pixelRenderer.render(cutsceneSnapshot ? {
@@ -1764,6 +1766,13 @@ function render(frameTimestamp) {
     staticRevision: staticWorldRevision,
     sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
+  const catRadarState = calculateCatRadar(renderState, {
+    active: isCameraGameView() && ['playing', 'hit'].includes(state),
+  });
+  updateCatRadarView(ui.catRadar, catRadarState);
+  catRadarUpdateCount += 1;
+  lastCatRadarFrame = renderState;
+  lastCatRadarState = catRadarState;
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
   canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
@@ -1776,16 +1785,7 @@ function render(frameTimestamp) {
   canvas.dataset.cutsceneTime = state === 'cutscene' ? levelCutscenePlayer.time.toFixed(3) : '';
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  if (forceRadarPaint || paintTimestamp - lastRadarPaint >= 50) {
-    updateCatRadar(
-      renderState.camera.source.x,
-      renderState.camera.source.y,
-      renderState.camera.source.width,
-      renderState.camera.source.height,
-      playViewport,
-    );
-    lastRadarPaint = paintTimestamp;
-  }
+
 }
 
 function launchLevelConfetti() {
@@ -1875,69 +1875,6 @@ function measureGameplayLayout(reason, entries = []) {
   appliedGameplayLayoutRevision = layout.revision;
   requestRender(`layout:${reason}`);
   return layout;
-}
-
-function ensureCatRadarIndicators() {
-  while (ui.catRadar.children.length < cats.length) {
-    const indicator = document.createElement('div');
-    indicator.className = 'cat-indicator';
-    indicator.innerHTML = '<span class="cat-indicator-arrow" aria-hidden="true">▲</span><small></small>';
-    ui.catRadar.append(indicator);
-  }
-  while (ui.catRadar.children.length > cats.length) ui.catRadar.lastElementChild.remove();
-  return [...ui.catRadar.children];
-}
-
-function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport) {
-  const active = isCameraGameView() && ['playing', 'hit'].includes(state);
-  ui.catRadar.hidden = !active;
-  if (!active) return;
-
-  const indicators = ensureCatRadarIndicators();
-  const centerX = playViewport.x + playViewport.width / 2;
-  const centerY = playViewport.y + playViewport.height / 2;
-  const horizontalInset = Math.min(28, playViewport.width * 0.08);
-  const verticalInset = Math.min(26, playViewport.height * 0.1);
-  const safeLeft = playViewport.x + horizontalInset;
-  const safeRight = playViewport.x + playViewport.width - horizontalInset;
-  const safeTop = playViewport.y + verticalInset;
-  const safeBottom = playViewport.y + playViewport.height - verticalInset;
-  let visibleIndicators = 0;
-
-  cats.forEach((cat, index) => {
-    const indicator = indicators[index];
-    const catX = playViewport.x
-      + ((cat.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
-    const catY = playViewport.y
-      + ((cat.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
-    const onScreen = catX >= playViewport.x
-      && catX <= playViewport.x + playViewport.width
-      && catY >= playViewport.y
-      && catY <= playViewport.y + playViewport.height;
-    const hidden = onScreen || cat.respawnTimer > 0;
-    indicator.hidden = hidden;
-    if (hidden) return;
-
-    const dx = catX - centerX;
-    const dy = catY - centerY;
-    const intersections = [];
-    if (dx > 0) intersections.push((safeRight - centerX) / dx);
-    if (dx < 0) intersections.push((safeLeft - centerX) / dx);
-    if (dy > 0) intersections.push((safeBottom - centerY) / dy);
-    if (dy < 0) intersections.push((safeTop - centerY) / dy);
-    const factor = Math.min(...intersections.filter((value) => value >= 0));
-    const distance = Math.max(1, Math.round(Math.hypot(player.x - cat.x, player.y - cat.y)));
-
-    indicator.style.left = `${centerX + dx * factor}px`;
-    indicator.style.top = `${centerY + dy * factor}px`;
-    indicator.style.setProperty('--cat-color', cat.color);
-    indicator.querySelector('.cat-indicator-arrow').style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`;
-    indicator.querySelector('small').textContent = distance;
-    indicator.classList.toggle('danger', distance <= 5);
-    visibleIndicators += 1;
-  });
-
-  ui.catRadar.hidden = visibleIndicators === 0;
 }
 
 function frame(now) {
@@ -2186,6 +2123,28 @@ pixelRendererReady.then((renderer) => {
   ui.announcement.textContent = 'Die Grafik konnte nicht initialisiert werden. Bitte die Seite neu laden.';
 });
 
+function catRadarDebugSnapshot() {
+  const frame = lastCatRadarFrame;
+  return {
+    updateCount: catRadarUpdateCount,
+    frame: frame ? {
+      frameId: frame.frameId,
+      camera: { viewport: { ...frame.camera.viewport } },
+      player: { screen: { ...frame.player.screen } },
+      cats: frame.cats.map((cat) => ({
+        id: cat.id,
+        screen: { ...cat.screen },
+        onScreen: cat.onScreen,
+        respawnTimer: cat.respawnTimer,
+      })),
+    } : null,
+    state: {
+      visible: lastCatRadarState.visible,
+      indicators: lastCatRadarState.indicators.map((indicator) => ({ ...indicator })),
+    },
+  };
+}
+
 if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
   window.__GASSI_RENDERER_DEBUG__ = () => ({
@@ -2217,6 +2176,7 @@ if (import.meta.env.DEV) {
     treatsTotal: levelTreatTotal,
     eggs: [...unlockedEggs],
     saved: loadGame(),
+    radar: catRadarDebugSnapshot(),
   });
   window.__GASSI_DEBUG_STEP__ = (seconds) => {
     const steps = Math.max(0, Math.round(seconds * 60));
@@ -2228,6 +2188,22 @@ if (import.meta.env.DEV) {
     const positioned = setDebugPlayerPosition(gameSession, { x, y }, { evaluateEvents: true });
     applyGameSessionSnapshot(positioned);
     requestRender('debug:player-position');
+    return window.__GASSI_DEBUG__();
+  };
+  window.__GASSI_DEBUG_SET_CATS__ = (positions) => {
+    if (!Array.isArray(positions)) throw new TypeError('Cat debug positions must be an array.');
+    const positioned = gameSession.restore({
+      cats: positions.map((position, index) => ({
+        ...cats[index],
+        x: position?.x,
+        y: position?.y,
+        previousX: position?.x,
+        previousY: position?.y,
+        direction: 'none',
+      })),
+    });
+    applyGameSessionSnapshot(positioned, { processEvents: false });
+    requestRender('debug:cat-positions');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_COMPLETE__ = () => {
