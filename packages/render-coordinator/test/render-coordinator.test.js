@@ -285,3 +285,48 @@ test('handles suspended gaps and backward clock resets without cadence bursts', 
   clock.present(-10 + 1000 / 30);
   assert.deepEqual(timestamps, [0, 1000, -10, -10 + 1000 / 30]);
 });
+test('resets each animated surface phase after a backward timestamp', () => {
+  const clock = createFakeFrameClock();
+  const events = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'a', profile: 'thumbnail-animated', render: ({ timestamp }) => events.push(['a', timestamp]) });
+  coordinator.registerSurface({ id: 'b', profile: 'thumbnail-animated', render: ({ timestamp }) => events.push(['b', timestamp]) });
+  clock.present(0);
+  coordinator.setSurfaceState('b', { active: false });
+  clock.present(1000);
+  coordinator.setSurfaceState('b', { active: true });
+  clock.present(132);
+  clock.present(133.33333333333334);
+  assert.deepEqual(events, [
+    ['a', 0], ['b', 0],
+    ['a', 1000],
+    ['a', 132], ['b', 132],
+    ['b', 133.33333333333334],
+  ]);
+});
+
+test('resets throttled on-demand cadence from its own backward timestamp', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'editor', profile: 'editor', render: ({ timestamp }) => timestamps.push(timestamp) });
+  coordinator.invalidate('editor', 'initial');
+  clock.present(0);
+  coordinator.invalidate('editor', 'forward');
+  clock.present(1000);
+  coordinator.invalidate('editor', 'backward');
+  clock.present(132);
+  coordinator.invalidate('editor', 'too-soon');
+  clock.present(133.33333333333334);
+  clock.present(148.66666666666666);
+  assert.deepEqual(timestamps, [0, 1000, 132, 148.66666666666666]);
+});
+
+test('keeps continuous surfaces presenting for backward and forward timestamps', () => {
+  const clock = createFakeFrameClock();
+  const timestamps = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  coordinator.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => timestamps.push(timestamp) });
+  for (const timestamp of [0, 1000, 132, 133.33333333333334]) clock.present(timestamp);
+  assert.deepEqual(timestamps, [0, 1000, 132, 133.33333333333334]);
+});

@@ -84,10 +84,11 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
     }
 
     if (surfaces.get(surface.id) !== surface) return;
+    const previousPresentedAt = surface.lastPresentedAt;
     surface.lastPresentedAt = timestamp;
     if (surface.profile.mode !== 'continuous') {
       const interval = 1000 / surface.profile.maxFps;
-      if (surface.cadenceOrigin === null || timestamp < surface.cadenceOrigin) {
+      if (surface.cadenceOrigin === null || (previousPresentedAt !== null && timestamp < previousPresentedAt)) {
         surface.cadenceOrigin = timestamp;
         surface.nextCadenceSlot = 1;
       } else {
