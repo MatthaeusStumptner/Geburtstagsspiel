@@ -1858,6 +1858,27 @@ body.mobile-game-active {
   touch-action: none;
 }
 
+body.mobile-game-active .app-shell {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+}
+
+body.mobile-game-active .topbar,
+body.mobile-game-active #svelte-side-panel,
+body.mobile-game-active footer {
+  display: none;
+}
+
+body.mobile-game-active .game-layout {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 body.mobile-game-active .key-hint,
 .board-column:fullscreen .key-hint,
 .board-column:-webkit-full-screen .key-hint {

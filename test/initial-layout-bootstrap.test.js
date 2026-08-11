@@ -31,11 +31,11 @@ test('first visit reserves the map layout before the app renders', async () => {
   assert.deepEqual([...classes], ['map-active']);
 });
 
-test('supported saved gameplay reserves only the mobile playfield layout on a mobile viewport', async () => {
+test('supported saved gameplay reserves the runtime playfield layout on every viewport', async () => {
   for (const version of [2, 3, 4, 5, 6, 7, 8, 9]) {
     const savedValue = JSON.stringify({ version, mode: 'paused' });
     assert.deepEqual([...(await runBootstrap({ savedValue, mobile: true }))], ['mobile-game-active']);
-    assert.deepEqual([...(await runBootstrap({ savedValue, mobile: false }))], []);
+    assert.deepEqual([...(await runBootstrap({ savedValue, mobile: false }))], ['mobile-game-active']);
   }
 });
 
@@ -55,4 +55,12 @@ test('unsupported and non-object saves follow the loader back to the map layout'
   for (const savedValue of rejectedSaves) {
     assert.deepEqual([...(await runBootstrap({ savedValue, mobile: true }))], ['map-active']);
   }
+});
+
+test('the restored gameplay focus mode removes the occluded app shell from layout', async () => {
+  const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
+
+  assert.match(css, /body\.mobile-game-active \.app-shell\s*\{[\s\S]*?width:\s*100%[\s\S]*?height:\s*100dvh[\s\S]*?min-height:\s*0[\s\S]*?padding:\s*0[\s\S]*?\}/);
+  assert.match(css, /body\.mobile-game-active \.topbar,\s*body\.mobile-game-active #svelte-side-panel,\s*body\.mobile-game-active footer\s*\{\s*display:\s*none;?\s*\}/);
+  assert.match(css, /body\.mobile-game-active \.game-layout\s*\{[\s\S]*?position:\s*fixed[\s\S]*?inset:\s*0[\s\S]*?display:\s*block[\s\S]*?height:\s*100%[\s\S]*?\}/);
 });
