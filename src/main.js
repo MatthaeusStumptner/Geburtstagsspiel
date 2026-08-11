@@ -40,6 +40,7 @@ import {
 } from './ui/ui-preferences.js';
 import { renderPolicyForState } from './render/render-policy.js';
 import { createRenderScheduler } from './render/render-scheduler.js';
+import { createGameplayLayout } from './render/gameplay-layout.js';
 
 const canvas = document.querySelector('#game');
 const rendererBackendParameter = new URLSearchParams(location.search).get('renderer');
@@ -59,6 +60,7 @@ const renderScheduler = createRenderScheduler({
   render: (_reason, timestamp) => render(timestamp),
   pacer: presentationPacer,
 });
+const gameplayLayout = createGameplayLayout();
 const levelCutscenePlayer = new LevelCutscenePlayer();
 const saveStore = new BrowserSaveStore();
 
@@ -66,7 +68,6 @@ const COLS = 25;
 const ROWS = 25;
 const TILE = 24;
 const BOARD_SIZE = COLS * TILE;
-const SCENE_PIXEL_RATIO = 2;
 const TUNNEL_ROW = 12;
 const SAVE_KEY = 'gassi-runde-hals-save';
 const LEGACY_BEST_KEY = 'gassi-runde-best';
@@ -100,6 +101,7 @@ const CAT_STARTS = [
 const ui = {
   appShell: document.querySelector('.app-shell'),
   boardColumn: document.querySelector('.board-column'),
+  boardFrame: document.querySelector('.board-frame'),
   catRadar: document.querySelector('#cat-radar'),
   announcement: document.querySelector('#announcement'),
 };
@@ -171,7 +173,7 @@ let settingsReturnState = null;
 let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
-let gameplayViewportCache = null;
+let appliedGameplayLayoutRevision = -1;
 let lastRadarPaint = Number.NEGATIVE_INFINITY;
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
@@ -654,7 +656,7 @@ function enterMobileGameMode() {
     document.body.style.top = `-${mobileScrollPosition}px`;
     document.body.classList.add('mobile-game-active');
   }
-  resizeCanvas('layout:mobile-enter');
+  measureGameplayLayout('mobile-enter');
   return !alreadyActive;
 }
 
@@ -662,7 +664,7 @@ function leaveMobileGameMode(returnToBoard = false) {
   const wasActive = document.body.classList.contains('mobile-game-active');
   document.body.classList.remove('mobile-game-active');
   document.body.style.top = '';
-  resizeCanvas('layout:mobile-leave');
+  measureGameplayLayout('mobile-leave');
 
   if (wasActive) {
     requestAnimationFrame(() => {
@@ -1897,12 +1899,10 @@ function vibrate(pattern) {
 }
 
 function render(frameTimestamp) {
-  if (!activeLevelDocument || !player) return;
+  if (!pixelRenderer || !activeLevelDocument || !player) return;
   const forceRadarPaint = !Number.isFinite(frameTimestamp);
   const paintTimestamp = forceRadarPaint ? performance.now() : frameTimestamp;
-  const viewportWidth = Math.max(1, canvas.clientWidth);
-  const viewportHeight = Math.max(1, canvas.clientHeight);
-  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
+  const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
   const renderState = pixelRenderer.render(cutsceneSnapshot ? {
     level: activeLevelDocument,
@@ -1940,6 +1940,7 @@ function render(frameTimestamp) {
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
     reducedMotion,
     staticRevision: staticWorldRevision,
+    sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
@@ -1991,77 +1992,50 @@ function isCameraGameView() {
   return state !== 'map';
 }
 
-function gameplayViewport(viewportWidth, viewportHeight) {
-  const cameraView = isCameraGameView();
-  const layoutKey = `${viewportWidth}|${viewportHeight}|${cameraView}|${state}|${settingsOpen}|${language}|${document.body.className}`;
-  if (gameplayViewportCache?.key === layoutKey) return gameplayViewportCache.viewport;
-  if (!cameraView) {
-    const viewport = { x: 0, y: 0, width: viewportWidth, height: viewportHeight };
-    gameplayViewportCache = { key: layoutKey, viewport };
-    return viewport;
-  }
-  const canvasRect = canvas.getBoundingClientRect();
-  const blockers = [document.querySelector('#mobile-game-header'), document.querySelector('#level-status')];
-  const safeTop = blockers.reduce((bottom, element) => {
-    if (!element || getComputedStyle(element).display === 'none') return bottom;
-    const rect = element.getBoundingClientRect();
-    return Math.max(bottom, rect.bottom - canvasRect.top + 8);
-  }, 0);
-  const y = Math.min(Math.max(0, safeTop), Math.max(0, viewportHeight - 120));
-  const viewport = { x: 0, y, width: viewportWidth, height: Math.max(120, viewportHeight - y) };
-  gameplayViewportCache = { key: layoutKey, viewport };
-  return viewport;
+function isBoardFullscreen() {
+  return document.fullscreenElement === ui.boardColumn
+    || document.webkitFullscreenElement === ui.boardColumn;
 }
 
-function presentScene() {
-  const viewportWidth = Math.max(1, canvas.clientWidth);
-  const viewportHeight = Math.max(1, canvas.clientHeight);
-  const playViewport = gameplayViewport(viewportWidth, viewportHeight);
-  let sourceX = 0;
-  let sourceY = 0;
-  let sourceWidth = BOARD_SIZE;
-  let sourceHeight = BOARD_SIZE;
-
-  if (isCameraGameView()) {
-    const coverScale = Math.max(
-      playViewport.width / BOARD_SIZE,
-      playViewport.height / BOARD_SIZE,
-    ) * CAMERA_ZOOM;
-    sourceWidth = playViewport.width / coverScale;
-    sourceHeight = playViewport.height / coverScale;
-    const playerX = player.x * TILE + TILE / 2;
-    const playerY = player.y * TILE + TILE / 2;
-    sourceX = Math.max(0, Math.min(BOARD_SIZE - sourceWidth, playerX - sourceWidth / 2));
-    sourceY = Math.max(0, Math.min(BOARD_SIZE - sourceHeight, playerY - sourceHeight / 2));
+function observedDevicePixelRatio(entries, cssWidth) {
+  const canvasEntry = entries.find((entry) => entry.target === canvas);
+  const devicePixelSize = canvasEntry?.devicePixelContentBoxSize;
+  const box = Array.isArray(devicePixelSize) ? devicePixelSize[0] : devicePixelSize;
+  const contentWidth = Number(canvasEntry?.contentRect?.width) || cssWidth;
+  const deviceWidth = Number(box?.inlineSize);
+  if (Number.isFinite(deviceWidth) && deviceWidth > 0 && contentWidth > 0) {
+    return deviceWidth / contentWidth;
   }
+  return window.devicePixelRatio || 1;
+}
 
-  displayCtx.setTransform(1, 0, 0, 1, 0, 0);
-  displayCtx.clearRect(0, 0, canvas.width, canvas.height);
-  displayCtx.imageSmoothingEnabled = false;
-  displayCtx.drawImage(
-    sceneCanvas,
-    sourceX * SCENE_PIXEL_RATIO,
-    sourceY * SCENE_PIXEL_RATIO,
-    sourceWidth * SCENE_PIXEL_RATIO,
-    sourceHeight * SCENE_PIXEL_RATIO,
-    playViewport.x * canvas.width / viewportWidth,
-    playViewport.y * canvas.height / viewportHeight,
-    playViewport.width * canvas.width / viewportWidth,
-    playViewport.height * canvas.height / viewportHeight,
-  );
-  const playerScreenX = playViewport.x
-    + ((player.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
-  const playerScreenY = playViewport.y
-    + ((player.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
-  canvas.dataset.playerScreenX = playerScreenX.toFixed(1);
-  canvas.dataset.playerScreenY = playerScreenY.toFixed(1);
-  canvas.dataset.playerX = player.x.toFixed(3);
-  canvas.dataset.playerY = player.y.toFixed(3);
-  canvas.dataset.playerDirection = player.dir.name;
-  canvas.dataset.playerNextDirection = player.nextDir.name;
-  canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
-  canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport);
+function measureGameplayLayout(reason, entries = []) {
+  const canvasRect = canvas.getBoundingClientRect();
+  const mobile = isMobileGameLayout() || isBoardFullscreen();
+  const mobileHeader = mobile ? document.querySelector('#mobile-game-header') : null;
+  const headerVisible = mobileHeader && getComputedStyle(mobileHeader).display !== 'none';
+  const hudBottom = headerVisible ? mobileHeader.getBoundingClientRect().bottom : canvasRect.top;
+  const layout = gameplayLayout.update({
+    canvasWidth: canvasRect.width,
+    canvasHeight: canvasRect.height,
+    hudBottom,
+    canvasTop: canvasRect.top,
+    devicePixelRatio: observedDevicePixelRatio(entries, canvasRect.width),
+    safeTop: 0,
+    safeBottom: 0,
+    mobile,
+  });
+
+  if (!pixelRenderer || layout.revision === appliedGameplayLayoutRevision) return layout;
+  pixelRenderer.resize({
+    width: layout.cssWidth,
+    height: layout.cssHeight,
+    devicePixelRatio: layout.devicePixelRatio,
+    reason,
+  });
+  appliedGameplayLayoutRevision = layout.revision;
+  requestRender(`layout:${reason}`);
+  return layout;
 }
 
 function ensureCatRadarIndicators() {
@@ -2139,11 +2113,6 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-function resizeCanvas(reason = 'layout:resize') {
-  gameplayViewportCache = null;
-  pixelRenderer?.resize();
-  requestRender(reason);
-}
 
 document.addEventListener('keydown', (event) => {
   if (uiSession.snapshot().onboarding.open) return;
@@ -2336,13 +2305,17 @@ document.addEventListener('touchmove', (event) => {
   if (document.body.classList.contains('mobile-game-active')) event.preventDefault();
 }, { passive: false });
 
-window.addEventListener('resize', () => {
-  resizeCanvas('layout:window-resize');
-});
-const canvasResizeObserver = 'ResizeObserver' in window
-  ? new ResizeObserver(() => resizeCanvas('layout:resize-observer'))
+window.addEventListener('resize', () => measureGameplayLayout('window-resize'));
+window.addEventListener('orientationchange', () => measureGameplayLayout('orientation-change'));
+document.addEventListener('fullscreenchange', () => measureGameplayLayout('fullscreen-change'));
+const gameplayLayoutResizeObserver = 'ResizeObserver' in window
+  ? new ResizeObserver((entries) => measureGameplayLayout('resize-observer', entries))
   : null;
-canvasResizeObserver?.observe(canvas);
+const mobileGameHeader = document.querySelector('#mobile-game-header');
+gameplayLayoutResizeObserver?.observe(canvas);
+gameplayLayoutResizeObserver?.observe(ui.boardFrame);
+if (mobileGameHeader) gameplayLayoutResizeObserver?.observe(mobileGameHeader);
+measureGameplayLayout('initial');
 canvas.addEventListener('webglcontextrestored', () => requestRender('context:restored'));
 window.addEventListener('pagehide', () => {
   saveGame(true);
@@ -2362,7 +2335,7 @@ pixelRendererReady.then((renderer) => {
     openMap();
   }
   if (requiresOnboarding) showOnboarding();
-  resizeCanvas('layout:renderer-ready');
+  measureGameplayLayout('renderer-ready');
   requestAnimationFrame(frame);
 }).catch((error) => {
   console.error('Renderer konnte nicht initialisiert werden.', error);
