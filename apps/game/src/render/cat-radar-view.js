@@ -36,6 +36,16 @@ function removeAllNodes(container, nodes) {
   container.setAttribute('aria-hidden', 'true');
 }
 
+export function resetCatRadarView(container) {
+  if (!container || typeof container !== 'object' || !container.ownerDocument) return;
+  let nodes = nodesByContainer.get(container);
+  if (!nodes) {
+    nodes = new Map();
+    nodesByContainer.set(container, nodes);
+  }
+  removeAllNodes(container, nodes);
+}
+
 function createIndicator(container, id) {
   const indicator = container.ownerDocument.createElement('div');
   indicator.className = 'cat-indicator';

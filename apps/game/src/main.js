@@ -24,6 +24,7 @@ import {
   createBrowserGameSession,
   restoreBrowserGameSession,
   saveBrowserGameSession,
+  setDebugCatPositions,
   setDebugPlayerPosition,
 } from './game/game-session-adapter.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
@@ -46,7 +47,7 @@ import {
 import { renderPolicyForState } from './render/render-policy.js';
 import { createRenderScheduler } from './render/render-scheduler.js';
 import { calculateCatRadar } from './render/cat-radar-model.js';
-import { updateCatRadarView } from './render/cat-radar-view.js';
+import { resetCatRadarView, updateCatRadarView } from './render/cat-radar-view.js';
 import {
   createGameplayLayout,
   highestVisibleBlockerBottom,
@@ -214,6 +215,12 @@ function currentRenderPolicy() {
   return renderPolicyForState(state, settingsReturnState, uiSession.snapshot().onboarding.open);
 }
 
+function resetCatRadarPresentation() {
+  resetCatRadarView(ui.catRadar);
+  lastCatRadarFrame = null;
+  lastCatRadarState = { visible: false, indicators: [] };
+}
+
 function t(key, values = {}) {
   const template = TEXT[language][key] ?? TEXT.standard[key] ?? key;
   return Object.entries(values).reduce(
@@ -283,6 +290,7 @@ function showOnboarding() {
   });
   ui.appShell.inert = true;
   document.body.classList.add('onboarding-open');
+  resetCatRadarPresentation();
   requestRender('onboarding:open');
 }
 
@@ -748,6 +756,7 @@ function openMap() {
   closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  resetCatRadarPresentation();
   requestRender('state:map');
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
@@ -887,6 +896,7 @@ function resetGameProgress() {
   leaveMobileGameMode(true);
   document.body.classList.add('map-active');
   state = 'map';
+  resetCatRadarPresentation();
   requestRender('state:map');
   score = 0;
   best = 0;
@@ -2191,17 +2201,7 @@ if (import.meta.env.DEV) {
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_SET_CATS__ = (positions) => {
-    if (!Array.isArray(positions)) throw new TypeError('Cat debug positions must be an array.');
-    const positioned = gameSession.restore({
-      cats: positions.map((position, index) => ({
-        ...cats[index],
-        x: position?.x,
-        y: position?.y,
-        previousX: position?.x,
-        previousY: position?.y,
-        direction: 'none',
-      })),
-    });
+    const positioned = setDebugCatPositions(gameSession, positions);
     applyGameSessionSnapshot(positioned, { processEvents: false });
     requestRender('debug:cat-positions');
     return window.__GASSI_DEBUG__();

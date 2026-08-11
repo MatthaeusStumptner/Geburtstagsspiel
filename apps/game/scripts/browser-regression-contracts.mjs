@@ -151,7 +151,9 @@ export function assertReducedPostProcess(postProcess, scenario) {
   assert.equal(rgbSplitTexels, 0, `[${scenario}] reduced motion left RGB split enabled`);
 }
 
-export function assertReducedRadarMotion({ animationName, beforeTransform, afterTransform }, scenario) {
+export function assertReducedRadarMotion({ animationName, beforeTransform, afterTransform, modelDanger, indicatorDanger }, scenario) {
+  assert.equal(modelDanger, true, '[' + scenario + '] reduced radar fixture did not originate from model danger state');
+  assert.equal(indicatorDanger, true, '[' + scenario + '] radar view did not reflect the model danger class');
   assert.equal(animationName, 'none', `[${scenario}] reduced motion left decorative animation enabled`);
   assert.ok(typeof beforeTransform === 'string' && beforeTransform.length > 0, `[${scenario}] initial radar transform is missing`);
   assert.ok(typeof afterTransform === 'string' && afterTransform.length > 0, `[${scenario}] updated radar transform is missing`);

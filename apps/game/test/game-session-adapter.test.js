@@ -4,6 +4,7 @@ import { createLevelDocument } from '@franz-lola/content-model';
 import {
   createBrowserGameSession,
   restoreBrowserGameSession,
+  setDebugCatPositions,
   saveBrowserGameSession,
   setDebugPlayerPosition,
 } from '../src/game/game-session-adapter.js';
@@ -36,6 +37,52 @@ function adapterLevel() {
     }],
   });
 }
+
+function adapterLevelWithCats() {
+  const level = adapterLevel();
+  return createLevelDocument({
+    ...level,
+    actors: {
+      ...level.actors,
+      cats: [
+        { x: 2, y: 2, behavior: { strategy: 'random', respawnDelay: 0, wander: 20 } },
+        { x: 6, y: 6, behavior: { strategy: 'random', respawnDelay: 0, wander: 20 } },
+      ],
+    },
+    gameplay: {
+      ...level.gameplay,
+      difficulties: { normal: { ...level.gameplay.difficulties.normal, catCount: 2 } },
+    },
+  });
+}
+
+test('debug cat positioning validates the complete batch before atomically restoring it', () => {
+  const valid = createBrowserGameSession({ level: adapterLevelWithCats(), difficulty: 'normal' });
+  const positioned = setDebugCatPositions(valid, [
+    { id: 'cat-1', x: 7, y: 2, direction: 'up' },
+    { id: 'cat-2', x: 1, y: 6, direction: 'left' },
+  ]);
+  assert.deepEqual(positioned.cats.map((cat) => ({ x: cat.x, y: cat.y, direction: cat.dir.name })), [
+    { x: 7, y: 2, direction: 'up' },
+    { x: 1, y: 6, direction: 'left' },
+  ]);
+
+  const invalidBatches = [
+    null,
+    [{ x: 7, y: 2 }],
+    [{ x: Number.NaN, y: 2 }, { x: 1, y: 6 }],
+    [{ x: 7, y: Number.POSITIVE_INFINITY }, { x: 1, y: 6 }],
+    [{ y: 2 }, { x: 1, y: 6 }],
+    [{ id: 'cat-1', x: 7, y: 2 }, { id: 'cat-1', x: 1, y: 6 }],
+    [{ x: 7, y: 2, direction: 'diagonal' }, { x: 1, y: 6 }],
+  ];
+  for (const positions of invalidBatches) {
+    const session = createBrowserGameSession({ level: adapterLevelWithCats(), difficulty: 'normal' });
+    const before = session.save();
+    assert.throws(() => setDebugCatPositions(session, positions), TypeError);
+    assert.deepEqual(session.save(), before);
+  }
+});
 
 test('the browser session adapter passes persisted unlocked events into the core', () => {
   const session = createBrowserGameSession({

@@ -256,10 +256,13 @@ async function enterLevel(page, scenario) {
   await page.locator('#overlay-button').click();
   const skip = page.locator('#level-cutscene-skip');
   if (await skip.isVisible({ timeout: 2_000 }).catch(() => false)) await skip.click();
-  await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'active gameplay');
+  await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing' && game.radar?.frame, 'presented active gameplay');
   await page.evaluate(() => {
     if (typeof window.__GASSI_DEBUG_SET_CATS__ !== 'function') throw new Error('Cat debug positioning is unavailable');
-    window.__GASSI_DEBUG_SET_CATS__([{ x: 40, y: 4 }]);
+    const game = window.__GASSI_DEBUG__();
+    const count = game.radar.frame?.cats?.length;
+    if (!Number.isSafeInteger(count) || count < 1) throw new Error('Presented cat count is unavailable');
+    window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: count }, (_, index) => ({ x: 40 + index, y: 4 })));
   });
   await waitFor(page, scenario.name, ({ game }) => game?.radar?.state?.visible === true, 'active offscreen cat radar');
   await page.keyboard.press('ArrowLeft');
@@ -285,22 +288,109 @@ async function highRefreshWindow(page, scenario) {
 }
 
 async function reducedRadarMotion(page, scenario) {
-  const before = await page.evaluate(() => {
-    const indicator = document.querySelector('.cat-indicator:not([hidden])');
-    if (!indicator) throw new Error('Visible radar indicator is missing');
-    indicator.classList.add('danger');
-    return {
-      animationName: getComputedStyle(indicator, '::before').animationName,
-      beforeTransform: indicator.style.transform,
-      updateCount: window.__GASSI_DEBUG__().radar.updateCount,
-    };
+  const player = await page.evaluate(() => window.__GASSI_DEBUG__().player);
+  const candidates = [
+    { x: player.x + 5, y: player.y },
+    { x: player.x - 5, y: player.y },
+    { x: player.x, y: player.y + 5 },
+    { x: player.x, y: player.y - 5 },
+  ];
+  let before = null;
+  for (const position of candidates) {
+    const updateCount = await page.evaluate((next) => {
+      const game = window.__GASSI_DEBUG__();
+      const count = game.radar.frame.cats.length;
+      window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: count }, () => next));
+      return game.radar.updateCount;
+    }, position);
+    const state = await waitFor(page, scenario.name, ({ game }) => (
+      game?.radar?.updateCount > updateCount
+      && game.radar.state.visible
+      && game.radar.state.indicators.some((indicator) => !indicator.hidden && indicator.danger)
+    ), 'model-dangerous offscreen radar', 500).catch(() => null);
+    if (!state) continue;
+    before = await page.evaluate(() => {
+      const indicator = document.querySelector('.cat-indicator:not([hidden])');
+      if (!indicator) throw new Error('Visible radar indicator is missing');
+      const modelIndicator = window.__GASSI_DEBUG__().radar.state.indicators.find((candidate) => !candidate.hidden);
+      return {
+        animationName: getComputedStyle(indicator, '::before').animationName,
+        beforeTransform: indicator.style.transform,
+        updateCount: window.__GASSI_DEBUG__().radar.updateCount,
+        modelDanger: modelIndicator?.danger,
+        indicatorDanger: indicator.classList.contains('danger'),
+      };
+    });
+    break;
+  }
+  if (!before) throw new Error('[' + scenario.name + '] no model-dangerous offscreen cat position was available');
+  const updateCount = await page.evaluate(() => {
+    const count = window.__GASSI_DEBUG__().radar.updateCount;
+    window.__GASSI_DEBUG_SET_PLAYER__(7, 4);
+    const catCount = window.__GASSI_DEBUG__().radar.frame.cats.length;
+    window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: catCount }, () => ({ x: 7, y: -1 })));
+    return count;
   });
-  await page.evaluate(() => window.__GASSI_DEBUG_SET_CATS__([{ x: -10, y: 4 }]));
-  await waitFor(page, scenario.name, ({ game }) => game?.radar?.updateCount > before.updateCount && game.radar.state.visible, 'reduced-motion radar position update');
+  await waitFor(page, scenario.name, ({ game }) => (
+    game?.radar?.updateCount > updateCount
+    && game.player.x === 7 && game.player.y === 4
+    && game.radar.state.visible
+    && game.radar.state.indicators.some((indicator) => !indicator.hidden && indicator.danger)
+  ), 'relocated model-dangerous offscreen radar');
   const afterTransform = await page.locator('.cat-indicator:not([hidden])').first().evaluate((indicator) => indicator.style.transform);
-  const result = { ...before, afterTransform };
+  const result = { ...before, afterTransform, geometryMode: 'dev-player-relocation' };
   assertReducedRadarMotion(result, scenario.name);
   return result;
+}
+
+async function directPlayingToMap(page, scenario, artifactDir) {
+  if (scenario.mobile) return { status: 'not-applicable', reason: 'Desktop sidepanel command is not part of the mobile layout.' };
+  const transition = await page.evaluate(() => {
+    const before = window.__GASSI_DEBUG__().radar;
+    document.querySelector('#map-button').click();
+    const after = window.__GASSI_DEBUG__().radar;
+    const container = document.querySelector('#cat-radar');
+    return {
+      state: window.__GASSI_DEBUG__().state,
+      beforeUpdateCount: before.updateCount,
+      afterUpdateCount: after.updateCount,
+      frame: after.frame,
+      radarVisible: after.state.visible,
+      indicatorCount: after.state.indicators.length,
+      nodeCount: container.querySelectorAll('.cat-indicator').length,
+      containerHidden: container.hidden,
+    };
+  });
+  const label = '[' + scenario.name + '] ';
+  assert.equal(transition.state, 'map', label + 'direct map action did not transition synchronously');
+  assert.equal(transition.afterUpdateCount, transition.beforeUpdateCount, label + 'map cleanup faked a radar presentation');
+  assert.equal(transition.frame, null, label + 'map cleanup retained a stale presentation frame');
+  assert.equal(transition.radarVisible, false, label + 'radar remained visible over the map');
+  assert.equal(transition.indicatorCount, 0, label + 'radar diagnostics retained indicators over the map');
+  assert.equal(transition.nodeCount, 0, label + 'radar DOM remained over the map');
+  assert.equal(transition.containerHidden, true, label + 'radar container remained exposed over the map');
+  await page.locator('#map-screen').waitFor({ state: 'visible' });
+  const screenshot = await shot(page, artifactDir, 'direct-map-return');
+  await enterLevel(page, scenario);
+  const resumedGeometry = await waitForGameGeometry(page, scenario);
+  return { status: 'exercised', ...transition, screenshot, resumedGeometry };
+}
+
+async function waitForGameGeometry(page, scenario, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    const value = await geometry(page);
+    try {
+      assertGeometryDpr(value, scenario);
+      if (scenario.mobile) assertMobileGeometry(value, scenario);
+      return value;
+    } catch (error) {
+      lastError = error;
+      await delay(40);
+    }
+  }
+  throw lastError ?? new Error('[' + scenario.name + '] gameplay geometry did not settle');
 }
 
 async function resizeRoundTrip(page, scenario, artifactDir) {
@@ -442,7 +532,9 @@ async function runScenario(browser, baseUrl, scenario) {
     screenshots.push(await shot(page, artifactDir, 'active-level'));
     const active = await geometry(page); assertGeometryDpr(active, scenario); if (scenario.mobile) assertMobileGeometry(active, scenario);
     const reducedRadar = scenario.reducedMotion === 'reduce' ? await reducedRadarMotion(page, scenario) : null;
-    const fullscreen = await exerciseFullscreen(page, scenario, active);
+    const directMap = await directPlayingToMap(page, scenario, artifactDir);
+    if (directMap.status === 'exercised') screenshots.push(directMap.screenshot);
+    const fullscreen = await exerciseFullscreen(page, scenario, directMap.resumedGeometry ?? active);
     const highRefresh = scenario.rafHz ? await highRefreshWindow(page, scenario) : null;
     if (!scenario.rafHz) { await page.keyboard.press('KeyP'); await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'pause'); }
     const paused = await geometry(page); assertGeometryDpr(paused, scenario); if (scenario.mobile) assertMobileGeometry(paused, scenario);
@@ -464,7 +556,7 @@ async function runScenario(browser, baseUrl, scenario) {
       quality: late.renderer?.quality, pixelRatio: late.renderer?.pixelRatio, display: late.renderer?.display,
       counters: readRendererCounters(late.renderer, `${scenario.name}:result`),
       geometry: { active, paused, resize }, staticSleep: { paused: pausedSleep, map: mapSleep }, highRefresh,
-      reducedMotion: { map: reducedMap, renderer: reducedRenderer, radar: reducedRadar }, fullscreen,
+      reducedMotion: { map: reducedMap, renderer: reducedRenderer, radar: reducedRadar }, directMap, fullscreen,
       screenshots, pausedFrameHash: hash(frameOne), ignoredDriverWarnings, elapsedMs: Date.now() - startedAt,
     };
   } catch (error) {

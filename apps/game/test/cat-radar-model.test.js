@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fixturePresentationFrame } from '@franz-lola/render-testkit';
 import { isPresentationFrame } from '@franz-lola/pixel-renderer';
 import { calculateCatRadar } from '../src/render/cat-radar-model.js';
-import { updateCatRadarView } from '../src/render/cat-radar-view.js';
+import { resetCatRadarView, updateCatRadarView } from '../src/render/cat-radar-view.js';
 
 class FakeClassList {
   values = new Set();
@@ -195,4 +195,18 @@ test('view fails closed for invalid state and clears stale indicators', () => {
   assert.equal(container.hidden, true);
   assert.equal(container.attributes.get('aria-hidden'), 'true');
   assert.equal(container.children.length, 0);
+});
+
+test('explicit radar reset synchronously removes every stable node and hides the container', () => {
+  const container = fakeRadarContainer();
+  updateCatRadarView(container, {
+    visible: true,
+    indicators: [{ id: 'lola', hidden: false, x: 28, y: 40, angle: 81, distance: 7, danger: false, color: '#f25f5c' }],
+  });
+
+  resetCatRadarView(container);
+
+  assert.equal(container.children.length, 0);
+  assert.equal(container.hidden, true);
+  assert.equal(container.attributes.get('aria-hidden'), 'true');
 });

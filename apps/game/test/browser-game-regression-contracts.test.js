@@ -70,17 +70,45 @@ test('reduced motion removes radar pulsing without suppressing direct position u
     animationName: 'none',
     beforeTransform: 'translate3d(372px, 120px, 0)',
     afterTransform: 'translate3d(28px, 180px, 0)',
+    modelDanger: true,
+    indicatorDanger: true,
   }, 'valid'));
   assert.throws(() => assertReducedRadarMotion({
     animationName: 'cat-radar-pulse',
     beforeTransform: 'translate3d(372px, 120px, 0)',
     afterTransform: 'translate3d(28px, 180px, 0)',
+    modelDanger: true,
+    indicatorDanger: true,
   }, 'animated'), /decorative animation/);
   assert.throws(() => assertReducedRadarMotion({
     animationName: 'none',
     beforeTransform: 'translate3d(372px, 120px, 0)',
     afterTransform: 'translate3d(372px, 120px, 0)',
+    modelDanger: true,
+    indicatorDanger: true,
   }, 'stale'), /position update/);
+  assert.throws(() => assertReducedRadarMotion({
+    animationName: 'none',
+    beforeTransform: 'translate3d(372px, 120px, 0)',
+    afterTransform: 'translate3d(28px, 180px, 0)',
+    modelDanger: false,
+    indicatorDanger: true,
+  }, 'model-safe'), /model danger/);
+  assert.throws(() => assertReducedRadarMotion({
+    animationName: 'none',
+    beforeTransform: 'translate3d(372px, 120px, 0)',
+    afterTransform: 'translate3d(28px, 180px, 0)',
+    modelDanger: true,
+    indicatorDanger: false,
+  }, 'view-safe'), /danger class/);
+});
+
+test('reduced-motion radar diagnostics are read-only and obtain danger from presented model state', async () => {
+  const source = await readFile(new URL('../scripts/browser-game-regression.mjs', import.meta.url), 'utf8');
+  const diagnostic = source.match(/async function reducedRadarMotion[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.doesNotMatch(diagnostic, /classList\.(?:add|remove|toggle|replace)\(|\.style\.(?:cssText|transform)\s*=|\.style\.setProperty|\.setAttribute\(|\.toggleAttribute\(|\.append\(|\.remove\(/);
+  assert.match(diagnostic, /__GASSI_DEBUG_SET_CATS__/);
+  assert.match(diagnostic, /danger/);
 });
 
 function radarSnapshot(updateCount = 122) {
