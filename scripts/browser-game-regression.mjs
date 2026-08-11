@@ -1,11 +1,22 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
-import { createServer as createNetServer } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import {
+  assertActionableBoundingBox,
+  assertDprContract,
+  assertFinalHealth,
+  assertHighRefreshResult,
+  assertRectNear,
+  assertReducedPostProcess,
+  assertVideoEvidence,
+  readRendererCounters,
+  settleCleanup,
+} from './browser-regression-contracts.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RUN_ID = `run-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`;
@@ -26,23 +37,23 @@ const BASE_MATRIX = [
 ];
 
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
-const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const hash = (buffer) => createHash('sha256').update(buffer).digest('hex');
 
-async function ephemeralPort() {
-  const probe = createNetServer();
-  try {
-    await new Promise((resolveListen, rejectListen) => {
-      probe.once('error', rejectListen);
-      probe.listen(0, '127.0.0.1', resolveListen);
-    });
-    const address = probe.address();
-    assert.ok(address && typeof address !== 'string' && address.port > 0, 'OS did not assign an ephemeral port');
-    return address.port;
-  } finally {
-    if (probe.listening) await new Promise((resolveClose, rejectClose) => probe.close((error) => error ? rejectClose(error) : resolveClose()));
-  }
+async function listenHttp(server) {
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string' && address.port > 0, 'Node HTTP server did not bind an ephemeral port');
+  return address;
 }
+
+async function closeHttp(server) {
+  if (!server?.listening) return;
+  await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+}
+
 function deterministicSave(scenario = {}) {
   return {
     version: 9, savedAt: '2026-08-11T00:00:00.000Z', mode: 'map', runStarted: false,
@@ -90,15 +101,6 @@ function initBrowserState({ save, rafHz }) {
   };
 }
 
-function counters(debug = {}) {
-  return {
-    rendererFrames: finite(debug.frameCount), schedulerFrames: finite(debug.scheduler?.renderCount),
-    uploadedBytes: finite(debug.uploadedBytes), sceneUploadedBytes: finite(debug.sceneUploadedBytes),
-    overlayUploadedBytes: finite(debug.overlayUploadedBytes), worldOverlayUploadedBytes: finite(debug.worldOverlayUploadedBytes),
-    staticWorldRevision: finite(debug.staticWorldRevision),
-  };
-}
-
 async function debugState(page) {
   return page.evaluate(() => ({ game: window.__GASSI_DEBUG__?.() ?? null, renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null }));
 }
@@ -118,7 +120,7 @@ async function settleStatic(page, scenario, policy) {
   while (Date.now() < deadline) {
     const debug = await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null);
     if (debug?.renderPolicy === policy && debug.scheduler?.pendingReason === 'idle') {
-      const current = counters(debug);
+      const current = readRendererCounters(debug, scenario);
       if (previous && Object.keys(current).every((key) => current[key] === previous[key])) return current;
       previous = current;
     }
@@ -130,7 +132,7 @@ async function settleStatic(page, scenario, policy) {
 async function assertStaticSleep(page, scenario, policy, label) {
   const before = await settleStatic(page, scenario, policy);
   await delay(1_000);
-  const after = counters(await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null));
+  const after = readRendererCounters(await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null), scenario);
   assert.deepEqual(after, before, `[${scenario}] ${label} advanced while static`);
   return { before, after };
 }
@@ -144,8 +146,9 @@ async function geometry(page) {
     };
     const canvas = document.querySelector('#game');
     return {
-      viewport: { width: innerWidth, height: innerHeight }, canvas: rect('#game'), header: rect('#mobile-game-header'),
+      viewport: { width: innerWidth, height: innerHeight }, browserDpr: devicePixelRatio, canvas: rect('#game'), header: rect('#mobile-game-header'),
       board: rect('.board-column'), boardFrame: rect('.board-frame'), overlay: rect('.game-overlay'),
+      cssSize: { width: canvas.clientWidth, height: canvas.clientHeight },
       buffer: { width: canvas.width, height: canvas.height },
       document: { scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight },
       playerScreen: { x: Number(canvas.dataset.playerScreenX), y: Number(canvas.dataset.playerScreenY) },
@@ -172,6 +175,17 @@ function inside(inner, outer, tolerance = 1) {
     && inner.right <= outer.right + tolerance && inner.bottom <= outer.bottom + tolerance;
 }
 
+function assertGeometryDpr(value, scenario) {
+  assertDprContract({
+    browserDpr: value.browserDpr,
+    expectedDpr: scenario.deviceScaleFactor,
+    renderer: value.renderer,
+    cssWidth: value.renderer?.display?.width,
+    cssHeight: value.renderer?.display?.height,
+    bufferWidth: value.buffer?.width,
+    bufferHeight: value.buffer?.height,
+  }, scenario.name);
+}
 function assertMobileGeometry(value, scenario) {
   assert.ok(value.mobileGameActive, `[${scenario.name}] mobile runtime class is absent`);
   assert.ok(value.canvas.top >= value.header.bottom - 1, `[${scenario.name}] canvas overlaps the DOM HUD (canvasTop=${value.canvas.top}, headerBottom=${value.header.bottom}, diagnostics=${JSON.stringify(value.layoutDiagnostics)})`);
@@ -193,7 +207,16 @@ async function shot(page, artifactDir, name) {
 }
 
 async function enterLevel(page, scenario) {
-  await page.locator('[data-level-id="home"] .map-marker').click({ force: true });
+  const marker = page.locator('[data-level-id="home"] .map-marker');
+  await marker.waitFor({ state: 'visible', timeout: 12_000 });
+  const markerState = {
+    visible: await marker.isVisible(),
+    enabled: await marker.isEnabled(),
+    box: await marker.boundingBox(),
+    viewport: page.viewportSize(),
+  };
+  assertActionableBoundingBox(markerState, scenario.name);
+  await page.mouse.click(markerState.box.x + markerState.box.width / 2, markerState.box.y + markerState.box.height / 2);
   await page.locator('#map-start-button').click();
   await page.locator('#overlay-button').waitFor({ state: 'visible', timeout: 12_000 });
   await page.locator('#overlay-button').click();
@@ -214,10 +237,10 @@ async function highRefreshWindow(page, scenario) {
   const measured = await page.evaluate(() => window.__PW_RAF__.captured());
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz final pause');
-  const presentationDelta = finite(measured.renderer.frameCount) - finite(baseline.renderer.frameCount);
+  const presentationDelta = readRendererCounters(measured.renderer, scenario.name).rendererFrames
+    - readRendererCounters(baseline.renderer, scenario.name).rendererFrames;
   const positionError = Math.hypot(measured.game.player.x - EXPECTED_HOME_POSITION.x, measured.game.player.y - EXPECTED_HOME_POSITION.y);
-  assert.ok(presentationDelta <= 121, `[${scenario.name}] ${presentationDelta} presentations in two virtual seconds`);
-  assert.ok(positionError <= FIXED_STEP_TOLERANCE, `[${scenario.name}] player drift ${positionError} exceeds one fixed step`);
+  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE }, scenario.name);
   return { baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, raf: measured.raf };
 }
 
@@ -225,14 +248,36 @@ async function resizeRoundTrip(page, scenario, artifactDir) {
   const rotated = scenario.mobile ? { width: scenario.height, height: scenario.width } : { width: 1180, height: 700 };
   await page.setViewportSize(rotated); await delay(250);
   const changed = await geometry(page);
+  assertGeometryDpr(changed, scenario);
   if (scenario.mobile) assertMobileGeometry(changed, { ...scenario, ...rotated });
   const screenshot = await shot(page, artifactDir, 'post-resize');
   await page.setViewportSize({ width: scenario.width, height: scenario.height }); await delay(250);
   const restored = await geometry(page);
+  assertGeometryDpr(restored, scenario);
   if (scenario.mobile) assertMobileGeometry(restored, scenario);
   return { rotated, changed, restored, screenshot };
 }
 
+async function exerciseFullscreen(page, scenario, active) {
+  if (!active.fullscreenControl) return { status: 'skipped', reason: 'No app-owned fullscreen UI control is exposed.' };
+  if (!active.fullscreenEnabled) return { status: 'skipped', reason: 'The Fullscreen API is unsupported in this browser context.' };
+  const control = page.locator('[data-fullscreen-control], #mobile-fullscreen-button').first();
+  const controlState = {
+    visible: await control.isVisible(),
+    enabled: await control.isEnabled(),
+    box: await control.boundingBox(),
+    viewport: page.viewportSize(),
+  };
+  assertActionableBoundingBox(controlState, `${scenario.name}:fullscreen-control`);
+  await control.click({ timeout: 12_000 });
+  await page.waitForFunction(() => Boolean(document.fullscreenElement), null, { timeout: 8_000 });
+  const entered = await geometry(page);
+  assertGeometryDpr(entered, scenario);
+  const exitControl = page.locator('[data-fullscreen-control], #mobile-fullscreen-button').first();
+  await exitControl.click({ timeout: 12_000 });
+  await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 8_000 });
+  return { status: 'exercised', entered };
+}
 async function returnMap(page, scenario) {
   if (await page.locator('#mobile-game-menu-button').isVisible()) {
     await page.locator('#mobile-game-menu-button').click();
@@ -243,6 +288,53 @@ async function returnMap(page, scenario) {
   await waitFor(page, scenario.name, ({ game, renderer }) => game?.state === 'map' && renderer?.renderPolicy === 'hidden', 'map return');
 }
 
+function markScenarioFailed(result, scenario, error, startedAt) {
+  const message = error?.stack ?? String(error);
+  const errors = [...(result?.errors ?? []), message];
+  return {
+    ...(result ?? {}),
+    name: scenario.name,
+    status: 'failed',
+    error: errors.join('\n\n'),
+    errors,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+async function webmDurationSeconds(browser, path, scenario) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.setContent('<input id="video-file" type="file"><video id="probe" muted></video>');
+    await page.locator('#video-file').setInputFiles(path);
+    return await page.evaluate(async (scenarioName) => {
+      const file = document.querySelector('#video-file').files?.[0];
+      if (!file) throw new Error(`[${scenarioName}] finalized WebM could not be loaded`);
+      const video = document.querySelector('#probe');
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        video.src = objectUrl;
+        await new Promise((resolveMetadata, rejectMetadata) => {
+          const timeout = setTimeout(() => rejectMetadata(new Error(`[${scenarioName}] timed out reading WebM metadata`)), 10_000);
+          video.addEventListener('loadedmetadata', () => { clearTimeout(timeout); resolveMetadata(); }, { once: true });
+          video.addEventListener('error', () => { clearTimeout(timeout); rejectMetadata(new Error(`[${scenarioName}] WebM metadata is unreadable`)); }, { once: true });
+        });
+        if (!Number.isFinite(video.duration)) {
+          await new Promise((resolveDuration, rejectDuration) => {
+            const timeout = setTimeout(() => rejectDuration(new Error(`[${scenarioName}] timed out resolving WebM duration`)), 10_000);
+            video.addEventListener('timeupdate', () => { clearTimeout(timeout); resolveDuration(); }, { once: true });
+            video.currentTime = Number.MAX_SAFE_INTEGER;
+          });
+        }
+        return video.duration;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }, scenario);
+  } finally {
+    await context.close();
+  }
+}
 async function runScenario(browser, baseUrl, scenario) {
   const artifactDir = join(RUN_DIR, scenario.name); await mkdir(artifactDir, { recursive: true });
   const context = await browser.newContext({
@@ -250,8 +342,8 @@ async function runScenario(browser, baseUrl, scenario) {
     isMobile: Boolean(scenario.mobile), hasTouch: Boolean(scenario.mobile), reducedMotion: scenario.reducedMotion ?? 'no-preference',
     recordVideo: { dir: artifactDir, size: { width: scenario.width, height: scenario.height } },
   });
-  const startedAt = Date.now(); let page; let video; let result; let failure = null;
-  const consoleErrors = []; const warnings = []; const ignoredDriverWarnings = []; const pageErrors = []; const screenshots = [];
+  const startedAt = Date.now(); let page; let video; let result;
+  const consoleErrors = []; const warnings = []; const ignoredDriverWarnings = []; const pageErrors = []; const crashes = []; const screenshots = [];
   try {
     page = await context.newPage(); video = page.video();
     page.on('console', (message) => {
@@ -260,12 +352,14 @@ async function runScenario(browser, baseUrl, scenario) {
       else if (message.type() === 'warning' && APP_WARNING.test(message.text())) warnings.push(message.text());
     });
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+    page.on('crash', () => crashes.push('Playwright page crash event'));
     await page.addInitScript(initBrowserState, { save: deterministicSave(scenario), rafHz: scenario.rafHz ?? null });
     await page.goto(`${baseUrl}?renderer=${scenario.backend}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     const ready = await waitFor(page, scenario.name, ({ game, renderer }) => game?.state === 'map' && renderer?.backend && renderer.backend !== 'initializing', 'startup', 20_000);
     assert.equal(ready.renderer.requestedBackend, scenario.backend, `[${scenario.name}] requested backend not recorded`);
     assert.equal(ready.renderer.backend, scenario.backend, `[${scenario.name}] resolved backend ${ready.renderer.backend}`);
     assert.equal(ready.renderer.fallbackReason, null, `[${scenario.name}] unexpected fallback`);
+    readRendererCounters(ready.renderer, `${scenario.name}:startup`);
     screenshots.push(await shot(page, artifactDir, 'map'));
     const reducedMap = scenario.reducedMotion === 'reduce' ? await page.evaluate(() => ({
       root: document.documentElement.dataset.reducedMotion,
@@ -278,11 +372,12 @@ async function runScenario(browser, baseUrl, scenario) {
     }
     await enterLevel(page, scenario); await delay(320);
     screenshots.push(await shot(page, artifactDir, 'active-level'));
-    const active = await geometry(page); if (scenario.mobile) assertMobileGeometry(active, scenario);
+    const active = await geometry(page); assertGeometryDpr(active, scenario); if (scenario.mobile) assertMobileGeometry(active, scenario);
+    const fullscreen = await exerciseFullscreen(page, scenario, active);
     const highRefresh = scenario.rafHz ? await highRefreshWindow(page, scenario) : null;
     if (!scenario.rafHz) { await page.keyboard.press('KeyP'); await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'pause'); }
-    const paused = await geometry(page); if (scenario.mobile) assertMobileGeometry(paused, scenario);
-    assert.ok(paused.overlay && inside(paused.overlay, paused.boardFrame, 1), `[${scenario.name}] pause overlay does not cover board frame`);
+    const paused = await geometry(page); assertGeometryDpr(paused, scenario); if (scenario.mobile) assertMobileGeometry(paused, scenario);
+    assertRectNear(paused.overlay, paused.boardFrame, 1, scenario.name, 'pause overlay');
     screenshots.push(await shot(page, artifactDir, 'paused-level'));
     const pausedSleep = await assertStaticSleep(page, scenario.name, 'once', 'paused level');
     const frameOne = await page.locator('#game').screenshot(); await delay(300); const frameTwo = await page.locator('#game').screenshot();
@@ -290,42 +385,59 @@ async function runScenario(browser, baseUrl, scenario) {
     const resize = await resizeRoundTrip(page, scenario, artifactDir);
     screenshots.push(resize.screenshot);
     const reducedRenderer = scenario.reducedMotion === 'reduce' ? await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.().postProcess ?? null) : null;
-    if (reducedRenderer) { assert.equal(finite(reducedRenderer.scanlines), 0); assert.equal(finite(reducedRenderer.rgbSplitTexels), 0); }
+    if (scenario.reducedMotion === 'reduce') assertReducedPostProcess(reducedRenderer, scenario.name);
     await returnMap(page, scenario); screenshots.push(await shot(page, artifactDir, 'map-return'));
     const mapSleep = await assertStaticSleep(page, scenario.name, 'hidden', 'map');
     const remaining = 3_200 - (Date.now() - startedAt); if (remaining > 0) await delay(remaining);
-    const late = await page.evaluate(() => ({ renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null, game: window.__GASSI_DEBUG__?.() ?? null, diagnostics: window.__PW_DIAGNOSTICS__ ?? null }));
-    assert.equal(late.renderer.requestedBackend, scenario.backend); assert.equal(late.renderer.backend, scenario.backend);
-    assert.equal(late.renderer.contextLost, false); assert.equal(late.renderer.fallbackReason, null);
-    assert.deepEqual(late.diagnostics?.contextLosses ?? [], []); assert.deepEqual(late.diagnostics?.unhandledRejections ?? [], []); assert.deepEqual(late.diagnostics?.windowErrors ?? [], []);
-    assert.deepEqual(consoleErrors, []); assert.deepEqual(warnings, []); assert.deepEqual(pageErrors, []);
+    const late = await page.evaluate(() => ({ renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null, game: window.__GASSI_DEBUG__?.() ?? null }));
     result = {
-      name: scenario.name, status: 'passed', requestedBackend: scenario.backend, resolvedBackend: late.renderer.backend,
-      quality: late.renderer.quality, pixelRatio: late.renderer.pixelRatio, display: late.renderer.display, counters: counters(late.renderer),
+      name: scenario.name, status: 'passed', requestedBackend: scenario.backend, resolvedBackend: late.renderer?.backend,
+      quality: late.renderer?.quality, pixelRatio: late.renderer?.pixelRatio, display: late.renderer?.display,
+      counters: readRendererCounters(late.renderer, `${scenario.name}:result`),
       geometry: { active, paused, resize }, staticSleep: { paused: pausedSleep, map: mapSleep }, highRefresh,
-      reducedMotion: { map: reducedMap, renderer: reducedRenderer },
-      fullscreen: { status: 'skipped', reason: active.fullscreenControl ? 'No stable app-owned fullscreen action is exposed.' : 'No fullscreen UI control is exposed; app-owned mobile-game-active geometry was tested instead.' },
+      reducedMotion: { map: reducedMap, renderer: reducedRenderer }, fullscreen,
       screenshots, pausedFrameHash: hash(frameOne), ignoredDriverWarnings, elapsedMs: Date.now() - startedAt,
     };
   } catch (error) {
-    failure = error; result = { name: scenario.name, status: 'failed', error: error.stack ?? String(error), console: { consoleErrors, warnings, pageErrors }, elapsedMs: Date.now() - startedAt };
+    result = markScenarioFailed(result, scenario, error, startedAt);
   } finally {
     if (page && !page.isClosed()) {
-      try { result.finalLateHealth = await page.evaluate(() => ({ renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null, diagnostics: window.__PW_DIAGNOSTICS__ ?? null })); }
-      catch (error) { result.finalLateHealthError = String(error); }
-    }
-    await context.close();
-    if (video) {
-      const original = await video.path().catch(() => null);
-      if (original) {
-        const target = join(artifactDir, `${scenario.name}.webm`); if (original !== target) await rename(original, target);
-        const info = await stat(target); result.video = { path: target, bytes: info.size, recordedMs: Date.now() - startedAt };
-        if (!failure && (info.size <= 20_000 || result.video.recordedMs < 3_000)) {
-          failure = new Error(`[${scenario.name}] WebM artifact is too small or shorter than three seconds`); result.status = 'failed'; result.error = failure.stack;
-        }
+      try {
+        const finalLateHealth = await page.evaluate(() => ({
+          renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null,
+          diagnostics: window.__PW_DIAGNOSTICS__ ?? null,
+        }));
+        result = { ...(result ?? {}), finalLateHealth };
+        assertFinalHealth({ scenario: scenario.name, expectedBackend: scenario.backend, health: finalLateHealth, consoleErrors, warnings, pageErrors, crashes });
+      } catch (error) {
+        result = markScenarioFailed(result, scenario, error, startedAt);
       }
+    } else {
+      result = markScenarioFailed(result, scenario, new Error(`[${scenario.name}] page was unavailable for final health evaluation`), startedAt);
+    }
+
+    try {
+      await context.close();
+    } catch (error) {
+      result = markScenarioFailed(result, scenario, error, startedAt);
+    }
+
+    try {
+      assert.ok(video && typeof video === 'object', `[${scenario.name}] Playwright video object is missing`);
+      const original = await video.path();
+      assert.ok(typeof original === 'string' && original.length > 0, `[${scenario.name}] Playwright video path is missing`);
+      const target = join(artifactDir, `${scenario.name}.webm`);
+      if (original !== target) await rename(original, target);
+      const info = await stat(target);
+      const durationSeconds = await webmDurationSeconds(browser, target, scenario.name);
+      result = { ...(result ?? {}), video: { path: target, bytes: info.size, durationSeconds } };
+      assertVideoEvidence({ video, path: target, bytes: info.size, durationSeconds }, scenario.name);
+    } catch (error) {
+      result = markScenarioFailed(result, scenario, error, startedAt);
     }
   }
+  result.console = { consoleErrors, warnings, pageErrors, crashes };
+  result.elapsedMs = Date.now() - startedAt;
   return result;
 }
 
@@ -345,14 +457,13 @@ async function probeWebGpu(browser, baseUrl) {
 async function main() {
   await mkdir(RUN_DIR, { recursive: true });
   const summary = { runId: RUN_ID, startedAt: new Date().toISOString(), server: null, scenarios: [], skips: [] };
-  let server; let browser; let failure = null;
+  let viteServer; let httpServer; let browser; let failure = null;
   try {
-    const requestedPort = await ephemeralPort();
-    server = await createServer({ root: ROOT, logLevel: 'error', server: { host: '127.0.0.1', port: requestedPort, strictPort: true } });
-    await server.listen();
-    const address = server.httpServer?.address(); assert.ok(address && typeof address !== 'string' && address.port > 0, 'Vite did not bind an ephemeral port');
-    assert.equal(address.port, requestedPort, 'Vite did not bind the OS-assigned port');
-    const baseUrl = `http://127.0.0.1:${address.port}/`; summary.server = { host: '127.0.0.1', requestedPort, port: address.port, baseUrl };
+    viteServer = await createServer({ root: ROOT, logLevel: 'error', appType: 'spa', server: { middlewareMode: true } });
+    httpServer = createHttpServer(viteServer.middlewares);
+    const address = await listenHttp(httpServer);
+    const baseUrl = `http://127.0.0.1:${address.port}/`;
+    summary.server = { host: '127.0.0.1', port: address.port, baseUrl, assignment: 'node-http-listen-0' };
     browser = await chromium.launch({ headless: true });
     const matrix = [...BASE_MATRIX]; const webGpu = await probeWebGpu(browser, baseUrl);
     if (webGpu.available) matrix.push({ name: 'mobile-412-dpr2625-webgpu', width: 412, height: 915, deviceScaleFactor: 2.625, backend: 'webgpu', mobile: true });
@@ -364,11 +475,23 @@ async function main() {
     }
     const failed = summary.scenarios.filter((item) => item.status !== 'passed'); if (failed.length) failure = new Error(`${failed.length} browser scenario(s) failed: ${failed.map((item) => item.name).join(', ')}`);
     if (only && summary.scenarios.length === 0) failure = new Error(`Unknown browser scenario: ${only}`);
-  } catch (error) { failure = error; }
-  finally {
+  } catch (error) {
+    failure = error;
+  } finally {
+    const cleanupErrors = await settleCleanup([
+      { name: 'browser', close: async () => { if (browser) await browser.close(); } },
+      { name: 'http', close: async () => { await closeHttp(httpServer); } },
+      { name: 'vite', close: async () => { if (viteServer) await viteServer.close(); } },
+    ]);
+    if (cleanupErrors.length) failure = failure
+      ? new AggregateError([failure, ...cleanupErrors], 'Browser regression run and cleanup failed')
+      : new AggregateError(cleanupErrors, 'Browser regression cleanup failed');
     summary.finishedAt = new Date().toISOString(); summary.status = failure ? 'failed' : 'passed'; summary.error = failure ? (failure.stack ?? String(failure)) : null;
-    await writeFile(join(RUN_DIR, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
-    if (browser) await browser.close(); if (server) await server.close();
+    try {
+      await writeFile(join(RUN_DIR, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+    } catch (error) {
+      failure = failure ? new AggregateError([failure, error], 'Browser regression run and summary write failed') : error;
+    }
   }
   if (failure) throw failure;
   process.stdout.write(`\nBrowser matrix passed. Artifacts: ${RUN_DIR}\n`);
