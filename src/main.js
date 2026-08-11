@@ -2013,12 +2013,11 @@ function observedDevicePixelRatio(entries, cssWidth) {
 }
 
 function measureGameplayLayout(reason, entries = []) {
-  const canvasRect = canvas.getBoundingClientRect();
   const mobile = isMobileGameLayout() || isBoardFullscreen();
+  const boardRect = ui.boardColumn.getBoundingClientRect();
   const blockerMeasurements = mobile
-    ? ['#mobile-game-header', '#level-status'].map((selector) => {
-      const element = document.querySelector(selector);
-      if (!element || element.hidden) return null;
+    ? [...document.querySelectorAll('[data-gameplay-blocker]')].map((element) => {
+      if (element.hidden) return null;
       const style = getComputedStyle(element);
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
         return { visible: false };
@@ -2027,6 +2026,11 @@ function measureGameplayLayout(reason, entries = []) {
       return { bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 };
     })
     : [];
+  const headerBottom = highestVisibleBlockerBottom(blockerMeasurements, boardRect.top);
+  const headerHeight = mobile ? Math.max(0, headerBottom - boardRect.top) : 0;
+  ui.boardColumn.style.setProperty('--mobile-game-header-height', `${Math.round(headerHeight)}px`);
+
+  const canvasRect = canvas.getBoundingClientRect();
   const hudBottom = highestVisibleBlockerBottom(blockerMeasurements, canvasRect.top);
   const layout = gameplayLayout.update({
     canvasWidth: canvasRect.width,
@@ -2324,12 +2328,10 @@ document.addEventListener('fullscreenchange', () => measureGameplayLayout('fulls
 const gameplayLayoutResizeObserver = 'ResizeObserver' in window
   ? new ResizeObserver((entries) => measureGameplayLayout('resize-observer', entries))
   : null;
-const mobileGameHeader = document.querySelector('#mobile-game-header');
-const levelStatus = document.querySelector('#level-status');
+const gameplayBlockers = [...document.querySelectorAll('[data-gameplay-blocker]')];
 gameplayLayoutResizeObserver?.observe(canvas);
 gameplayLayoutResizeObserver?.observe(ui.boardFrame);
-if (mobileGameHeader) gameplayLayoutResizeObserver?.observe(mobileGameHeader);
-if (levelStatus) gameplayLayoutResizeObserver?.observe(levelStatus);
+gameplayBlockers.forEach((element) => gameplayLayoutResizeObserver?.observe(element));
 measureGameplayLayout('initial');
 canvas.addEventListener('webglcontextrestored', () => requestRender('context:restored'));
 window.addEventListener('pagehide', () => {

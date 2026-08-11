@@ -1950,8 +1950,11 @@ body.mobile-game-active .board-frame,
 body.mobile-game-active #game,
 .board-column:fullscreen #game,
 .board-column:-webkit-full-screen #game {
+  position: absolute;
+  inset-inline: 0;
+  top: var(--mobile-game-header-height, 0px);
   width: 100%;
-  height: 100%;
+  height: calc(100dvh - var(--mobile-game-header-height, 0px));
   aspect-ratio: auto;
   border: 0;
 }
@@ -1968,6 +1971,15 @@ body.mobile-game-active .mobile-game-header,
   padding: 0;
 }
 
+body.mobile-game-active .mobile-game-header .level-status,
+.board-column:fullscreen .mobile-game-header .level-status,
+.board-column:-webkit-full-screen .mobile-game-header .level-status {
+  position: static;
+  grid-column: 1 / -1;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+}
 body.mobile-game-active .mobile-game-menu,
 body.mobile-game-active .mobile-fullscreen-button,
 .board-column:fullscreen .mobile-game-menu,
@@ -2076,14 +2088,10 @@ body.mobile-game-active .level-cutscene:has(.level-cutscene-dialogue:not([hidden
     width: calc(100% - 16px);
   }
 
-  body.mobile-game-active .level-status,
-  .board-column:fullscreen .level-status,
-  .board-column:-webkit-full-screen .level-status {
-    top: calc(max(8px, env(safe-area-inset-top)) + 68px);
-    right: 8px;
-    left: 8px;
+  body.mobile-game-active .mobile-game-header .level-status,
+  .board-column:fullscreen .mobile-game-header .level-status,
+  .board-column:-webkit-full-screen .mobile-game-header .level-status {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: auto;
   }
 
   body.mobile-game-active .level-cutscene-heading,
