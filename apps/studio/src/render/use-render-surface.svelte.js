@@ -11,6 +11,13 @@ const disconnect = (observer) => observer?.disconnect?.();
 function browserEnvironment() {
   return {
     devicePixelRatio: () => globalThis.devicePixelRatio ?? 1,
+    documentVisible: () => globalThis.document?.visibilityState !== 'hidden',
+    subscribeDocumentVisibility(callback) {
+      const document = globalThis.document;
+      if (!document?.addEventListener) return () => {};
+      document.addEventListener('visibilitychange', callback);
+      return () => document.removeEventListener('visibilitychange', callback);
+    },
     createResizeObserver: (callback) => typeof globalThis.ResizeObserver === 'function' ? new globalThis.ResizeObserver(callback) : null,
     createIntersectionObserver: (callback) => typeof globalThis.IntersectionObserver === 'function' ? new globalThis.IntersectionObserver(callback) : null,
     reducedMotionQuery: () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null,
@@ -38,28 +45,33 @@ export function createRenderSurfaceLifecycle({
 }) {
   let workspaceVisible = readVisible(visible);
   let intersectionVisible = true;
+  let documentVisible = environment.documentVisible?.() !== false;
+  let surfaceProfile = profile;
   let ambientActive = false;
   let session = null;
   let mounted = false;
   let destroyed = false;
   let pendingReason = 'surface:mount';
 
-  const updateVisibility = () => session?.setVisible(workspaceVisible && intersectionVisible);
+  const updateVisibility = () => session?.setVisible(workspaceVisible && intersectionVisible && documentVisible);
 
   const lifecycle = {
     action(node) {
       if (mounted) throw new Error(`render surface already mounted: ${id}`);
       mounted = true;
       destroyed = false;
+      documentVisible = environment.documentVisible?.() !== false;
       let resizeObserver = null;
       let intersectionObserver = null;
       let motionQuery = null;
       let updateReducedMotion = null;
+      let unsubscribeDocumentVisibility = null;
       const cleanup = () => {
         disconnect(resizeObserver);
         disconnect(intersectionObserver);
         motionQuery?.removeEventListener?.('change', updateReducedMotion);
         motionQuery?.removeListener?.(updateReducedMotion);
+        unsubscribeDocumentVisibility?.();
         session?.destroy();
         session = null;
         mounted = false;
@@ -69,8 +81,8 @@ export function createRenderSurfaceLifecycle({
         session = createStudioRenderSession({
           coordinator,
           id,
-          profile,
-          visible: workspaceVisible && intersectionVisible,
+          profile: surfaceProfile,
+          visible: workspaceVisible && intersectionVisible && documentVisible,
           active: ambientActive,
           render,
         });
@@ -96,6 +108,11 @@ export function createRenderSurfaceLifecycle({
         intersectionObserver.observe?.(node);
         motionQuery?.addEventListener?.('change', updateReducedMotion);
         motionQuery?.addListener?.(updateReducedMotion);
+        unsubscribeDocumentVisibility = environment.subscribeDocumentVisibility?.(() => {
+          documentVisible = environment.documentVisible?.() !== false;
+          updateVisibility();
+        }) ?? null;
+        updateVisibility();
       } catch (error) {
         cleanup();
         throw error;
@@ -129,6 +146,11 @@ export function createRenderSurfaceLifecycle({
       session?.setActive(ambientActive);
     },
 
+    setProfile(nextProfile) {
+      surfaceProfile = nextProfile;
+      session?.setProfile(nextProfile);
+    },
+
     setAnimationActivity(nextActivity) {
       ambientActive = Boolean(nextActivity?.continuous) || (Number(nextActivity?.until) || 0) > 0;
       session?.setAnimationActivity(nextActivity);
@@ -137,7 +159,8 @@ export function createRenderSurfaceLifecycle({
     snapshot() {
       return session?.snapshot() ?? Object.freeze({
         id,
-        visible: workspaceVisible && intersectionVisible,
+        profile: surfaceProfile,
+        visible: workspaceVisible && intersectionVisible && documentVisible,
         active: ambientActive,
         destroyed,
       });

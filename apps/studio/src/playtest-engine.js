@@ -2,6 +2,24 @@ import { DIRECTIONS, createGameSession } from '@franz-lola/game-core';
 
 export { DIRECTIONS };
 
+export function createPlaytestPresentation(snapshot, {
+  cameraEnabled = true,
+  zoom = 1.12,
+  reducedMotion = false,
+} = {}) {
+  if (!snapshot || typeof snapshot !== 'object') throw new TypeError('playtest snapshot is required');
+  return Object.freeze({
+    snapshot,
+    options: Object.freeze({
+      cameraEnabled: Boolean(cameraEnabled),
+      zoom,
+      alpha: snapshot.interpolationAlpha,
+      presentationTime: snapshot.elapsed,
+      reducedMotion: Boolean(reducedMotion),
+    }),
+  });
+}
+
 export class PlaytestEngine {
   constructor(level, difficulty = 'easy', options = {}) {
     this.session = createGameSession({

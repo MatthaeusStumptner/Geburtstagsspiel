@@ -1,6 +1,10 @@
+<script module>
+  let nextActorThumbnailSurface = 1;
+</script>
+
 <script>
-  import { onMount } from 'svelte';
-  import { drawActorPreview } from '@franz-lola/pixel-renderer';
+  import { animationById, animationKeyframes, drawActorPreview, stateAnimationId } from '@franz-lola/pixel-renderer';
+  import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let {
     actor = null,
@@ -12,16 +16,24 @@
     label = kind === 'cat' ? 'Katzenvorschau' : 'Vorschau von Franz und Lola',
     class: className = '',
   } = $props();
+  const surfaceId = `actor-thumbnail-surface-${nextActorThumbnailSurface++}`;
   let canvas;
-  let frame; let lastDraw = 0;
-  let visible = true;
 
-  function draw(timestamp = 0) {
-    if (!canvas) return;
-    const ratio = Math.min(2, globalThis.devicePixelRatio || 1);
-    const bounds = canvas.getBoundingClientRect();
-    const width = Math.max(34, Math.round((bounds.width || 64) * ratio));
-    const height = Math.max(34, Math.round((bounds.height || 64) * ratio));
+  function isAnimated() {
+    if (elapsed !== null) return false;
+    if (actor?.effects?.length) return true;
+    const selectedAppearance = appearance ?? actor?.appearance;
+    if (!selectedAppearance) return true;
+    const animation = animationById(selectedAppearance, animationId || actor?.animation)
+      ?? animationById(selectedAppearance, stateAnimationId(selectedAppearance, state));
+    return animationKeyframes(animation).length > 1;
+  }
+
+  function draw({ timestamp, measurement, renderCount, profile }) {
+    if (!canvas || !measurement) return;
+    const ratio = Math.min(2, measurement.devicePixelRatio);
+    const width = Math.max(34, Math.round(measurement.width * ratio));
+    const height = Math.max(34, Math.round(measurement.height * ratio));
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
     const context = canvas.getContext('2d');
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -38,28 +50,34 @@
       animationId,
       elapsed: elapsed ?? timestamp / 1000,
     });
+    canvas.dataset.renderCount = String(renderCount + 1);
+    canvas.dataset.renderProfile = profile;
   }
 
-  function animate(timestamp) { if (visible && (!lastDraw || timestamp - lastDraw >= 100)) { draw(timestamp); lastDraw = timestamp; } frame = requestAnimationFrame(animate); }
-
-  onMount(() => {
-    if (elapsed === null) frame = requestAnimationFrame(animate); else draw(elapsed * 1000);
-    const resize = new ResizeObserver(() => draw(elapsed === null ? performance.now() : elapsed * 1000));
-    resize.observe(canvas);
-    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) draw(elapsed === null ? performance.now() : elapsed * 1000); }); intersection.observe(canvas);
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); intersection.disconnect(); };
+  const surface = useRenderSurface({
+    id: surfaceId,
+    profile: 'thumbnail-static',
+    render: draw,
   });
+  const renderSurface = surface.action;
 
   $effect(() => {
     actor; appearance; kind; state; animationId; elapsed;
-    if (canvas) draw(elapsed === null ? performance.now() : elapsed * 1000);
+    const animated = isAnimated();
+    surface.setProfile(animated ? 'thumbnail-animated' : 'thumbnail-static');
+    surface.setActive(animated);
+    surface.invalidate('thumbnail:reactive');
   });
 </script>
 
 <canvas
   class={`actor-thumbnail ${className}`}
   bind:this={canvas}
+  use:renderSurface
   aria-label={label}
   data-actor-kind={kind}
   data-actor-state={state}
+  data-render-count="0"
+  data-render-profile="thumbnail-static"
+  data-surface-id={surfaceId}
 ></canvas>

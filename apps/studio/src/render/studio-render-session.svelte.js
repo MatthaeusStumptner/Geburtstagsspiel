@@ -1,4 +1,5 @@
 import { actorAnimationState, animationById, animationDuration, animationKeyframes, stateAnimationId } from '@franz-lola/pixel-renderer';
+import { RENDER_PROFILES } from '@franz-lola/render-coordinator';
 
 const DEFAULT_SURFACE_ID = 'studio-level-canvas';
 const AMBIENT_REASON = 'animation:ambient';
@@ -102,6 +103,7 @@ export function createStudioRenderSession({
   if (typeof render !== 'function') throw new TypeError('render must be a function');
 
   let surfaceVisible = Boolean(visible);
+  let surfaceProfile = profile;
   let ambientContinuous = Boolean(active);
   let ambientUntil = 0;
   let reducedMotion = false;
@@ -116,6 +118,7 @@ export function createStudioRenderSession({
   const ambientShouldRun = (timestamp = 0) => surfaceVisible
     && !reducedMotion
     && (ambientContinuous || ambientUntil > timestamp / 1000);
+  const profileTracksDirtyWork = () => ['on-demand', 'manual'].includes(RENDER_PROFILES[surfaceProfile].mode);
 
   function setCoordinatorState(state) {
     if (!destroyed) coordinator.setSurfaceState(id, state);
@@ -149,7 +152,7 @@ export function createStudioRenderSession({
     if (destroyed) return;
     if (pendingOneShotVersion === presentedOneShotVersion) pendingOneShotVersion = 0;
     if (reducedFramePending) {
-      if (frame.reason === 'motion:reduced') reducedFramePending = false;
+      if (frame.reason === 'motion:reduced' || !profileTracksDirtyWork()) reducedFramePending = false;
       else queueOneShot('motion:reduced');
     }
     if (ambientShouldRun(frame.timestamp)) {
@@ -160,13 +163,17 @@ export function createStudioRenderSession({
     }
   }
 
-  coordinator.registerSurface({
-    id,
-    profile,
-    visible: surfaceVisible,
-    active: ambientShouldRun(),
-    render: present,
-  });
+  function registerSurface() {
+    coordinator.registerSurface({
+      id,
+      profile: surfaceProfile,
+      visible: surfaceVisible,
+      active: ambientShouldRun(),
+      render: present,
+    });
+  }
+
+  registerSurface();
   if (ambientShouldRun()) queueAmbient();
 
   const session = {
@@ -189,6 +196,16 @@ export function createStudioRenderSession({
 
     setActive(nextActive) {
       session.setAnimationActivity({ continuous: Boolean(nextActive), until: 0 });
+    },
+
+    setProfile(nextProfile) {
+      if (destroyed || nextProfile === surfaceProfile) return;
+      if (!Object.hasOwn(RENDER_PROFILES, nextProfile)) throw new Error(`unknown render profile: ${nextProfile}`);
+      coordinator.unregisterSurface(id);
+      surfaceProfile = nextProfile;
+      registerSurface();
+      if (surfaceVisible && (pendingOneShotVersion || reducedFramePending)) coordinator.invalidate(id, 'profile:change');
+      if (ambientShouldRun()) queueAmbient();
     },
 
     setAnimationActivity(nextActivity) {
@@ -235,6 +252,7 @@ export function createStudioRenderSession({
     snapshot() {
       return Object.freeze({
         id,
+        profile: surfaceProfile,
         visible: surfaceVisible,
         active: ambientContinuous || ambientUntil > 0,
         reducedMotion,

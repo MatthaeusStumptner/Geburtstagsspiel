@@ -755,10 +755,23 @@ test('level-bound cutscenes combine camera, actors, objects, dialogue and timeli
   await expect(page.locator('.timeline-row')).toHaveCount(5);
   await expect(page.locator('.track-browser')).not.toContainText('note-solo');
   await expect(page.locator('.track-browser')).toContainText('rock-katze');
+  const preview = page.getByLabel('Cutscene-Vorschau');
+  await expect(preview).toHaveAttribute('data-render-profile', 'editor');
+  const scrubStart = Number(await preview.getAttribute('data-render-count'));
   await page.locator('.cutscene-transport input').evaluate((input) => { input.value = '3'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count'))).toBeGreaterThan(scrubStart);
   await expect(page.locator('.dialogue-card')).toContainText('Rock, Punk und Metal');
   await page.locator('.cutscene-transport button').click();
-  await page.waitForTimeout(250); await page.reload(); await page.locator('[data-workspace="cutscenes"]').click();
+  await expect(preview).toHaveAttribute('data-render-profile', 'playtest');
+  const playbackStart = Number(await preview.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count'))).toBeGreaterThan(playbackStart);
+  await page.locator('.cutscene-transport button').click();
+  await expect(preview).toHaveAttribute('data-render-profile', 'editor');
+  await page.waitForTimeout(100);
+  const pausedCount = Number(await preview.getAttribute('data-render-count'));
+  await page.waitForTimeout(350);
+  await expect(preview).toHaveAttribute('data-render-count', String(pausedCount));
+  await page.reload(); await page.locator('[data-workspace="cutscenes"]').click();
   await expect(page.locator('.timeline-row')).toHaveCount(5);
   expect(errors).toEqual([]);
 });
@@ -829,13 +842,65 @@ test('playtest runs the same intro, camera and direct controls as the game', asy
   await switchWorkspace(page, 'playtest'); await page.locator('#start-playtest').click();
   await expect(page.locator('.playtest-top-overlay')).toContainText('CUTSCENE', { timeout: 15_000 });
   await page.getByRole('button', { name: /Intro überspringen/ }).click();
+  const canvas = page.locator('#playtest-canvas');
+  await expect(canvas).toHaveAttribute('data-render-profile', 'playtest');
+  await expect(canvas).toHaveAttribute('data-presentation-kind', 'franz-lola-presentation-frame');
   await page.keyboard.press('ArrowRight');
-  await expect.poll(() => page.locator('#playtest-canvas').getAttribute('data-player-direction')).toBe('right');
+  await expect.poll(() => canvas.getAttribute('data-player-direction')).toBe('right');
+  const parity = await canvas.evaluate((element) => ({
+    player: JSON.parse(element.dataset.snapshotPlayer),
+    previousPlayer: JSON.parse(element.dataset.snapshotPreviousPlayer),
+    cats: JSON.parse(element.dataset.snapshotCats),
+    previousCats: JSON.parse(element.dataset.snapshotPreviousCats),
+    presentedPlayer: JSON.parse(element.dataset.presentedPlayer),
+    presentedCats: JSON.parse(element.dataset.presentedCats),
+    alpha: Number(element.dataset.interpolationAlpha),
+  }));
+  const expectedPlayer = {
+    x: parity.previousPlayer.x + (parity.player.x - parity.previousPlayer.x) * parity.alpha,
+    y: parity.previousPlayer.y + (parity.player.y - parity.previousPlayer.y) * parity.alpha,
+  };
+  expect(Math.abs(parity.presentedPlayer.x - expectedPlayer.x)).toBeLessThan(1e-6);
+  expect(Math.abs(parity.presentedPlayer.y - expectedPlayer.y)).toBeLessThan(1e-6);
+  expect(parity.presentedCats).toHaveLength(parity.cats.length);
+  parity.presentedCats.forEach((cat, index) => {
+    const previous = parity.previousCats[index]; const current = parity.cats[index];
+    expect(Math.abs(cat.x - (previous.x + (current.x - previous.x) * parity.alpha))).toBeLessThan(1e-6);
+    expect(Math.abs(cat.y - (previous.y + (current.y - previous.y) * parity.alpha))).toBeLessThan(1e-6);
+  });
+  const display = await canvas.evaluate((element) => ({
+    width: Number(element.dataset.displayWidth), height: Number(element.dataset.displayHeight),
+    measuredWidth: Number(element.dataset.measuredWidth), measuredHeight: Number(element.dataset.measuredHeight),
+    bufferWidth: Number(element.dataset.displayBufferWidth), bufferHeight: Number(element.dataset.displayBufferHeight),
+  }));
+  expect(display.width).toBe(display.measuredWidth);
+  expect(display.height).toBe(display.measuredHeight);
+  expect(display.bufferWidth).toBeGreaterThanOrEqual(display.width);
+  expect(display.bufferHeight).toBeGreaterThanOrEqual(display.height);
   await page.locator('.playtest-hud').getByRole('button', { name: /Pause/ }).click();
   await expect(page.locator('.play-state')).toHaveText('PAUSE');
+  await expect(canvas).toHaveAttribute('data-render-profile', 'editor');
+  await page.waitForTimeout(100);
+  const pausedCount = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(350);
+  await expect(canvas).toHaveAttribute('data-render-count', String(pausedCount));
   await page.locator('.playtest-hud').getByRole('button', { name: /Weiter/ }).click();
+  await expect(canvas).toHaveAttribute('data-render-profile', 'playtest');
+  const activeCount = Number(await canvas.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(activeCount);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(100);
+  const reducedCount = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(400);
+  await expect(canvas).toHaveAttribute('data-render-count', String(reducedCount));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(reducedCount);
   await page.locator('.playtest-hud').getByRole('button', { name: /Ende/ }).click();
   await expect(page.locator('.playtest-empty')).toBeVisible();
+  await switchWorkspace(page, 'level');
+  await switchWorkspace(page, 'playtest');
+  await page.locator('#start-playtest').click();
+  await expect(page.locator('.playtest-top-overlay')).toBeVisible({ timeout: 15_000 });
   expect(errors).toEqual([]);
 });
 
@@ -1032,17 +1097,73 @@ test('object previews show renderer output and text blocks stay freely editable'
   expect(errors).toEqual([]);
 });
 
+test('thumbnail surfaces select exact profiles and animated assets sleep while scrolled offscreen', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await openObjectLibrary(page);
+  const animated = page.locator('[data-asset-id="music-note"] .object-thumbnail');
+  const staticPreview = page.locator('[data-asset-id="tree"] .object-thumbnail');
+  await expect(animated).toHaveAttribute('data-render-profile', 'thumbnail-animated');
+  await expect(staticPreview).toHaveAttribute('data-render-profile', 'thumbnail-static');
+  const staticCount = Number(await staticPreview.getAttribute('data-render-count'));
+  await page.waitForTimeout(400);
+  await expect(staticPreview).toHaveAttribute('data-render-count', String(staticCount));
+
+  const animatedStart = Number(await animated.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await animated.getAttribute('data-render-count'))).toBeGreaterThan(animatedStart);
+  await page.locator('.object-sidebar').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(animated).not.toBeInViewport();
+  await page.waitForTimeout(100);
+  const offscreenCount = Number(await animated.getAttribute('data-render-count'));
+  await page.waitForTimeout(400);
+  await expect(animated).toHaveAttribute('data-render-count', String(offscreenCount));
+  await page.locator('.object-sidebar').evaluate((element) => { element.scrollTop = 0; });
+  await expect(animated).toBeInViewport();
+  await expect.poll(async () => Number(await animated.getAttribute('data-render-count'))).toBeGreaterThan(offscreenCount);
+
+  await loadTemplate(page, 'home');
+  await switchWorkspace(page, 'characters');
+  const actorPreviews = page.locator('.actor-browser .actor-thumbnail');
+  await expect(actorPreviews).toHaveCount(4);
+  await expect(actorPreviews.first()).toHaveAttribute('data-render-profile', /thumbnail-(?:static|animated)/);
+  await expect.poll(async () => actorPreviews.evaluateAll((items) => items.some((item) => item.dataset.renderProfile === 'thumbnail-animated'))).toBe(true);
+  expect(errors).toEqual([]);
+});
 test('sprite and transform animation studios expose keyframes, scrubbing and playback', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await openObjectLibrary(page); await page.locator('[data-asset-id="zauberberg-note"]').click();
   await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
   await expect(page.locator('.keyframe-ruler')).toBeVisible();
-  await page.getByRole('button', { name: '▶ Playback' }).click(); await page.waitForTimeout(120);
+  const spriteSurface = page.locator('.sprite-playback-stage');
+  await expect(spriteSurface).toHaveAttribute('data-render-profile', 'thumbnail-animated');
+  await expect(spriteSurface.locator('.actor-thumbnail')).toHaveAttribute('data-render-profile', 'thumbnail-static');
+  await page.getByRole('button', { name: '▶ Playback' }).click();
   await expect(page.getByRole('button', { name: 'Ⅱ Pause' })).toBeVisible();
+  const spriteStart = Number(await spriteSurface.getAttribute('data-render-count'));
+  await page.waitForTimeout(1000);
+  const spriteFrames = Number(await spriteSurface.getAttribute('data-render-count')) - spriteStart;
+  expect(spriteFrames).toBeGreaterThanOrEqual(25);
+  expect(spriteFrames).toBeLessThanOrEqual(31);
+  expect(Number(await spriteSurface.getAttribute('data-playhead'))).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Ⅱ Pause' }).click();
+  await page.waitForTimeout(100);
+  const spritePaused = Number(await spriteSurface.getAttribute('data-render-count'));
+  await page.waitForTimeout(350);
+  await expect(spriteSurface).toHaveAttribute('data-render-count', String(spritePaused));
   await page.getByRole('button', { name: 'Abbrechen' }).click();
   await page.getByRole('button', { name: /Bewegung mit Keyframes/ }).click();
   await expect(page.locator('.motion-studio')).toBeVisible();
+  const motionSurface = page.locator('.motion-preview');
+  await expect(motionSurface).toHaveAttribute('data-render-profile', 'thumbnail-animated');
+  await page.getByRole('button', { name: '▶ Playback' }).click();
+  const motionStart = Number(await motionSurface.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await motionSurface.getAttribute('data-render-count'))).toBeGreaterThan(motionStart);
+  await page.getByRole('button', { name: 'Ⅱ Pause' }).click();
+  await page.waitForTimeout(100);
+  const motionPaused = Number(await motionSurface.getAttribute('data-render-count'));
+  await page.waitForTimeout(350);
+  await expect(motionSurface).toHaveAttribute('data-render-count', String(motionPaused));
+  const motionPlayhead = Number(await motionSurface.getAttribute('data-playhead'));
   await page.getByRole('button', { name: '＋ Keyframe am Playhead' }).click();
-  await expect(page.locator('.motion-editor-grid > aside button.active')).toContainText('0.00 s');
+  await expect(page.locator('.motion-editor-grid > aside button.active b')).toHaveText(motionPlayhead.toFixed(2) + ' s');
   expect(errors).toEqual([]);
 });
