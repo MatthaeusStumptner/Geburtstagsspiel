@@ -3,7 +3,8 @@
 </script>
 
 <script>
-  import { animationById, animationKeyframes, drawActorPreview, stateAnimationId } from '@franz-lola/pixel-renderer';
+  import { drawActorPreview } from '@franz-lola/pixel-renderer';
+  import { getActorThumbnailAnimationActivity, thumbnailRenderRevision } from '../render/studio-render-session.svelte.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let {
@@ -18,18 +19,10 @@
   } = $props();
   const surfaceId = `actor-thumbnail-surface-${nextActorThumbnailSurface++}`;
   let canvas;
+  let renderedActor = null;
+  let presentationCount = 0;
 
-  function isAnimated() {
-    if (elapsed !== null) return false;
-    if (actor?.effects?.length) return true;
-    const selectedAppearance = appearance ?? actor?.appearance;
-    if (!selectedAppearance) return true;
-    const animation = animationById(selectedAppearance, animationId || actor?.animation)
-      ?? animationById(selectedAppearance, stateAnimationId(selectedAppearance, state));
-    return animationKeyframes(animation).length > 1;
-  }
-
-  function draw({ timestamp, measurement, renderCount, profile }) {
+  function draw({ animationElapsed, animationSettled, measurement, renderCount, profile }) {
     if (!canvas || !measurement) return;
     const ratio = Math.min(2, measurement.devicePixelRatio);
     const width = Math.max(34, Math.round(measurement.width * ratio));
@@ -39,7 +32,7 @@
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width / ratio, height / ratio);
     context.imageSmoothingEnabled = false;
-    drawActorPreview(context, { ...(actor ?? {}), appearance: appearance ?? actor?.appearance }, {
+    drawActorPreview(context, renderedActor ?? { ...(actor ?? {}), appearance: appearance ?? actor?.appearance }, {
       left: 2,
       top: 2,
       width: width / ratio - 4,
@@ -48,10 +41,13 @@
       kind,
       state,
       animationId,
-      elapsed: elapsed ?? timestamp / 1000,
+      elapsed: elapsed ?? animationElapsed,
     });
-    canvas.dataset.renderCount = String(renderCount + 1);
-    canvas.dataset.renderProfile = profile;
+    presentationCount += 1;
+    canvas.dataset.renderCount = String(presentationCount);
+    canvas.dataset.renderProfile = animationSettled ? 'thumbnail-static' : profile;
+    canvas.dataset.animationSettled = String(animationSettled);
+    if (animationSettled) surface.setProfile('thumbnail-static');
   }
 
   const surface = useRenderSurface({
@@ -62,10 +58,13 @@
   const renderSurface = surface.action;
 
   $effect(() => {
-    actor; appearance; kind; state; animationId; elapsed;
-    const animated = isAnimated();
+    const revision = thumbnailRenderRevision({ actor, appearance: appearance ?? actor?.appearance, kind, state, animationId, elapsed });
+    const renderData = JSON.parse(revision);
+    renderedActor = { ...(renderData.actor ?? {}), appearance: renderData.appearance };
+    const activity = getActorThumbnailAnimationActivity({ actor, appearance, state, animationId, elapsed });
+    const animated = activity.continuous || activity.duration > 0;
     surface.setProfile(animated ? 'thumbnail-animated' : 'thumbnail-static');
-    surface.setActive(animated);
+    surface.setAnimationActivity({ ...activity, restartKey: revision });
     surface.invalidate('thumbnail:reactive');
   });
 </script>

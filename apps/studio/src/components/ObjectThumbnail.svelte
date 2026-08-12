@@ -3,25 +3,19 @@
 </script>
 
 <script>
-  import { animationById, animationKeyframes, drawDecorationPreview, stateAnimationId } from '@franz-lola/pixel-renderer';
+  import { drawDecorationPreview } from '@franz-lola/pixel-renderer';
+  import { getObjectThumbnailAnimationActivity, thumbnailRenderRevision } from '../render/studio-render-session.svelte.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let { asset, language = 'standard', label = asset?.name ?? 'Objektvorschau' } = $props();
   const surfaceId = `object-thumbnail-surface-${nextObjectThumbnailSurface++}`;
   let canvas;
+  let renderedAsset = null;
   let presentationCount = $state(0);
   let presentedProfile = $state('thumbnail-static');
 
-  function isAnimated() {
-    if (asset?.animation?.type && asset.animation.type !== 'none' || asset?.effects?.length) return true;
-    const appearance = asset?.appearance;
-    const animation = animationById(appearance, asset?.spriteAnimation)
-      ?? animationById(appearance, stateAnimationId(appearance, 'idle'));
-    return animationKeyframes(animation).length > 1;
-  }
-
-  function draw({ timestamp, measurement, renderCount, profile }) {
-    if (!canvas || !asset || !measurement) return;
+  function draw({ animationElapsed, animationSettled, measurement, renderCount, profile }) {
+    if (!canvas || !renderedAsset || !measurement) return;
     const ratio = Math.min(2, measurement.devicePixelRatio);
     const width = Math.max(36, Math.round(measurement.width * ratio));
     const height = Math.max(36, Math.round(measurement.height * ratio));
@@ -30,14 +24,15 @@
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width / ratio, height / ratio);
     context.imageSmoothingEnabled = false;
-    drawDecorationPreview(context, { ...asset, x: 0, y: 0 }, {
+    drawDecorationPreview(context, { ...renderedAsset, x: 0, y: 0 }, {
       left: 2,
       top: 2,
       width: width / ratio - 4,
       height: height / ratio - 4,
-    }, timestamp / 1000, language);
-    presentationCount = renderCount + 1;
-    presentedProfile = profile;
+    }, animationElapsed, language);
+    presentationCount += 1;
+    presentedProfile = animationSettled ? 'thumbnail-static' : profile;
+    if (animationSettled) surface.setProfile('thumbnail-static');
   }
 
   const surface = useRenderSurface({
@@ -48,10 +43,12 @@
   const renderSurface = surface.action;
 
   $effect(() => {
-    asset; language;
-    const animated = isAnimated();
+    const revision = thumbnailRenderRevision({ asset, language });
+    renderedAsset = JSON.parse(revision).asset;
+    const activity = getObjectThumbnailAnimationActivity(asset);
+    const animated = activity.continuous || activity.duration > 0;
     surface.setProfile(animated ? 'thumbnail-animated' : 'thumbnail-static');
-    surface.setActive(animated);
+    surface.setAnimationActivity({ ...activity, restartKey: revision });
     surface.invalidate('thumbnail:reactive');
   });
 </script>

@@ -3,7 +3,7 @@
   import { tileKey } from '@franz-lola/content-model';
   import { cutsceneById, sampleCutscene } from '@franz-lola/game-core';
   import { DirectionalSwipeInput, PassauPixelRenderer } from '@franz-lola/pixel-renderer';
-  import { PlaytestEngine, createPlaytestPresentation } from '../playtest-engine.js';
+  import { PlaytestEngine, createPlaytestPresentation, playtestFrameDelta } from '../playtest-engine.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let { studio } = $props();
@@ -17,7 +17,7 @@
   let paused = $state(false);
   let cameraEnabled = $state(true);
   let cutsceneTime = $state(0);
-  let lastTimestamp = 0;
+  let lastTimestamp = null;
   let snapshot = $state.raw(null);
   let dialogue = $state.raw(null);
   let presentationCount = $state(0);
@@ -35,17 +35,17 @@
     if (!studio.validation.ok) { studio.notify('Bitte zuerst die Level-Fehler beheben'); studio.workspace = 'level'; return; }
     if (!renderer) { pendingStart = true; studio.notify('Grafik wird vorbereitet · der Test startet gleich automatisch'); return; }
     pendingStart = false;
-    renderer.setLevel(studio.level); paused = false; lastTimestamp = 0; cutsceneTime = 0;
+    renderer.setLevel(studio.level); paused = false; lastTimestamp = null; cutsceneTime = 0;
     if (intro) mode = 'cutscene'; else startGame();
     syncSurface('playtest:start');
   }
   function startGame() {
-    engine = new PlaytestEngine(studio.level, studio.difficulty); mode = 'game'; snapshot = engine.snapshot(); dialogue = null; lastTimestamp = 0;
+    engine = new PlaytestEngine(studio.level, studio.difficulty); mode = 'game'; snapshot = engine.snapshot(); dialogue = null; lastTimestamp = null;
     syncSurface('playtest:game');
   }
   function reset() { start(); }
   function stop() { mode = 'stopped'; engine = null; snapshot = null; dialogue = null; swipe.cancel(); syncSurface('playtest:stop'); }
-  function togglePause() { paused = !paused; lastTimestamp = 0; syncSurface(paused ? 'playtest:pause' : 'playtest:resume'); }
+  function togglePause() { paused = !paused; lastTimestamp = null; syncSurface(paused ? 'playtest:pause' : 'playtest:resume'); }
   function direction(name) { if (engine && mode === 'game') engine.setDirection(name); }
 
   function renderCutscene() {
@@ -101,8 +101,8 @@
     renderer.resize(measurement);
     let result = null;
     if (mode !== 'stopped' && !paused) {
-      const delta = lastTimestamp ? timestamp - lastTimestamp : 0;
-      const seconds = delta > 0 && delta <= 100 ? delta / 1000 : 0;
+      const seconds = playtestFrameDelta(lastTimestamp, timestamp, { resume: frame.reason === 'visibility:visible' });
+      canvas.dataset.frameDelta = String(seconds);
       if (mode === 'cutscene') {
         cutsceneTime += seconds;
         if (cutsceneTime >= intro.duration) startGame();

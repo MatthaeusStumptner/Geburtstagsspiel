@@ -152,6 +152,17 @@ async function canvasSignature(locator) {
   });
 }
 
+async function canvasOpaqueColors(locator) {
+  return locator.evaluate((canvas) => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const colors = new Set();
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] > 0) colors.add(`${pixels[index]},${pixels[index + 1]},${pixels[index + 2]},${pixels[index + 3]}`);
+    }
+    return [...colors].sort();
+  });
+}
+
 const storyCases = [
   { id: 'home', event: 'Geburtstagspost', eventCount: 3, cutscene: 'Aufbruch am Bramerhof', tracks: 4, keyframes: 8, duration: 4 },
   { id: 'hals', event: 'Das Rauschen der Ilz', eventCount: 2, cutscene: 'Entlang der Ilz', tracks: 4, keyframes: 10, duration: 5.2 },
@@ -904,6 +915,78 @@ test('playtest runs the same intro, camera and direct controls as the game', asy
   expect(errors).toEqual([]);
 });
 
+test('playtest clamps a visible long frame and keeps its display contract', async ({ page }) => {
+  const consoleProblems = [];
+  page.on('console', (message) => { if (['warning', 'error'].includes(message.type())) consoleProblems.push(message.text()); });
+  const errors = await openCleanEditor(page);
+  await switchWorkspace(page, 'playtest');
+  await page.locator('#start-playtest').click();
+  await expect(page.locator('.playtest-top-overlay')).toBeVisible({ timeout: 15_000 });
+  const skip = page.getByRole('button', { name: /Intro überspringen/ });
+  if (await skip.isVisible()) await skip.click();
+  const canvas = page.locator('#playtest-canvas');
+  await expect(canvas).toHaveAttribute('data-render-profile', 'playtest');
+  await expect(canvas).toHaveAttribute('data-presentation-kind', 'franz-lola-presentation-frame');
+
+  const longDelta = await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => {
+    const canvas = document.querySelector('#playtest-canvas');
+    const observer = new MutationObserver(() => { observer.disconnect(); resolve(Number(canvas.dataset.frameDelta)); });
+    observer.observe(canvas, { attributes: true, attributeFilter: ['data-frame-delta'] });
+    const started = performance.now();
+    while (performance.now() - started < 180) { /* visible main-thread delay */ }
+  })));
+  expect(longDelta).toBe(0.1);
+
+  const parity = await canvas.evaluate((element) => ({
+    player: JSON.parse(element.dataset.snapshotPlayer),
+    previous: JSON.parse(element.dataset.snapshotPreviousPlayer),
+    presented: JSON.parse(element.dataset.presentedPlayer),
+    alpha: Number(element.dataset.interpolationAlpha),
+  }));
+  expect(Math.abs(parity.presented.x - (parity.previous.x + (parity.player.x - parity.previous.x) * parity.alpha))).toBeLessThan(1e-6);
+  expect(Math.abs(parity.presented.y - (parity.previous.y + (parity.player.y - parity.previous.y) * parity.alpha))).toBeLessThan(1e-6);
+
+
+  const originalCamera = await canvas.getAttribute('data-camera-source');
+  const playtestOverlay = page.locator('.playtest-top-overlay');
+  await playtestOverlay.getByRole('button', { name: /Kamera/ }).click();
+  await expect.poll(() => canvas.getAttribute('data-camera-source')).not.toBe(originalCamera);
+  await playtestOverlay.getByRole('button', { name: /Vollbild/ }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+  await playtestOverlay.getByRole('button', { name: /Vollbild/ }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
+
+  const beforeResize = Number(await canvas.getAttribute('data-measured-width'));
+  await page.setViewportSize({ width: 1180, height: 760 });
+  await expect.poll(async () => Number(await canvas.getAttribute('data-measured-width'))).not.toBe(beforeResize);
+  const resized = await canvas.evaluate((element) => ({
+    displayWidth: Number(element.dataset.displayWidth),
+    displayHeight: Number(element.dataset.displayHeight),
+    measuredWidth: Number(element.dataset.measuredWidth),
+    measuredHeight: Number(element.dataset.measuredHeight),
+    bufferWidth: Number(element.dataset.displayBufferWidth),
+    bufferHeight: Number(element.dataset.displayBufferHeight),
+  }));
+  expect(resized.displayWidth).toBe(resized.measuredWidth);
+  expect(resized.displayHeight).toBe(resized.measuredHeight);
+  expect(resized.bufferWidth).toBeGreaterThanOrEqual(resized.displayWidth);
+  expect(resized.bufferHeight).toBeGreaterThanOrEqual(resized.displayHeight);
+
+  await page.setViewportSize({ width: 393, height: 760 });
+  await expect(page.locator('.mobile-dpad')).toBeVisible();
+  const small = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(small.scrollWidth).toBe(small.width);
+  await page.screenshot({ path: 'output/playwright/task6-fixround1-small-playtest.png' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(async () => Number(await canvas.getAttribute('data-measured-width'))).not.toBe(resized.measuredWidth);
+  const screenshotStart = Number(await canvas.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(screenshotStart + 2);
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: 'output/playwright/task6-fixround1-desktop-playtest.png' });
+  expect(await page.locator('vite-error-overlay, #webpack-dev-server-client-overlay, [data-error-overlay], .error-overlay').count()).toBe(0);
+  expect(consoleProblems).toEqual([]);
+  expect(errors).toEqual([]);
+});
 test('authorized non-technical editors share and publish mixed exact content revisions together', async ({ page }) => {
   const errors = []; const published = []; const shared = new Map(); const content = new Map(); let checks = 0;
   page.on('pageerror', (error) => errors.push(error.message));
@@ -1165,5 +1248,131 @@ test('sprite and transform animation studios expose keyframes, scrubbing and pla
   const motionPlayhead = Number(await motionSurface.getAttribute('data-playhead'));
   await page.getByRole('button', { name: '＋ Keyframe am Playhead' }).click();
   await expect(page.locator('.motion-editor-grid > aside button.active b')).toHaveText(motionPlayhead.toFixed(2) + ' s');
+  expect(errors).toEqual([]);
+});
+test('paused sprite preview presents nested pixel and palette edits exactly once before sleeping', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await openObjectLibrary(page);
+  await page.locator('[data-asset-id="music-note"]').click();
+  await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
+  const preview = page.locator('.sprite-playback-preview');
+  await expect(preview).toHaveAttribute('data-render-profile', 'thumbnail-static');
+  await page.waitForTimeout(1100);
+  const pixelStart = Number(await preview.getAttribute('data-render-count'));
+  const pixelSignature = await canvasSignature(preview);
+  await page.locator('.pixel-grid button[data-x="0"][data-y="0"]').click();
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count')), { timeout: 2500 }).toBe(pixelStart + 1);
+  await expect.poll(() => canvasSignature(preview)).not.toBe(pixelSignature);
+  await page.waitForTimeout(1200);
+  await expect(preview).toHaveAttribute('data-render-count', String(pixelStart + 1));
+
+  const paletteStart = Number(await preview.getAttribute('data-render-count'));
+  const paletteColors = await canvasOpaqueColors(preview);
+  await page.getByLabel('Ausgewählte Farbe').evaluate((input) => {
+    input.value = '#ff4f87';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count')), { timeout: 2500 }).toBe(paletteStart + 1);
+  await expect.poll(() => canvasOpaqueColors(preview)).not.toEqual(paletteColors);
+  await page.waitForTimeout(1200);
+  await expect(preview).toHaveAttribute('data-render-count', String(paletteStart + 1));
+
+  const keyframeCount = await page.locator('.sheet-grid > button').count();
+  await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
+  await expect(page.locator('.sheet-grid > button')).toHaveCount(keyframeCount + 1);
+  await preview.scrollIntoViewIfNeeded();
+  await expect(preview).toBeInViewport();
+  await page.waitForTimeout(1200);
+  const frameStart = Number(await preview.getAttribute('data-render-count'));
+  const frameSignature = await canvasSignature(preview);
+  await page.getByRole('button', { name: 'Leeren', exact: true }).dispatchEvent('click');
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count')), { timeout: 2500 }).toBe(frameStart + 1);
+  await expect.poll(() => canvasSignature(preview)).not.toBe(frameSignature);
+  await page.waitForTimeout(1200);
+  await expect(preview).toHaveAttribute('data-render-count', String(frameStart + 1));
+  expect(errors).toEqual([]);
+});
+
+test('reduced-motion effect edits update visible thumbnail output once before sleeping', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const errors = await openCleanEditor(page);
+  await openObjectLibrary(page);
+  const objectCard = page.locator('[data-asset-id="tree"]');
+  await objectCard.click();
+  const preview = page.locator('.asset-inspector-preview .object-thumbnail');
+  await expect(preview).toHaveAttribute('data-render-profile', 'thumbnail-static');
+  await page.waitForTimeout(1100);
+  const surfaceId = await preview.getAttribute('data-surface-id');
+  const effectStart = Number(await preview.getAttribute('data-render-count'));
+  const effectSignature = await canvasSignature(preview);
+  await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
+  await preview.scrollIntoViewIfNeeded();
+  await expect(preview).toBeInViewport();
+  await expect(preview).toHaveAttribute('data-surface-id', surfaceId);
+  await expect.poll(async () => Number(await preview.getAttribute('data-render-count')), { timeout: 2500 }).toBe(effectStart + 1);
+  await expect.poll(() => canvasSignature(preview)).not.toBe(effectSignature);
+  await page.waitForTimeout(1200);
+  await expect(preview).toHaveAttribute('data-render-count', String(effectStart + 1));
+  expect(errors).toEqual([]);
+});
+
+test('actor and object non-loop thumbnails settle locally while loop playback keeps cadence', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'home');
+  await switchWorkspace(page, 'characters');
+  await page.locator('.actor-browser button').filter({ hasText: 'Franz & Lola' }).click();
+  await page.getByRole('button', { name: /Sprite-Sheet bearbeiten/ }).click();
+  await page.getByLabel('Dauer').fill('1');
+  await page.getByLabel('Dauer').press('Tab');
+  await page.getByRole('checkbox', { name: 'Loop' }).uncheck();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  const actor = page.locator('.character-hero .actor-thumbnail');
+  await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-animated');
+  await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-static', { timeout: 3500 });
+  const actorSettled = Number(await actor.getAttribute('data-render-count'));
+  await page.waitForTimeout(650);
+  await expect(actor).toHaveAttribute('data-render-count', String(actorSettled));
+
+  await switchWorkspace(page, 'objects');
+  await page.locator('#create-object').click();
+  const creator = page.getByRole('dialog', { name: 'Was soll im Level erscheinen?' });
+  await creator.getByLabel('Name').fill('Non Loop Probe');
+  await creator.getByRole('radio', { name: /Leere Leinwand/ }).check();
+  await creator.getByRole('button', { name: /Im Sprite-Studio gestalten/ }).click();
+  await page.getByRole('button', { name: '＋ Keyframe duplizieren' }).click();
+  await page.getByLabel('Dauer').fill('1');
+  await page.getByLabel('Dauer').press('Tab');
+  await page.getByRole('checkbox', { name: 'Loop' }).uncheck();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
+  const objectCard = page.locator('.asset-list [data-asset-id]').filter({ hasText: 'Non Loop Probe' });
+  await objectCard.scrollIntoViewIfNeeded();
+  await expect(objectCard).toBeInViewport();
+  const storedObject = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-object-library-v1'))
+    .find((entry) => entry.name === 'Non Loop Probe'));
+  expect(storedObject.animation.type).toBe('none');
+  expect(storedObject.effects).toEqual([]);
+  expect(storedObject.appearance.animations[0]).toMatchObject({ duration: 1, loop: false });
+  expect(storedObject.appearance.animations[0].keyframes).toHaveLength(2);
+  const object = objectCard.locator('.object-thumbnail');
+  await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
+  await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-static', { timeout: 3500 });
+  const objectSettled = Number(await object.getAttribute('data-render-count'));
+  await page.waitForTimeout(650);
+  await expect(object).toHaveAttribute('data-render-count', String(objectSettled));
+
+  await objectCard.click();
+  await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
+  await page.getByRole('checkbox', { name: 'Loop' }).check();
+  await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await objectCard.scrollIntoViewIfNeeded();
+  await expect(objectCard).toBeInViewport();
+  const storedLoop = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-object-library-v1'))
+    .find((entry) => entry.name === 'Non Loop Probe').appearance.animations[0].loop);
+  expect(storedLoop).toBe(true);
+  const loopStart = Number(await object.getAttribute('data-render-count'));
+  await page.waitForTimeout(650);
+  await expect.poll(async () => Number(await object.getAttribute('data-render-count'))).toBeGreaterThan(loopStart + 5);
+  await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
   expect(errors).toEqual([]);
 });

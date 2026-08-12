@@ -205,6 +205,94 @@ test('a reduced-motion transition wakes static content before later edits and re
   assert.equal(clock.pendingCount(), 0);
 });
 
+test('profile switches preserve a queued final reduced frame in both directions', () => {
+  for (const [from, to] of [['editor', 'playtest'], ['playtest', 'editor']]) {
+    const clock = createFrameClock();
+    const coordinator = createRenderCoordinator(clock.adapter);
+    const frames = [];
+    const session = createStudioRenderSession({ coordinator, id: `switch-${from}`, profile: from, render: (frame) => frames.push(frame) });
+    session.setReducedMotion(true);
+    assert.equal(clock.pendingCount(), 1);
+    session.setProfile(to);
+    assert.equal(clock.pendingCount(), 1, `${from} -> ${to} keeps final reduced work runnable`);
+    clock.present(0);
+    clock.present(1000 / 60);
+    assert.deepEqual(frames.map(({ profile, reason }) => ({ profile, reason })), [{ profile: to, reason: 'motion:reduced' }]);
+    assert.equal(clock.pendingCount(), 0);
+    assert.equal(coordinator.snapshot().surfaces[`switch-${from}`].active, false);
+    session.destroy();
+  }
+});
+
+test('profile switch atomically preserves a pending edit before its final reduced frame', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  const session = createStudioRenderSession({ coordinator, id: 'switch-edit', profile: 'editor', render: (frame) => frames.push(frame) });
+  session.invalidate('pointer:pixel');
+  session.setReducedMotion(true);
+  session.setProfile('playtest');
+  clock.present(0);
+  clock.present(1000 / 60);
+  clock.present(2000 / 60);
+  assert.equal(frames.length, 2, 'the pending edit is presented before one separate final reduced frame');
+  assert.equal(frames[0].reason, 'pointer:pixel');
+  assert.equal(clock.pendingCount(), 0);
+  session.destroy();
+});
+
+test('hidden and exceptional profile switches retain pending reduced work for visible retry', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  let failOnce = true;
+  const session = createStudioRenderSession({
+    coordinator,
+    id: 'switch-hidden',
+    profile: 'editor',
+    visible: false,
+    render: (frame) => {
+      if (failOnce) { failOnce = false; throw new Error('present failed once'); }
+      frames.push(frame);
+    },
+  });
+  session.setReducedMotion(true);
+  session.setProfile('playtest');
+  assert.equal(clock.pendingCount(), 0);
+  session.setVisible(true);
+  assert.equal(clock.pendingCount(), 1);
+  assert.throws(() => clock.present(0), /present failed once/);
+  assert.equal(clock.pendingCount(), 1, 'failed presentation stays queued');
+  clock.present(1000 / 60);
+  clock.present(2000 / 60);
+  assert.deepEqual(frames.map((frame) => frame.reason), ['motion:reduced']);
+  assert.equal(clock.pendingCount(), 0);
+  session.destroy();
+});
+
+test('profile re-registration remains reentrant with one surface owner', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  let session;
+  session = createStudioRenderSession({
+    coordinator,
+    id: 'switch-reentrant',
+    profile: 'editor',
+    render: (frame) => {
+      frames.push(frame);
+      if (frame.profile === 'playtest') session.setProfile('editor');
+    },
+  });
+  session.setReducedMotion(true);
+  session.setProfile('playtest');
+  clock.present(0);
+  clock.present(1000 / 60);
+  assert.equal(Object.keys(coordinator.snapshot().surfaces).length, 1);
+  assert.equal(coordinator.snapshot().surfaces['switch-reentrant'].profile, 'editor');
+  assert.equal(clock.pendingCount(), 0);
+  session.destroy();
+});
 test('fallback walker painter output keeps the visible starter player continuously active', () => {
   const starter = createStarterLevel();
   assert.notDeepEqual(walkerOutput(starter.actors.player, 0), walkerOutput(starter.actors.player, 0.1), 'the real fallback painter changes the walker and dog output with elapsed time');

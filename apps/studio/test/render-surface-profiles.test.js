@@ -31,7 +31,8 @@ const { createLevelDocument } = await import('@franz-lola/content-model');
 const { createGameSession } = await import('@franz-lola/game-core');
 const { createRenderCoordinator } = await import('@franz-lola/render-coordinator');
 const playtestEngineModule = await import('../src/playtest-engine.js');
-const { createStudioRenderSession } = await import('../src/render/studio-render-session.svelte.js');
+const studioRenderModule = await import('../src/render/studio-render-session.svelte.js');
+const { createStudioRenderSession } = studioRenderModule;
 const { createRenderSurfaceLifecycle } = await import('../src/render/use-render-surface.svelte.js');
 
 function createFrameClock() {
@@ -181,6 +182,114 @@ test('reduced motion retires continuous playtest work after its final presentati
   assert.ok(frames.length <= 3, `reduced playtest kept presenting ${frames.length} frames`);
   session.destroy();
 });
+test('paused preview edits produce one static frame for nested pixels, palette, keyframes and effects', () => {
+  assert.equal(typeof studioRenderModule.thumbnailRenderRevision, 'function');
+  const appearance = {
+    width: 2,
+    height: 2,
+    palette: ['transparent', '#55d9dd'],
+    pixels: ['10', '01'],
+    animations: [{ id: 'idle', duration: 1, loop: false, keyframes: [{ id: 'a', time: 0, pixels: ['10', '01'] }] }],
+    stateAnimations: { idle: 'idle' },
+  };
+  const actor = { appearance, effects: [{ id: 'neon', type: 'neon', color: '#55d9dd', intensity: 0.5 }] };
+  const revision = () => studioRenderModule.thumbnailRenderRevision({ actor, appearance, animationId: 'idle', elapsed: 0 });
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  const session = createStudioRenderSession({ coordinator, id: 'paused-preview', profile: 'thumbnail-static', render: (frame) => frames.push(frame) });
+  let lastRevision = '';
+  function flushEdit(timestamp) {
+    const nextRevision = revision();
+    if (nextRevision !== lastRevision) session.invalidate('thumbnail:edit');
+    lastRevision = nextRevision;
+    clock.present(timestamp);
+    clock.present(timestamp + 1300);
+  }
+
+  flushEdit(0);
+  assert.equal(frames.length, 1);
+  appearance.pixels[0] = '11';
+  flushEdit(2000);
+  assert.equal(frames.length, 2, 'pixel edit presents exactly once');
+  appearance.palette[1] = '#ff4f87';
+  flushEdit(4000);
+  assert.equal(frames.length, 3, 'palette edit presents exactly once');
+  appearance.animations[0].keyframes[0].pixels[1] = '11';
+  flushEdit(6000);
+  assert.equal(frames.length, 4, 'keyframe edit presents exactly once');
+  actor.effects[0].intensity = 0.8;
+  flushEdit(8000);
+  assert.equal(frames.length, 5, 'effect edit presents exactly once');
+  flushEdit(10000);
+  assert.equal(frames.length, 5, 'unchanged static preview remains asleep');
+  session.destroy();
+});
+
+test('actor and object thumbnail activity distinguishes non-loop deadlines, loops and one-frame content', () => {
+  assert.equal(typeof studioRenderModule.getActorThumbnailAnimationActivity, 'function');
+  assert.equal(typeof studioRenderModule.getObjectThumbnailAnimationActivity, 'function');
+  const frames = [{ pixels: ['0'] }, { pixels: ['1'] }];
+  const appearance = {
+    animations: [
+      { id: 'once', duration: 1, loop: false, keyframes: [{ time: 0, pixels: ['0'] }, { time: 0.75, pixels: ['1'] }] },
+      { id: 'loop', duration: 1, loop: true, keyframes: [{ time: 0, pixels: ['0'] }, { time: 0.5, pixels: ['1'] }] },
+      { id: 'still', fps: 4, loop: true, frames: [frames[0]] },
+    ],
+    stateAnimations: { idle: 'once' },
+  };
+  assert.deepEqual(studioRenderModule.getActorThumbnailAnimationActivity({ appearance, animationId: 'once' }), { continuous: false, duration: 1 });
+  assert.deepEqual(studioRenderModule.getActorThumbnailAnimationActivity({ appearance, animationId: 'loop' }), { continuous: true, duration: 0 });
+  assert.deepEqual(studioRenderModule.getActorThumbnailAnimationActivity({ appearance, animationId: 'still' }), { continuous: false, duration: 0 });
+  assert.deepEqual(studioRenderModule.getActorThumbnailAnimationActivity({ appearance, animationId: 'once', elapsed: 0.4 }), { continuous: false, duration: 0 });
+  assert.deepEqual(studioRenderModule.getActorThumbnailAnimationActivity({ actor: { effects: [{ type: 'glitch' }] }, appearance, animationId: 'still' }), { continuous: true, duration: 0 });
+  assert.deepEqual(studioRenderModule.getObjectThumbnailAnimationActivity({ appearance, spriteAnimation: 'once', animation: { type: 'none' }, effects: [] }), { continuous: false, duration: 1 });
+  assert.deepEqual(studioRenderModule.getObjectThumbnailAnimationActivity({ appearance, spriteAnimation: 'loop', animation: { type: 'none' }, effects: [] }), { continuous: true, duration: 0 });
+  assert.deepEqual(studioRenderModule.getObjectThumbnailAnimationActivity({ appearance: null, animation: { type: 'keyframes', duration: 0.75, loop: false, keyframes: [{ time: 0 }, { time: 0.75 }] }, effects: [] }), { continuous: false, duration: 0.75 });
+});
+
+test('non-loop activity uses a visible local epoch, settles, pauses offscreen and restarts by revision', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  const session = createStudioRenderSession({ coordinator, id: 'thumbnail-deadline', profile: 'thumbnail-animated', render: (frame) => frames.push(frame) });
+  session.setAnimationActivity({ continuous: false, duration: 1, restartKey: 'actor-v1' });
+  clock.present(5000);
+  clock.present(5600);
+  session.setVisible(false);
+  clock.present(15600);
+  session.setVisible(true);
+  clock.present(16000);
+  clock.present(16400);
+  assert.deepEqual(frames.map((frame) => frame.animationElapsed), [0, 0.6, 0.6, 1]);
+  assert.equal(frames.at(-1).animationSettled, true);
+  assert.equal(clock.pendingCount(), 0);
+  assert.equal(coordinator.snapshot().surfaces['thumbnail-deadline'].active, false);
+
+  session.setAnimationActivity({ continuous: false, duration: 1, restartKey: 'actor-v1' });
+  assert.equal(clock.pendingCount(), 0, 'same revision does not restart settled playback');
+  session.setAnimationActivity({ continuous: false, duration: 1, restartKey: 'actor-v2' });
+  assert.equal(clock.pendingCount(), 1);
+  clock.present(20000);
+  assert.equal(frames.at(-1).animationElapsed, 0);
+  session.setAnimationActivity({ continuous: true, duration: 0, restartKey: 'loop-v1' });
+  clock.present(21000);
+  assert.equal(clock.pendingCount(), 1, 'looping playback keeps its cadence');
+  session.setAnimationActivity({ continuous: false, duration: 0, restartKey: 'still-v1' });
+  assert.equal(clock.pendingCount(), 0, 'one-frame content sleeps');
+  session.destroy();
+});
+
+test('visible playtest deltas clamp like Game while explicit resumes discard hidden time', () => {
+  assert.equal(typeof playtestEngineModule.playtestFrameDelta, 'function');
+  assert.equal(playtestEngineModule.playtestFrameDelta(null, 16), 0);
+  assert.equal(playtestEngineModule.playtestFrameDelta(0, 16), 0.016);
+  assert.equal(playtestEngineModule.playtestFrameDelta(16, 116), 0.1);
+  assert.equal(playtestEngineModule.playtestFrameDelta(116, 616), 0.1);
+  assert.equal(playtestEngineModule.playtestFrameDelta(616, 600), 0);
+  assert.equal(playtestEngineModule.playtestFrameDelta(616, Number.NaN), 0);
+  assert.equal(playtestEngineModule.playtestFrameDelta(616, 5000, { resume: true }), 0);
+});
 function parityLevel() {
   return createLevelDocument({
     id: 'playtest-parity',
@@ -198,7 +307,10 @@ test('playtest snapshots and presentation input preserve the game-core fixed-ste
   const level = parityLevel();
   const engine = new playtestEngineModule.PlaytestEngine(level, 'normal');
   const game = createGameSession({ level, difficulty: 'normal', seed: level.gameplay.pelletSeed });
-  for (const [input, dt] of [['right', 0.1], ['up', 1 / 60], ['left', 0.075]]) {
+  let previousTimestamp = null;
+  for (const [input, timestamp, resume] of [['right', 16, false], ['up', 116, false], ['left', 616, false], ['down', 5000, true], ['right', 5016, false]]) {
+    const dt = playtestEngineModule.playtestFrameDelta(previousTimestamp, timestamp, { resume });
+    previousTimestamp = timestamp;
     engine.queueInput(input);
     game.queueInput(input);
     assert.deepEqual(engine.step(dt), game.step(dt));
