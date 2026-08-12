@@ -1,11 +1,15 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, setContext } from 'svelte';
   import LevelWorkspace from './components/LevelWorkspace.svelte';
   import { StudioState } from './studio/store.svelte.js';
   import { StudioRouter } from './studio-router.js';
   import { applyStudioRoute, routeFromStudio } from './studio-navigation.js';
   import { getPublisherClient } from './publisher-client.js';
 
+  import { STUDIO_RENDER_COORDINATOR_CONTEXT } from './render/use-render-surface.svelte.js';
+
+  let { renderCoordinator } = $props();
+  setContext(STUDIO_RENDER_COORDINATOR_CONTEXT, () => renderCoordinator);
   const studio = new StudioState();
   const publisher = getPublisherClient();
   let projectOpen = $state(false);

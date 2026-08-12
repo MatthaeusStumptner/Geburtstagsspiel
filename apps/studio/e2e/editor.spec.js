@@ -246,6 +246,51 @@ test('the level canvas can zoom, pan and return to a complete overview', async (
   expect(errors).toEqual([]);
 });
 
+test('level canvas presents a pointer edit on the next frame and then sleeps immediately', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  const canvas = page.locator('#level-canvas');
+  await expect(canvas).toHaveAttribute('data-render-count', /\d+/);
+  const settledCount = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(500);
+  await expect(canvas).toHaveAttribute('data-render-count', String(settledCount));
+
+  await page.locator('[data-tool="wall"]').click();
+  await page.waitForTimeout(50);
+  const point = await canvasPoint(page, 4, 4);
+  const beforeHover = Number(await canvas.getAttribute('data-render-count'));
+  await page.mouse.move(point.x, point.y);
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(beforeHover);
+  const beforeDown = Number(await canvas.getAttribute('data-render-count'));
+  await page.mouse.down();
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(beforeDown);
+  const beforeEdit = Number(await canvas.getAttribute('data-render-count'));
+  await page.mouse.up();
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBe(beforeEdit + 1);
+  await expect(canvas).toHaveAttribute('data-last-render-reason', 'pointer:wall');
+
+  const afterEdit = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(500);
+  await expect(canvas).toHaveAttribute('data-render-count', String(afterEdit));
+  expect(errors).toEqual([]);
+});
+
+test('level canvas animated content sleeps for reduced motion and wakes when restored', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  const canvas = page.locator('#level-canvas');
+  await loadTemplate(page, 'home');
+  const animatedStart = Number(await canvas.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(animatedStart);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(100);
+  const reducedCount = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(500);
+  await expect(canvas).toHaveAttribute('data-render-count', String(reducedCount));
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(reducedCount);
+  expect(errors).toEqual([]);
+});
 test('canvas selection recognizes context, opens the owning details and keeps overlap cycling editable', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'zauberberg');
