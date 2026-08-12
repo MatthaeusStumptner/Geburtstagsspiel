@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStarterLevel, EditorState, compactWallCells, subtractWallCell, wallRectanglesToCells } from '../src/editor-state.js';
 
+test('starter level has no power-ups, so its canvas can remain static until the author adds one', () => {
+  assert.deepEqual(createStarterLevel().collectibles.powerUps, []);
+});
 test('compacts edited wall cells without changing their occupied area', () => {
   const cells = new Set(['1,1', '2,1', '3,1', '1,2', '2,2', '3,2', '6,4']);
   const rectangles = compactWallCells(cells);

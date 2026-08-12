@@ -99,6 +99,72 @@ test('surface lifecycle measures outside presentation and owns resize, visibilit
   assert.deepEqual(coordinator.snapshot().surfaces, {});
 });
 
+test('surface lifecycle remains visible without observer APIs and cleans up its queued frame', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const surface = createRenderSurfaceLifecycle({
+    coordinator,
+    id: 'no-observer-level',
+    profile: 'editor',
+    render() {},
+    environment: {
+      devicePixelRatio: () => 1,
+      reducedMotionQuery: () => null,
+    },
+  });
+
+  const mounted = surface.action({ getBoundingClientRect: () => ({ width: 640, height: 480 }) });
+  clock.present(0);
+  assert.equal(surface.snapshot().visible, true);
+  mounted.destroy();
+  assert.deepEqual(coordinator.snapshot().surfaces, {});
+  assert.equal(clock.pendingCount(), 0);
+});
+
+test('surface lifecycle rolls back each observer construction failure and can remount', () => {
+  for (const failedObserver of ['resize', 'intersection']) {
+    const clock = createFrameClock();
+    const coordinator = createRenderCoordinator(clock.adapter);
+    const observers = { resizeDisconnects: 0, intersectionDisconnects: 0 };
+    let shouldThrow = true;
+    const observer = (kind, callback) => ({
+      observe() {},
+      disconnect() { observers[`${kind}Disconnects`] += 1; },
+      callback,
+    });
+    const surface = createRenderSurfaceLifecycle({
+      coordinator,
+      id: `rollback-${failedObserver}`,
+      profile: 'editor',
+      render() {},
+      environment: {
+        devicePixelRatio: () => 1,
+        reducedMotionQuery: () => null,
+        createResizeObserver(callback) {
+          if (shouldThrow && failedObserver === 'resize') throw new Error('resize observer failure');
+          return observer('resize', callback);
+        },
+        createIntersectionObserver(callback) {
+          if (shouldThrow && failedObserver === 'intersection') throw new Error('intersection observer failure');
+          return observer('intersection', callback);
+        },
+      },
+    });
+
+    assert.throws(() => surface.action({ getBoundingClientRect: () => ({ width: 320, height: 240 }) }), new RegExp(`${failedObserver} observer failure`));
+    assert.deepEqual(coordinator.snapshot().surfaces, {});
+    assert.equal(clock.pendingCount(), 0);
+    if (failedObserver === 'intersection') assert.equal(observers.resizeDisconnects, 1);
+
+    shouldThrow = false;
+    const mounted = surface.action({ getBoundingClientRect: () => ({ width: 320, height: 240 }) });
+    clock.present(0);
+    mounted.destroy();
+    assert.equal(observers.resizeDisconnects, failedObserver === 'intersection' ? 2 : 1);
+    assert.equal(observers.intersectionDisconnects, 1);
+    assert.deepEqual(coordinator.snapshot().surfaces, {});
+  }
+});
 test('surface lifecycle preserves the canvas border box for pointer-to-world geometry', () => {
   const clock = createFrameClock();
   const coordinator = createRenderCoordinator(clock.adapter);

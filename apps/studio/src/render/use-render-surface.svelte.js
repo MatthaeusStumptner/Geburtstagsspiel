@@ -4,12 +4,15 @@ import { createStudioRenderSession } from './studio-render-session.svelte.js';
 export const STUDIO_RENDER_COORDINATOR_CONTEXT = Symbol.for('franz-lola.studio.render-coordinator');
 
 const readVisible = (value) => Boolean(typeof value === 'function' ? value() : value);
+const NOOP_OBSERVER = Object.freeze({ observe() {}, disconnect() {} });
+const observerFrom = (factory, callback) => typeof factory === 'function' ? factory(callback) ?? NOOP_OBSERVER : NOOP_OBSERVER;
+const disconnect = (observer) => observer?.disconnect?.();
 
 function browserEnvironment() {
   return {
     devicePixelRatio: () => globalThis.devicePixelRatio ?? 1,
-    createResizeObserver: (callback) => new ResizeObserver(callback),
-    createIntersectionObserver: (callback) => new IntersectionObserver(callback),
+    createResizeObserver: (callback) => typeof globalThis.ResizeObserver === 'function' ? new globalThis.ResizeObserver(callback) : null,
+    createIntersectionObserver: (callback) => typeof globalThis.IntersectionObserver === 'function' ? new globalThis.IntersectionObserver(callback) : null,
     reducedMotionQuery: () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null,
   };
 }
@@ -47,48 +50,62 @@ export function createRenderSurfaceLifecycle({
     action(node) {
       if (mounted) throw new Error(`render surface already mounted: ${id}`);
       mounted = true;
-      session = createStudioRenderSession({
-        coordinator,
-        id,
-        profile,
-        visible: workspaceVisible && intersectionVisible,
-        active: ambientActive,
-        render,
-      });
+      destroyed = false;
+      let resizeObserver = null;
+      let intersectionObserver = null;
+      let motionQuery = null;
+      let updateReducedMotion = null;
+      const cleanup = () => {
+        disconnect(resizeObserver);
+        disconnect(intersectionObserver);
+        motionQuery?.removeEventListener?.('change', updateReducedMotion);
+        motionQuery?.removeListener?.(updateReducedMotion);
+        session?.destroy();
+        session = null;
+        mounted = false;
+      };
 
-      const motionQuery = environment.reducedMotionQuery();
-      const updateReducedMotion = (event = motionQuery) => session?.setReducedMotion(Boolean(event?.matches));
-      updateReducedMotion();
-      const initialRect = node.getBoundingClientRect();
-      session.resize(measurementFrom(initialRect, environment));
-      if (pendingReason) {
-        session.invalidate(pendingReason);
-        pendingReason = null;
+      try {
+        session = createStudioRenderSession({
+          coordinator,
+          id,
+          profile,
+          visible: workspaceVisible && intersectionVisible,
+          active: ambientActive,
+          render,
+        });
+        motionQuery = environment.reducedMotionQuery?.() ?? null;
+        updateReducedMotion = (event = motionQuery) => session?.setReducedMotion(Boolean(event?.matches));
+        updateReducedMotion();
+        const initialRect = node.getBoundingClientRect();
+        session.resize(measurementFrom(initialRect, environment));
+        if (pendingReason) {
+          session.invalidate(pendingReason);
+          pendingReason = null;
+        }
+
+        resizeObserver = observerFrom(environment.createResizeObserver, (entries) => {
+          const entry = entries[0];
+          if (entry) session?.resize(measurementFrom(entry, environment));
+        });
+        intersectionObserver = observerFrom(environment.createIntersectionObserver, (entries) => {
+          intersectionVisible = Boolean(entries[0]?.isIntersecting);
+          updateVisibility();
+        });
+        resizeObserver.observe?.(node);
+        intersectionObserver.observe?.(node);
+        motionQuery?.addEventListener?.('change', updateReducedMotion);
+        motionQuery?.addListener?.(updateReducedMotion);
+      } catch (error) {
+        cleanup();
+        throw error;
       }
-
-      const resizeObserver = environment.createResizeObserver((entries) => {
-        const entry = entries[0];
-        if (entry?.contentRect) session?.resize(measurementFrom(entry, environment));
-      });
-      const intersectionObserver = environment.createIntersectionObserver((entries) => {
-        intersectionVisible = Boolean(entries[0]?.isIntersecting);
-        updateVisibility();
-      });
-      resizeObserver.observe(node);
-      intersectionObserver.observe(node);
-      motionQuery?.addEventListener?.('change', updateReducedMotion);
-      motionQuery?.addListener?.(updateReducedMotion);
 
       return {
         destroy() {
           if (destroyed) return;
           destroyed = true;
-          resizeObserver.disconnect();
-          intersectionObserver.disconnect();
-          motionQuery?.removeEventListener?.('change', updateReducedMotion);
-          motionQuery?.removeListener?.(updateReducedMotion);
-          session?.destroy();
-          session = null;
+          cleanup();
         },
       };
     },
@@ -110,6 +127,11 @@ export function createRenderSurfaceLifecycle({
     setActive(nextActive) {
       ambientActive = Boolean(nextActive);
       session?.setActive(ambientActive);
+    },
+
+    setAnimationActivity(nextActivity) {
+      ambientActive = Boolean(nextActivity?.continuous) || (Number(nextActivity?.until) || 0) > 0;
+      session?.setAnimationActivity(nextActivity);
     },
 
     snapshot() {

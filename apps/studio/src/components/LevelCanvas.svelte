@@ -3,7 +3,8 @@
   import { tileKey } from '@franz-lola/content-model';
   import { PassauPixelRenderer } from '@franz-lola/pixel-renderer';
   import { worldPointFromScreen, worldTilePointFromScreen } from '../editor-tools.js';
-  import { hasAnimatedLevelContent } from '../render/studio-render-session.svelte.js';
+  import { getLevelAnimationActivity } from '../render/studio-render-session.svelte.js';
+  import { levelCanvasRenderInputs } from '../render/level-canvas-render-inputs.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let { studio, compact = false, ariaLabel = 'Bearbeitbares Levelraster' } = $props();
@@ -165,13 +166,13 @@
   });
 
   $effect(() => {
-    studio.revision; studio.sceneRevision; studio.showGrid; studio.showGuttis; studio.showEvents; studio.difficulty; studio.selection; studio.cursor; studio.viewportZoom; studio.viewportCenter;
-    const level = studio.editorLevel;
-    const visibleLevel = studio.isSceneHidden('player', 0)
+    const inputs = levelCanvasRenderInputs(studio);
+    const level = inputs.editorLevel;
+    const visibleLevel = inputs.playerHidden
       ? { ...level, actors: { ...level.actors, player: null } }
       : level;
-    surface.setVisible(['level', 'objects', 'events'].includes(studio.workspace));
-    surface.setActive(hasAnimatedLevelContent(visibleLevel));
+    surface.setVisible(['level', 'objects', 'events'].includes(inputs.workspace));
+    surface.setAnimationActivity(getLevelAnimationActivity(visibleLevel, { showEvents: inputs.showEvents }));
     if (renderer && level) renderer.setLevel(level);
     surface.invalidate('project:reactive');
   });
