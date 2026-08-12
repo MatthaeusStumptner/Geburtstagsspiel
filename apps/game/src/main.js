@@ -14,9 +14,8 @@ import {
 import {
   DirectionalSwipeInput,
   PassauPixelRenderer,
-  PresentationFramePacer,
-  recommendedPresentationRate,
 } from '@franz-lola/pixel-renderer';
+import { createRenderCoordinator } from '@franz-lola/render-coordinator';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
 import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
@@ -45,7 +44,7 @@ import {
   settingsContextForState,
 } from './ui/ui-preferences.js';
 import { renderPolicyForState } from './render/render-policy.js';
-import { createRenderScheduler } from './render/render-scheduler.js';
+import { createGameRenderSession } from './render/game-render-session.js';
 import { calculateCatRadar } from './render/cat-radar-model.js';
 import { resetCatRadarView, updateCatRadarView } from './render/cat-radar-view.js';
 import {
@@ -66,10 +65,14 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   quality: 'auto',
   powerPreference: 'high-performance',
 });
-const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
-const renderScheduler = createRenderScheduler({
-  render: (_reason, timestamp) => render(timestamp),
-  pacer: presentationPacer,
+const renderCoordinator = createRenderCoordinator({
+  requestFrame: (callback) => window.requestAnimationFrame(callback),
+  cancelFrame: (handle) => window.cancelAnimationFrame(handle),
+  now: () => performance.now(),
+});
+const renderSession = createGameRenderSession({
+  coordinator: renderCoordinator,
+  render: presentGame,
 });
 const gameplayLayout = createGameplayLayout();
 const levelCutscenePlayer = new LevelCutscenePlayer();
@@ -199,11 +202,17 @@ let gameSession = null;
 let gameSessionSnapshot = null;
 let gameSessionScore = 0;
 let simulationFrameTimestamp = null;
+let appliedRenderPolicy = null;
 let staticWorldRevision = 0;
 const audioService = new BrowserAudioService(() => soundEnabled);
 
 function requestRender(reason) {
-  renderScheduler.request(reason);
+  const policy = currentRenderPolicy();
+  if (policy !== appliedRenderPolicy) {
+    renderSession.frame(performance.now(), policy);
+    appliedRenderPolicy = policy;
+  }
+  renderSession.invalidate(reason);
 }
 
 function invalidateStaticWorld(reason) {
@@ -871,6 +880,7 @@ function startLevelCutscene() {
 
 function enterLevelPlay() {
   const leavingCutscene = document.body.classList.contains('cutscene-active');
+  if (leavingCutscene) resetCatRadarPresentation();
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   state = 'playing';
@@ -1734,7 +1744,7 @@ function vibrate(pattern) {
   if ('vibrate' in navigator) navigator.vibrate(pattern);
 }
 
-function render() {
+function presentGame(_reason, timestamp) {
   if (!pixelRenderer || !activeLevelDocument || !player) return;
   const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
@@ -1773,6 +1783,7 @@ function render() {
     } : undefined,
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
     reducedMotion,
+    presentationTime: timestamp,
     staticRevision: staticWorldRevision,
     sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
@@ -1898,7 +1909,9 @@ function frame(now) {
     autoSaveElapsed += applyGameSessionSnapshot(snapshot);
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
   }
-  renderScheduler.frame(now, currentRenderPolicy());
+  const policy = currentRenderPolicy();
+  renderSession.frame(now, policy);
+  appliedRenderPolicy = policy;
   requestAnimationFrame(frame);
 }
 
@@ -2087,7 +2100,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
   if (!document.hidden) {
     simulationFrameTimestamp = null;
-    renderScheduler.reset();
+    renderSession.reset();
     requestRender('visibility:return');
   }
 });
@@ -2116,8 +2129,7 @@ window.addEventListener('pagehide', () => {
 
 pixelRendererReady.then((renderer) => {
   pixelRenderer = renderer;
-  presentationPacer.setFramesPerSecond(recommendedPresentationRate(renderer.rendererInfo().quality));
-  renderScheduler.reset();
+  renderSession.reset();
   if (storedGame) restoreGame(storedGame);
   else {
     buildLevel();
@@ -2159,9 +2171,9 @@ if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
   window.__GASSI_RENDERER_DEBUG__ = () => ({
     ...(pixelRenderer?.rendererInfo() ?? { backend: 'initializing' }),
-    scheduler: renderScheduler.snapshot(),
+    scheduler: renderSession.snapshot(),
     staticWorldRevision,
-    renderPolicy: currentRenderPolicy(),
+    renderPolicy: currentRenderPolicy().mode,
   });
   window.__GASSI_DEBUG__ = () => ({
     state,
