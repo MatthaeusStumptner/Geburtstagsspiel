@@ -280,6 +280,59 @@ test('non-loop activity uses a visible local epoch, settles, pauses offscreen an
   session.destroy();
 });
 
+test('combined actor and object activity preserves finite duration alongside effects', () => {
+  const appearance = {
+    animations: [{
+      id: 'once',
+      duration: 1,
+      loop: false,
+      keyframes: [{ time: 0, pixels: ['0'] }, { time: 0.75, pixels: ['1'] }],
+    }],
+    stateAnimations: { idle: 'once' },
+  };
+  const actorActivity = studioRenderModule.getActorThumbnailAnimationActivity({
+    actor: { appearance, effects: [{ type: 'glitch' }] },
+    appearance,
+    animationId: 'once',
+  });
+  const objectActivity = studioRenderModule.getObjectThumbnailAnimationActivity({
+    appearance,
+    spriteAnimation: 'once',
+    animation: { type: 'keyframes', duration: 0.75, loop: false, keyframes: [{ time: 0 }, { time: 0.75 }] },
+    effects: [{ type: 'neon' }],
+  });
+  assert.deepEqual(actorActivity, { continuous: true, duration: 1 });
+  assert.deepEqual(objectActivity, { continuous: true, duration: 1 });
+});
+
+test('continuous ambient presentation advances finite thumbnail sources from a local epoch', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  const session = createStudioRenderSession({ coordinator, id: 'combined-activity', profile: 'thumbnail-animated', render: (frame) => frames.push(frame) });
+  session.setAnimationActivity({ continuous: true, duration: 1, restartKey: 'object-v1' });
+  clock.present(5500);
+  clock.present(5534);
+  clock.present(6500);
+  clock.present(6534);
+  assert.deepEqual(frames.map(({ animationElapsed }) => animationElapsed), [0, 0.034, 1, 1.034]);
+  assert.deepEqual(frames.map(({ animationSettled }) => animationSettled), [false, false, true, true]);
+  assert.equal(clock.pendingCount(), 1, 'the effect remains ambient after the finite sources settle');
+
+  session.setVisible(false);
+  session.setVisible(true);
+  clock.present(16534);
+  assert.equal(frames.at(-1).animationElapsed, 1.034, 'offscreen time is not integrated');
+  session.setAnimationActivity({ continuous: true, duration: 1, restartKey: 'actor-v2' });
+  clock.present(18000);
+  assert.equal(frames.at(-1).animationElapsed, 0, 'a new revision owns a fresh epoch');
+  session.setProfile('editor');
+  session.setReducedMotion(true);
+  clock.present(18034);
+  clock.present(19000);
+  assert.equal(clock.pendingCount(), 0, 'reduced motion retires continuous effects after its final frame');
+  session.destroy();
+});
 test('visible playtest deltas clamp like Game while explicit resumes discard hidden time', () => {
   assert.equal(typeof playtestEngineModule.playtestFrameDelta, 'function');
   assert.equal(playtestEngineModule.playtestFrameDelta(null, 16), 0);

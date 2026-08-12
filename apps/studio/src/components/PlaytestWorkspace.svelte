@@ -101,7 +101,7 @@
     renderer.resize(measurement);
     let result = null;
     if (mode !== 'stopped' && !paused) {
-      const seconds = playtestFrameDelta(lastTimestamp, timestamp, { resume: frame.reason === 'visibility:visible' });
+      const seconds = playtestFrameDelta(lastTimestamp, timestamp, { resume: frame.visibilityResume });
       canvas.dataset.frameDelta = String(seconds);
       if (mode === 'cutscene') {
         cutsceneTime += seconds;

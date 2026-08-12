@@ -46,10 +46,14 @@ export function thumbnailRenderRevision(value) {
 
 export function getActorThumbnailAnimationActivity({ actor = null, appearance = null, state = 'idle', animationId = '', elapsed = null } = {}) {
   if (elapsed !== null) return STATIC_THUMBNAIL_ACTIVITY;
-  if (hasEffects(actor)) return { continuous: true, duration: 0 };
   const selectedAppearance = appearance ?? actor?.appearance;
-  if (!selectedAppearance) return { continuous: true, duration: 0 };
-  return selectedThumbnailAppearanceActivity(selectedAppearance, { animationId: animationId || actor?.animation, state });
+  const appearanceActivity = selectedAppearance
+    ? selectedThumbnailAppearanceActivity(selectedAppearance, { animationId: animationId || actor?.animation, state })
+    : { continuous: true, duration: 0 };
+  return {
+    continuous: hasEffects(actor) || appearanceActivity.continuous,
+    duration: appearanceActivity.duration,
+  };
 }
 
 export function getObjectThumbnailAnimationActivity(asset) {
@@ -154,6 +158,7 @@ export function createStudioRenderSession({
   let pendingOneShotReason = null;
   let presentingOneShotVersion = 0;
   let presentingReason = null;
+  let visibilityResumeVersion = 0;
   let destroyed = false;
   let invalidationVersion = 0;
   let measurement = null;
@@ -202,27 +207,46 @@ export function createStudioRenderSession({
     const previousAmbientTimestamp = ambientLastTimestamp;
     let animationElapsed = frame.timestamp / 1000;
     let animationSettled = false;
-    if (!ambientContinuous && ambientDuration > 0) {
+    if (ambientDuration > 0) {
       const delta = ambientLastTimestamp === null ? 0 : Math.max(0, (frame.timestamp - ambientLastTimestamp) / 1000);
-      ambientElapsed = Math.min(ambientDuration, ambientElapsed + delta);
+      ambientElapsed = ambientContinuous
+        ? ambientElapsed + delta
+        : Math.min(ambientDuration, ambientElapsed + delta);
       ambientLastTimestamp = frame.timestamp;
       animationElapsed = ambientElapsed;
       animationSettled = ambientElapsed >= ambientDuration;
     }
+    const presentedVisibilityResumeVersion = visibilityResumeVersion;
     presentingOneShotVersion = presentedOneShotVersion;
     presentingReason = frame.reason;
+    let presentationError = null;
     try {
-      render(Object.freeze({ ...frame, measurement, animationElapsed, animationSettled }));
+      render(Object.freeze({
+        ...frame,
+        measurement,
+        animationElapsed,
+        animationSettled,
+        visibilityResume: presentedVisibilityResumeVersion > 0,
+      }));
     } catch (error) {
       ambientElapsed = previousAmbientElapsed;
       ambientLastTimestamp = previousAmbientTimestamp;
-      throw error;
+      presentationError = error;
     } finally {
       presentingOneShotVersion = 0;
       presentingReason = null;
     }
+    if (presentationError) {
+      if (!destroyed) {
+        const retryReason = pendingWorkReason() ?? presentedOneShotReason ?? frame.reason ?? AMBIENT_REASON;
+        if (surfaceVisible) setCoordinatorState({ active: true });
+        coordinator.invalidate(id, retryReason);
+      }
+      throw presentationError;
+    }
     renderCount += 1;
     lastRenderReason = frame.reason ?? 'idle';
+    if (visibilityResumeVersion === presentedVisibilityResumeVersion) visibilityResumeVersion = 0;
     if (destroyed) return;
     if (pendingOneShotVersion === presentedOneShotVersion) {
       pendingOneShotVersion = 0;
@@ -268,6 +292,7 @@ export function createStudioRenderSession({
         setCoordinatorState({ visible: false, active: false });
         return;
       }
+      visibilityResumeVersion = invalidationVersion + 1;
       setCoordinatorState({ visible: true, active: ambientShouldRun() });
       queueOneShot(pendingWorkReason() ?? 'visibility:visible');
     },
@@ -282,9 +307,11 @@ export function createStudioRenderSession({
       coordinator.unregisterSurface(id);
       surfaceProfile = nextProfile;
       registerSurface();
-      const reason = pendingWorkReason();
-      if (reason) queueOneShot(reason);
-      if (ambientShouldRun()) queueAmbient();
+      if (presentingReason === null) {
+        const reason = pendingWorkReason();
+        if (reason) queueOneShot(reason);
+        if (ambientShouldRun()) queueAmbient();
+      }
     },
 
     setAnimationActivity(nextActivity) {

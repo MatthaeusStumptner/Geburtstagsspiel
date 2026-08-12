@@ -11,6 +11,7 @@
   const surfaceId = `object-thumbnail-surface-${nextObjectThumbnailSurface++}`;
   let canvas;
   let renderedAsset = null;
+  let continuousActivity = false;
   let presentationCount = $state(0);
   let presentedProfile = $state('thumbnail-static');
 
@@ -30,9 +31,12 @@
       width: width / ratio - 4,
       height: height / ratio - 4,
     }, animationElapsed, language);
+    const fullySettled = animationSettled && !continuousActivity;
+    canvas.dataset.animationElapsed = String(animationElapsed);
+    canvas.dataset.animationSettled = String(animationSettled);
     presentationCount += 1;
-    presentedProfile = animationSettled ? 'thumbnail-static' : profile;
-    if (animationSettled) surface.setProfile('thumbnail-static');
+    presentedProfile = fullySettled ? 'thumbnail-static' : profile;
+    if (fullySettled) surface.setProfile('thumbnail-static');
   }
 
   const surface = useRenderSurface({
@@ -46,6 +50,7 @@
     const revision = thumbnailRenderRevision({ asset, language });
     renderedAsset = JSON.parse(revision).asset;
     const activity = getObjectThumbnailAnimationActivity(asset);
+    continuousActivity = activity.continuous;
     const animated = activity.continuous || activity.duration > 0;
     surface.setProfile(animated ? 'thumbnail-animated' : 'thumbnail-static');
     surface.setAnimationActivity({ ...activity, restartKey: revision });

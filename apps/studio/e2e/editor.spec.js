@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+
+const renderCoordinatorBrowserUrl = `/@fs/${fileURLToPath(new URL('../../../packages/render-coordinator/src/index.js', import.meta.url)).replaceAll('\\', '/')}`;
 
 async function openCleanEditor(page) {
   const errors = [];
@@ -920,6 +923,7 @@ test('playtest clamps a visible long frame and keeps its display contract', asyn
   page.on('console', (message) => { if (['warning', 'error'].includes(message.type())) consoleProblems.push(message.text()); });
   const errors = await openCleanEditor(page);
   await switchWorkspace(page, 'playtest');
+  await expect(page.locator('.playtest-stage')).toHaveAttribute('data-renderer-ready', 'true');
   await page.locator('#start-playtest').click();
   await expect(page.locator('.playtest-top-overlay')).toBeVisible({ timeout: 15_000 });
   const skip = page.getByRole('button', { name: /Intro überspringen/ });
@@ -976,15 +980,110 @@ test('playtest clamps a visible long frame and keeps its display contract', asyn
   await expect(page.locator('.mobile-dpad')).toBeVisible();
   const small = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(small.scrollWidth).toBe(small.width);
-  await page.screenshot({ path: 'output/playwright/task6-fixround1-small-playtest.png' });
+  await page.screenshot({ path: 'output/playwright/task6-fixround2-small-playtest.png' });
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect.poll(async () => Number(await canvas.getAttribute('data-measured-width'))).not.toBe(resized.measuredWidth);
   const screenshotStart = Number(await canvas.getAttribute('data-render-count'));
   await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(screenshotStart + 2);
   await page.waitForTimeout(250);
-  await page.screenshot({ path: 'output/playwright/task6-fixround1-desktop-playtest.png' });
+  await page.screenshot({ path: 'output/playwright/task6-fixround2-desktop-playtest.png' });
   expect(await page.locator('vite-error-overlay, #webpack-dev-server-client-overlay, [data-error-overlay], .error-overlay').count()).toBe(0);
   expect(consoleProblems).toEqual([]);
+  expect(errors).toEqual([]);
+});
+test('playtest drops a hidden interval when a reactive edit is pending on resume', async ({ page, context }) => {
+  const errors = await openCleanEditor(page);
+  await switchWorkspace(page, 'playtest');
+  await page.locator('#start-playtest').click();
+  await expect(page.locator('.playtest-top-overlay')).toBeVisible({ timeout: 15_000 });
+  const skip = page.getByRole('button', { name: /Intro überspringen/ });
+  if (await skip.isVisible()) await skip.click();
+  const canvas = page.locator('#playtest-canvas');
+  await expect(canvas).toHaveAttribute('data-render-profile', 'playtest');
+  const languageButton = page.locator('.playtest-top-overlay').getByRole('button', { name: /DE · Schön|BAY · Dialekt/ });
+  const languageBefore = await languageButton.textContent();
+  await page.evaluate(() => {
+    window.__task6ResumeDeltas = [];
+    window.__task6VisibilityStates = [document.visibilityState];
+    document.addEventListener('visibilitychange', () => window.__task6VisibilityStates.push(document.visibilityState));
+    const canvas = document.querySelector('#playtest-canvas');
+    window.__task6ResumeObserver = new MutationObserver(() => {
+      window.__task6ResumeDeltas.push(Number(canvas.dataset.frameDelta));
+    });
+    window.__task6ResumeObserver.observe(canvas, { attributes: true, attributeFilter: ['data-frame-delta'] });
+  });
+
+  const [foreground] = await Promise.all([
+    context.waitForEvent('page'),
+    page.evaluate(() => window.open('about:blank', '_blank')),
+  ]);
+  await foreground.bringToFront();
+  const becameHidden = await page.waitForFunction(() => document.visibilityState === 'hidden', null, { timeout: 1500 }).then(() => true).catch(() => false);
+  if (!becameHidden) {
+    expect(process.env.TASK6_REQUIRE_REAL_VISIBILITY, 'headed evidence requires an actual hidden tab').not.toBe('1');
+    await foreground.close();
+    const fallback = await page.evaluate(async ({ coordinatorUrl }) => {
+      const [{ createRenderCoordinator }, { createStudioRenderSession }, { playtestFrameDelta }] = await Promise.all([
+        import(coordinatorUrl),
+        import('/src/render/studio-render-session.svelte.js'),
+        import('/src/playtest-engine.js'),
+      ]);
+      let pending = null;
+      const clock = {
+        adapter: {
+          requestFrame(callback) { pending = callback; return 1; },
+          cancelFrame() { pending = null; },
+          now: () => 0,
+        },
+        present(timestamp) { const callback = pending; pending = null; callback?.(timestamp); },
+      };
+      const coordinator = createRenderCoordinator(clock.adapter);
+      const frames = [];
+      let previousTimestamp = null;
+      const session = createStudioRenderSession({
+        coordinator,
+        id: 'browser-visibility-fallback',
+        profile: 'playtest',
+        render(frame) {
+          frames.push({
+            reason: frame.reason,
+            resume: frame.visibilityResume,
+            delta: playtestFrameDelta(previousTimestamp, frame.timestamp, { resume: frame.visibilityResume }),
+          });
+          previousTimestamp = frame.timestamp;
+        },
+      });
+      session.setAnimationActivity({ continuous: true, restartKey: 'playtest-v1' });
+      clock.present(0);
+      session.setVisible(false);
+      session.invalidate('project:hidden-edit');
+      session.setVisible(true);
+      clock.present(1000);
+      clock.present(1100);
+      session.destroy();
+      return frames.slice(1);
+    }, { coordinatorUrl: renderCoordinatorBrowserUrl });
+    expect(fallback).toEqual([
+      { reason: 'project:hidden-edit', resume: true, delta: 0 },
+      { reason: 'project:hidden-edit', resume: false, delta: 0.1 },
+    ]);
+    expect(errors).toEqual([]);
+    return;
+  }
+  await page.evaluate(() => { window.__task6ResumeDeltas.length = 0; document.querySelector('.playtest-top-overlay button').click(); });
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  await page.bringToFront();
+  await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+  await expect.poll(() => page.evaluate(() => window.__task6ResumeDeltas.length)).toBeGreaterThan(2);
+  const evidence = await page.evaluate(() => {
+    window.__task6ResumeObserver.disconnect();
+    return { deltas: window.__task6ResumeDeltas, visibility: window.__task6VisibilityStates };
+  });
+  expect(evidence.visibility).toEqual(expect.arrayContaining(['hidden', 'visible']));
+  expect(evidence.deltas[0]).toBe(0);
+  expect(evidence.deltas.slice(1).some((delta) => delta > 0)).toBe(true);
+  await expect(languageButton).not.toHaveText(languageBefore);
+  await foreground.close();
   expect(errors).toEqual([]);
 });
 test('authorized non-technical editors share and publish mixed exact content revisions together', async ({ page }) => {
@@ -1316,7 +1415,7 @@ test('reduced-motion effect edits update visible thumbnail output once before sl
   expect(errors).toEqual([]);
 });
 
-test('actor and object non-loop thumbnails settle locally while loop playback keeps cadence', async ({ page }) => {
+test('actor and object finite thumbnails keep local time while combined effects continue cadence', async ({ page }) => {
   const errors = await openCleanEditor(page);
   await loadTemplate(page, 'home');
   await switchWorkspace(page, 'characters');
@@ -1326,12 +1425,16 @@ test('actor and object non-loop thumbnails settle locally while loop playback ke
   await page.getByLabel('Dauer').press('Tab');
   await page.getByRole('checkbox', { name: 'Loop' }).uncheck();
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
+  await page.locator('.property-panel .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
   const actor = page.locator('.character-hero .actor-thumbnail');
   await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-animated');
-  await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-static', { timeout: 3500 });
-  const actorSettled = Number(await actor.getAttribute('data-render-count'));
+  await expect(actor).toHaveAttribute('data-animation-elapsed', /\d/);
+  expect(Number(await actor.getAttribute('data-animation-elapsed'))).toBeLessThan(0.3);
+  await expect.poll(async () => Number(await actor.getAttribute('data-animation-elapsed')), { timeout: 3500 }).toBeGreaterThanOrEqual(1);
+  const actorAmbient = Number(await actor.getAttribute('data-render-count'));
   await page.waitForTimeout(650);
-  await expect(actor).toHaveAttribute('data-render-count', String(actorSettled));
+  await expect.poll(async () => Number(await actor.getAttribute('data-render-count'))).toBeGreaterThan(actorAmbient + 5);
+  await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-animated');
 
   await switchWorkspace(page, 'objects');
   await page.locator('#create-object').click();
@@ -1346,20 +1449,30 @@ test('actor and object non-loop thumbnails settle locally while loop playback ke
   await page.getByRole('button', { name: 'Sprite übernehmen' }).click();
   await page.locator('.object-sidebar .sidebar-mode-tabs').getByRole('button', { name: /Assets/ }).click();
   const objectCard = page.locator('.asset-list [data-asset-id]').filter({ hasText: 'Non Loop Probe' });
+  await objectCard.click();
+  await page.getByRole('button', { name: /Bewegung mit Keyframes/ }).click();
+  await page.getByLabel('Dauer').fill('1');
+  await page.getByRole('checkbox', { name: 'Loop' }).uncheck();
+  await page.getByRole('button', { name: 'Animation übernehmen' }).click();
+  await page.locator('.object-inspector .effect-editor').getByRole('button', { name: '＋ Effekt' }).click();
   await objectCard.scrollIntoViewIfNeeded();
   await expect(objectCard).toBeInViewport();
   const storedObject = await page.evaluate(() => JSON.parse(localStorage.getItem('franz-lola-object-library-v1'))
     .find((entry) => entry.name === 'Non Loop Probe'));
-  expect(storedObject.animation.type).toBe('none');
-  expect(storedObject.effects).toEqual([]);
+  expect(storedObject.animation).toMatchObject({ type: 'keyframes', duration: 1, loop: false });
+  expect(storedObject.animation.keyframes.length).toBeGreaterThan(1);
+  expect(storedObject.effects).toHaveLength(1);
   expect(storedObject.appearance.animations[0]).toMatchObject({ duration: 1, loop: false });
   expect(storedObject.appearance.animations[0].keyframes).toHaveLength(2);
   const object = objectCard.locator('.object-thumbnail');
   await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
-  await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-static', { timeout: 3500 });
-  const objectSettled = Number(await object.getAttribute('data-render-count'));
+  await expect(object).toHaveAttribute('data-animation-elapsed', /\d/);
+  expect(Number(await object.getAttribute('data-animation-elapsed'))).toBeLessThan(0.3);
+  await expect.poll(async () => Number(await object.getAttribute('data-animation-elapsed')), { timeout: 3500 }).toBeGreaterThanOrEqual(1);
+  const objectAmbient = Number(await object.getAttribute('data-render-count'));
   await page.waitForTimeout(650);
-  await expect(object).toHaveAttribute('data-render-count', String(objectSettled));
+  await expect.poll(async () => Number(await object.getAttribute('data-render-count'))).toBeGreaterThan(objectAmbient + 5);
+  await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
 
   await objectCard.click();
   await page.getByRole('button', { name: /Sprite-Keyframes bearbeiten/ }).click();
@@ -1375,4 +1488,70 @@ test('actor and object non-loop thumbnails settle locally while loop playback ke
   await expect.poll(async () => Number(await object.getAttribute('data-render-count'))).toBeGreaterThan(loopStart + 5);
   await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
   expect(errors).toEqual([]);
+});
+test('browser session retries reentrant exceptional profile switches on the final surface', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async ({ coordinatorUrl }) => {
+    const [{ createRenderCoordinator }, { createStudioRenderSession }] = await Promise.all([
+      import(coordinatorUrl),
+      import('/src/render/studio-render-session.svelte.js'),
+    ]);
+    let pending = null;
+    let nextHandle = 1;
+    const clock = {
+      adapter: {
+        requestFrame(callback) {
+          if (pending) throw new Error('duplicate browser frame');
+          pending = { callback, handle: nextHandle++ };
+          return pending.handle;
+        },
+        cancelFrame(handle) { if (pending?.handle === handle) pending = null; },
+        now: () => 0,
+      },
+      present(timestamp) { const frame = pending; pending = null; frame?.callback(timestamp); },
+      pendingCount: () => pending ? 1 : 0,
+    };
+    const coordinator = createRenderCoordinator(clock.adapter);
+    const frames = [];
+    let failOnce = true;
+    let session;
+    session = createStudioRenderSession({
+      coordinator,
+      id: 'browser-reentrant-session',
+      profile: 'editor',
+      visible: false,
+      render(frame) {
+        frames.push({ profile: frame.profile, reason: frame.reason, resume: frame.visibilityResume });
+        if (failOnce) {
+          failOnce = false;
+          session.setProfile('editor');
+          session.setProfile('thumbnail-static');
+          session.setProfile('editor');
+          throw new Error('browser retry once');
+        }
+      },
+    });
+    session.invalidate('project:hidden-edit');
+    session.setReducedMotion(true);
+    session.setProfile('playtest');
+    session.setVisible(true);
+    let thrown = '';
+    try { clock.present(1000); } catch (error) { thrown = error.message; }
+    const failedSurface = coordinator.snapshot().surfaces['browser-reentrant-session'];
+    clock.present(1017);
+    clock.present(1034);
+    clock.present(1051);
+    const finalSurface = coordinator.snapshot().surfaces['browser-reentrant-session'];
+    session.destroy();
+    return { thrown, frames, failedSurface, finalSurface, pending: clock.pendingCount() };
+  }, { coordinatorUrl: renderCoordinatorBrowserUrl });
+  expect(result.thrown).toBe('browser retry once');
+  expect(result.frames).toEqual([
+    { profile: 'playtest', reason: 'project:hidden-edit', resume: true },
+    { profile: 'editor', reason: 'project:hidden-edit', resume: true },
+    { profile: 'editor', reason: 'motion:reduced', resume: false },
+  ]);
+  expect(result.failedSurface).toMatchObject({ profile: 'editor', visible: true, active: true, dirty: true });
+  expect(result.finalSurface).toMatchObject({ profile: 'editor', visible: true, active: false, dirty: false });
+  expect(result.pending).toBe(0);
 });

@@ -4,6 +4,7 @@ import { createLevelDocument } from '@franz-lola/content-model';
 import { PassauPixelRenderer } from '@franz-lola/pixel-renderer';
 import { createRenderCoordinator } from '@franz-lola/render-coordinator';
 import { createStarterLevel } from '../src/editor-state.js';
+import { playtestFrameDelta } from '../src/playtest-engine.js';
 import { drawWalker } from '../../../packages/pixel-renderer/src/painters/characters.js';
 import { createStudioRenderSession, getLevelAnimationActivity, hasAnimatedLevelContent } from '../src/render/studio-render-session.svelte.js';
 
@@ -291,6 +292,85 @@ test('profile re-registration remains reentrant with one surface owner', () => {
   assert.equal(Object.keys(coordinator.snapshot().surfaces).length, 1);
   assert.equal(coordinator.snapshot().surfaces['switch-reentrant'].profile, 'editor');
   assert.equal(clock.pendingCount(), 0);
+  session.destroy();
+});
+test('reentrant exceptional profile switches retry hidden pending and reduced work on the final profile', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const attempts = [];
+  const successes = [];
+  let failOnce = true;
+  let session;
+  session = createStudioRenderSession({
+    coordinator,
+    id: 'switch-reentrant-exception',
+    profile: 'editor',
+    visible: false,
+    render: (frame) => {
+      attempts.push({ profile: frame.profile, reason: frame.reason, visibilityResume: frame.visibilityResume });
+      if (failOnce) {
+        failOnce = false;
+        session.setProfile('editor');
+        session.setProfile('thumbnail-static');
+        session.setProfile('editor');
+        throw new Error('reentrant present failed once');
+      }
+      successes.push({ profile: frame.profile, reason: frame.reason, visibilityResume: frame.visibilityResume });
+    },
+  });
+  session.invalidate('project:hidden-edit');
+  session.setReducedMotion(true);
+  session.setProfile('playtest');
+  session.setVisible(true);
+  assert.throws(() => clock.present(1000), /reentrant present failed once/);
+  const failedSurface = coordinator.snapshot().surfaces['switch-reentrant-exception'];
+  assert.equal(failedSurface.profile, 'editor');
+  assert.equal(failedSurface.active, true);
+  assert.equal(failedSurface.dirty, true);
+  assert.equal(failedSurface.counters.renders, 0);
+  clock.present(1017);
+  clock.present(1034);
+  clock.present(1051);
+  assert.deepEqual(attempts, [
+    { profile: 'playtest', reason: 'project:hidden-edit', visibilityResume: true },
+    { profile: 'editor', reason: 'project:hidden-edit', visibilityResume: true },
+    { profile: 'editor', reason: 'motion:reduced', visibilityResume: false },
+  ]);
+  assert.deepEqual(successes, attempts.slice(1));
+  assert.equal(session.renderCount, 2);
+  assert.equal(session.snapshot().lastRenderReason, 'motion:reduced');
+  assert.equal(clock.pendingCount(), 0, 'retry presents exactly the pending edit and final reduced frame');
+  assert.equal(coordinator.snapshot().surfaces['switch-reentrant-exception'].active, false);
+  session.destroy();
+});
+
+test('hidden pending edits carry explicit resume metadata without losing their reason', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  let previousTimestamp = null;
+  const session = createStudioRenderSession({
+    coordinator,
+    id: 'playtest-hidden-edit',
+    profile: 'playtest',
+    render: (frame) => {
+      const delta = playtestFrameDelta(previousTimestamp, frame.timestamp, { resume: frame.visibilityResume });
+      previousTimestamp = frame.timestamp;
+      frames.push({ reason: frame.reason, visibilityResume: frame.visibilityResume, delta });
+    },
+  });
+  session.setAnimationActivity({ continuous: true, restartKey: 'playtest-v1' });
+  clock.present(0);
+  session.setVisible(false);
+  session.invalidate('project:hidden-edit');
+  session.setVisible(true);
+  clock.present(1000);
+  clock.present(1100);
+  assert.deepEqual(frames.slice(1), [
+    { reason: 'project:hidden-edit', visibilityResume: true, delta: 0 },
+    { reason: 'project:hidden-edit', visibilityResume: false, delta: 0.1 },
+  ]);
+  assert.equal(clock.pendingCount(), 1, 'normal visible playtest cadence continues after the resume frame');
   session.destroy();
 });
 test('fallback walker painter output keeps the visible starter player continuously active', () => {
