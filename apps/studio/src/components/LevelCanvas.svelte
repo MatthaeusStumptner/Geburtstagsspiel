@@ -171,8 +171,9 @@
     const visibleLevel = inputs.playerHidden
       ? { ...level, actors: { ...level.actors, player: null } }
       : level;
+    const visibleSelections = selectionOutlines();
     surface.setVisible(['level', 'objects', 'events'].includes(inputs.workspace));
-    surface.setAnimationActivity(getLevelAnimationActivity(visibleLevel, { showEvents: inputs.showEvents }));
+    surface.setAnimationActivity(getLevelAnimationActivity(visibleLevel, { showEvents: inputs.showEvents, selections: visibleSelections }));
     if (renderer && level) renderer.setLevel(level);
     surface.invalidate('project:reactive');
   });

@@ -1,8 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createLevelDocument } from '@franz-lola/content-model';
+import { PassauPixelRenderer } from '@franz-lola/pixel-renderer';
 import { createRenderCoordinator } from '@franz-lola/render-coordinator';
-import { createStudioRenderSession, hasAnimatedLevelContent } from '../src/render/studio-render-session.svelte.js';
+import { createStarterLevel } from '../src/editor-state.js';
+import { drawWalker } from '../../../packages/pixel-renderer/src/painters/characters.js';
+import { createStudioRenderSession, getLevelAnimationActivity, hasAnimatedLevelContent } from '../src/render/studio-render-session.svelte.js';
 
+const ONE_FRAME_APPEARANCE = Object.freeze({
+  width: 4,
+  height: 4,
+  palette: ['transparent', '#f4eee0'],
+  pixels: ['0110', '1111', '1001', '0110'],
+  animations: [{ id: 'idle', fps: 4, loop: true, frames: [{ pixels: ['0110', '1111', '1001', '0110'] }] }],
+  stateAnimations: { idle: 'idle' },
+});
+
+function createStaticLevel() {
+  return createLevelDocument({
+    board: { columns: 25, rows: 25, tileSize: 24, walls: [] },
+    theme: { landmark: 'dog-park', edgeEffects: [] },
+    actors: { player: { x: 12, y: 20, appearance: ONE_FRAME_APPEARANCE }, cats: [], characters: [] },
+    collectibles: { powerUps: [] },
+    decorations: [],
+    events: [],
+  });
+}
+
+function walkerOutput(actor, elapsed) {
+  const operations = [];
+  let fillStyle = '';
+  const context = {
+    set fillStyle(value) { fillStyle = value; },
+    fillRect(...bounds) { operations.push(['rect', fillStyle, ...bounds]); },
+    set strokeStyle(value) { operations.push(['stroke-style', value]); },
+    set lineWidth(value) { operations.push(['line-width', value]); },
+    beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+  };
+  drawWalker(context, actor, 24, { elapsed, hitTimer: 0 });
+  return operations;
+}
+
+function selectionAlphas(selections, elapsed) {
+  const alphas = [];
+  let globalAlpha = 1;
+  const context = {
+    save() {}, restore() {}, setLineDash() {}, strokeRect() {},
+    set strokeStyle(value) {}, set lineWidth(value) {}, set shadowColor(value) {}, set shadowBlur(value) {},
+    get globalAlpha() { return globalAlpha; },
+    set globalAlpha(value) { globalAlpha = value; alphas.push(value); },
+  };
+  PassauPixelRenderer.prototype.presentEditorSelections.call({ pixelRatio: 1, overlayContext: context }, selections, {
+    viewport: { x: 0, y: 0, width: 240, height: 240 }, source: { x: 0, y: 0, width: 600, height: 600 },
+  }, 24, elapsed);
+  return alphas;
+}
 function createFrameClock() {
   let pending = null;
   let nextHandle = 1;
@@ -153,6 +205,54 @@ test('a reduced-motion transition wakes static content before later edits and re
   assert.equal(clock.pendingCount(), 0);
 });
 
+test('fallback walker painter output keeps the visible starter player continuously active', () => {
+  const starter = createStarterLevel();
+  assert.notDeepEqual(walkerOutput(starter.actors.player, 0), walkerOutput(starter.actors.player, 0.1), 'the real fallback painter changes the walker and dog output with elapsed time');
+  assert.deepEqual(getLevelAnimationActivity(starter), { continuous: true, until: 0 });
+});
+
+test('fallback walker painter output keeps a visible character continuously active', () => {
+  const level = createStaticLevel();
+  const character = { x: 7, y: 8, state: 'right', appearance: null, effects: [] };
+  level.actors.characters = [character];
+  assert.notDeepEqual(walkerOutput({ ...character, direction: character.state }, 0), walkerOutput({ ...character, direction: character.state }, 0.1), 'the character path reaches the same elapsed-dependent walker and dog painter');
+  assert.deepEqual(getLevelAnimationActivity(level), { continuous: true, until: 0 });
+});
+
+test('only the visible primary selection outline keeps an otherwise static level continuously active', () => {
+  const level = createStaticLevel();
+  const primary = { x: 2, y: 3, width: 1, height: 1, primary: true };
+  assert.notDeepEqual(selectionAlphas([primary], 0), selectionAlphas([primary], 0.1), 'the real primary outline alpha changes with elapsed time');
+  assert.deepEqual(getLevelAnimationActivity(level, { selections: [primary] }), { continuous: true, until: 0 });
+  assert.deepEqual(getLevelAnimationActivity(level, { selections: [{ ...primary, primary: false }] }), { continuous: false, until: 0 });
+});
+
+test('a valid visible one-frame player fixture renders once and then sleeps for 500ms', () => {
+  const level = createStaticLevel();
+  const player = level.actors.player;
+  assert.deepEqual(walkerOutput(player, 0), walkerOutput(player, 0.1), 'the real one-frame appearance bypasses the elapsed-dependent walker fallback');
+  const activity = getLevelAnimationActivity(level);
+  assert.deepEqual(activity, { continuous: false, until: 0 });
+
+  const harness = createStudioRenderHarness();
+  harness.level.setAnimationActivity(activity);
+  harness.level.invalidate('project:reactive');
+  harness.clock.present(0);
+  harness.clock.present(500);
+  assert.equal(harness.level.renderCount, 1);
+});
+
+test('reduced motion sleeps fallback and primary-selection activity after its final frame', () => {
+  const harness = createStudioRenderHarness();
+  const activity = getLevelAnimationActivity(createStarterLevel(), { selections: [{ x: 12, y: 20, primary: true }] });
+  assert.equal(activity.continuous, true);
+  harness.level.setAnimationActivity(activity);
+  harness.level.setReducedMotion(true);
+  harness.clock.present(0);
+  harness.clock.present(1000 / 60);
+  assert.equal(harness.level.renderCount, 2);
+  assert.equal(harness.clock.pendingCount(), 0);
+});
 test('level animation activity follows the selected visible appearance and power-up output', async () => {
   const { getLevelAnimationActivity } = await import('../src/render/studio-render-session.svelte.js');
   const staticLevel = {
@@ -217,13 +317,7 @@ test('a selected non-loop appearance wakes until its visible duration then sleep
   assert.equal(harness.clock.pendingCount(), 0);
 });
 test('only visible authored animation and effects keep the level surface active', () => {
-  const staticLevel = {
-    board: { walls: [] },
-    theme: { edgeEffects: [], elements: [] },
-    actors: { player: {}, cats: [], characters: [] },
-    decorations: [],
-    events: [],
-  };
+  const staticLevel = createStaticLevel();
   assert.equal(hasAnimatedLevelContent(staticLevel), false);
   assert.equal(hasAnimatedLevelContent({
     ...staticLevel,

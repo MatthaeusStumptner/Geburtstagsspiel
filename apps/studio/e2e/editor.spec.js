@@ -12,6 +12,48 @@ async function openCleanEditor(page) {
   return errors;
 }
 
+async function loadStaticCanvasFixture(page) {
+  await page.evaluate(() => {
+    const key = 'franz-lola-level-editor-workspace-v2';
+    const workspace = JSON.parse(localStorage.getItem(key));
+    const level = workspace.drafts[workspace.activeId].level;
+    level.collectibles.powerUps = [];
+    level.theme = { ...level.theme, landmark: 'dog-park', edgeEffects: [], elements: [] };
+    level.board.walls = [];
+    level.actors = {
+      ...level.actors,
+      cats: [],
+      characters: [],
+      player: {
+        ...level.actors.player,
+        animation: '',
+        effects: [],
+        appearance: {
+          width: 4,
+          height: 4,
+          palette: ['transparent', '#f4eee0'],
+          pixels: ['0110', '1111', '1001', '0110'],
+          animations: [{ id: 'idle', fps: 4, loop: true, frames: [{ pixels: ['0110', '1111', '1001', '0110'] }] }],
+          stateAnimations: { idle: 'idle' },
+        },
+      },
+    };
+    level.decorations = [{ type: 'rock', x: 5, y: 5, width: 1, height: 1 }];
+    level.events = [];
+    localStorage.setItem(key, JSON.stringify(workspace));
+  });
+  await page.reload();
+  await expect(page.locator('#level-canvas')).toBeVisible();
+}
+async function persistActiveDraft(page) {
+  await page.locator('[data-tool="wall"]').click();
+  const point = await canvasPoint(page, 1, 1);
+  await page.mouse.click(point.x, point.y);
+  await page.waitForFunction(() => {
+    const workspace = JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2'));
+    return Boolean(workspace?.drafts?.[workspace.activeId]?.level);
+  });
+}
 async function openProject(page) {
   const button = page.locator('.brand:visible, .mobile-project-button:visible').first();
   await button.click();
@@ -246,13 +288,19 @@ test('the level canvas can zoom, pan and return to a complete overview', async (
   expect(errors).toEqual([]);
 });
 
-test('level canvas presents a pointer edit on the next frame and then sleeps immediately', async ({ page }) => {
+test('fallback starter stays awake while a valid one-frame fixture sleeps after a pointer edit', async ({ page }) => {
   const errors = await openCleanEditor(page);
   const canvas = page.locator('#level-canvas');
   await expect(canvas).toHaveAttribute('data-render-count', /\d+/);
-  const settledCount = Number(await canvas.getAttribute('data-render-count'));
+  const starterCount = Number(await canvas.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(starterCount);
+
+  await persistActiveDraft(page);
+  await loadStaticCanvasFixture(page);
+  await expect(canvas).toHaveAttribute('data-last-render-reason', 'renderer:ready');
+  const staticCount = Number(await canvas.getAttribute('data-render-count'));
   await page.waitForTimeout(500);
-  await expect(canvas).toHaveAttribute('data-render-count', String(settledCount));
+  await expect(canvas).toHaveAttribute('data-render-count', String(staticCount));
 
   await page.locator('[data-tool="wall"]').click();
   await page.waitForTimeout(50);
@@ -271,6 +319,16 @@ test('level canvas presents a pointer edit on the next frame and then sleeps imm
   const afterEdit = Number(await canvas.getAttribute('data-render-count'));
   await page.waitForTimeout(500);
   await expect(canvas).toHaveAttribute('data-render-count', String(afterEdit));
+  await page.locator('[data-tool="select"]').click();
+  const decoration = await canvasPoint(page, 5, 5);
+  await page.mouse.click(decoration.x, decoration.y);
+  await expect(canvas).toHaveAttribute('data-selection-count', '1');
+  const selectionStart = Number(await canvas.getAttribute('data-render-count'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-render-count'))).toBeGreaterThan(selectionStart);
+  await expect.poll(() => canvas.getAttribute('data-last-render-reason')).toBe('animation:ambient');
+  const selectionFrame = Number(await canvas.getAttribute('data-render-count'));
+  await page.waitForTimeout(160);
+  await expect(canvas).not.toHaveAttribute('data-render-count', String(selectionFrame));
   expect(errors).toEqual([]);
 });
 

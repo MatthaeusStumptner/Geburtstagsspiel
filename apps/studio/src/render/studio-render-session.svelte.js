@@ -40,12 +40,12 @@ function walkerState(actor) {
   return actorAnimationState({ direction: current });
 }
 
-function actorActivity(actor, { state = 'idle', animationId = '' } = {}) {
+function actorActivity(actor, { state = 'idle', animationId = '', fallbackAnimated = false } = {}) {
   if (!actor) return STATIC_ACTIVITY;
   const appearance = actor.appearance;
   return mergeActivity(
     hasEffects(actor) ? { continuous: true, until: 0 } : STATIC_ACTIVITY,
-    appearance ? selectedAppearanceActivity(appearance, { animationId, state }) : STATIC_ACTIVITY,
+    appearance ? selectedAppearanceActivity(appearance, { animationId, state }) : fallbackAnimated ? { continuous: true, until: 0 } : STATIC_ACTIVITY,
   );
 }
 
@@ -66,7 +66,7 @@ function eventActivity(event, { showEvents }) {
   );
 }
 
-export function getLevelAnimationActivity(level, { showEvents = false } = {}) {
+export function getLevelAnimationActivity(level, { showEvents = false, selections = [] } = {}) {
   if (!level) return STATIC_ACTIVITY;
   const activities = [];
   if (Array.isArray(level.theme?.edgeEffects) && level.theme.edgeEffects.length > 0) activities.push({ continuous: true, until: 0 });
@@ -74,10 +74,12 @@ export function getLevelAnimationActivity(level, { showEvents = false } = {}) {
   if (level.board?.walls?.some(hasEffects)) activities.push({ continuous: true, until: 0 });
   if (level.collectibles?.powerUps?.length) activities.push({ continuous: true, until: 0 });
   activities.push(...(level.decorations ?? []).map(decorationActivity));
-  activities.push(actorActivity(level.actors?.player, { state: walkerState(level.actors?.player), animationId: level.actors?.player?.animation ?? '' }));
+  activities.push(actorActivity(level.actors?.player, { state: walkerState(level.actors?.player), animationId: level.actors?.player?.animation ?? '', fallbackAnimated: true }));
   activities.push(...(level.actors?.cats ?? []).map((cat) => actorActivity(cat, { state: actorAnimationState({ direction: cat?.dir }), animationId: cat?.animation ?? '' })));
-  activities.push(...(level.actors?.characters ?? []).map((character) => actorActivity(character, { state: walkerState({ direction: character?.state }), animationId: character?.animation ?? '' })));
+  activities.push(...(level.actors?.characters ?? []).map((character) => actorActivity(character, { state: walkerState({ direction: character?.state }), animationId: character?.animation ?? '', fallbackAnimated: true })));
   activities.push(...(level.events ?? []).map((event) => eventActivity(event, { showEvents })));
+  const primarySelection = Array.isArray(selections) ? selections.at(-1) : null;
+  if (primarySelection && primarySelection.primary !== false) activities.push({ continuous: true, until: 0 });
   return mergeActivity(...activities);
 }
 
