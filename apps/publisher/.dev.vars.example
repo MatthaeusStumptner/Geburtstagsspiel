@@ -1,0 +1,7 @@
+GITHUB_APP_ID="GitHub-App-ID"
+GITHUB_APP_CLIENT_ID="GitHub-App-Client-ID"
+GITHUB_APP_CLIENT_SECRET="nicht-committen"
+GITHUB_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----"
+GITHUB_INSTALLATION_ID="Installations-ID"
+ALLOWED_GITHUB_LOGINS="MatthaeusStumptner,GitHubNameDerFreundin"
+SESSION_SECRET="mindestens-32-zufaellige-Zeichen"

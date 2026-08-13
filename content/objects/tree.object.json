@@ -1,0 +1,27 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "tree",
+  "name": "Baum",
+  "description": "Ein klassischer Pixelbaum.",
+  "document": {
+    "id": "tree",
+    "name": "Baum",
+    "category": "Nachbarschaft",
+    "description": "Ein klassischer Pixelbaum.",
+    "type": "tree",
+    "width": 2,
+    "height": 2,
+    "color": "#4f9362",
+    "label": "",
+    "appearance": null,
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.15
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

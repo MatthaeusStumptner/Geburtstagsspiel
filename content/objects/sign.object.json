@@ -1,0 +1,27 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "sign",
+  "name": "Schild",
+  "description": "Beschriftbares Schild.",
+  "document": {
+    "id": "sign",
+    "name": "Schild",
+    "category": "Stadt",
+    "description": "Beschriftbares Schild.",
+    "type": "sign",
+    "width": 2,
+    "height": 1,
+    "color": "#d7b56d",
+    "label": "PASSAU",
+    "appearance": null,
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.15
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

@@ -1,0 +1,94 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "kingfisher",
+  "name": "Eisvogel",
+  "description": "Das Ilz-Easteregg als frei platzierbares Objekt.",
+  "document": {
+    "id": "kingfisher",
+    "name": "Eisvogel",
+    "category": "Passau",
+    "description": "Das Ilz-Easteregg als frei platzierbares Objekt.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#55d9dd",
+    "label": "◆",
+    "appearance": {
+      "width": 12,
+      "height": 12,
+      "palette": [
+        "transparent",
+        "#194b63",
+        "#e9a34b"
+      ],
+      "pixels": [
+        "000000000000",
+        "000000110000",
+        "000011111000",
+        "000122211100",
+        "001222221110",
+        "001222111000",
+        "000111100000",
+        "000011000000",
+        "000110000000",
+        "001100000000",
+        "000000000000",
+        "000000000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "000000000000",
+                "000000110000",
+                "000011111000",
+                "000122211100",
+                "001222221110",
+                "001222111000",
+                "000111100000",
+                "000011000000",
+                "000110000000",
+                "001100000000",
+                "000000000000",
+                "000000000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "bob",
+      "speed": 0.65,
+      "amplitude": 0.1
+    },
+    "effects": [
+      {
+        "id": "gefieder-funkeln",
+        "type": "sparkle",
+        "intensity": 0.35,
+        "speed": 0.8,
+        "color": "#e9a34b"
+      }
+    ]
+  },
+  "dependencies": [],
+  "references": []
+}

@@ -1,0 +1,77 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "university-book",
+  "name": "Passauer Buch",
+  "description": "Ein aufgeschlagenes Buch für Campus-Ereignisse.",
+  "document": {
+    "id": "university-book",
+    "name": "Passauer Buch",
+    "category": "Universität",
+    "description": "Ein aufgeschlagenes Buch für Campus-Ereignisse.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#55d9dd",
+    "label": "▤",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#f5e7bd",
+        "#55d9dd"
+      ],
+      "pixels": [
+        "00000000",
+        "01100110",
+        "01211210",
+        "01211210",
+        "01211210",
+        "01211210",
+        "01111110",
+        "00000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00000000",
+                "01100110",
+                "01211210",
+                "01211210",
+                "01211210",
+                "01211210",
+                "01111110",
+                "00000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "none",
+      "speed": 1,
+      "amplitude": 0.1
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

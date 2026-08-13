@@ -1,0 +1,77 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "oberhaus-flag",
+  "name": "Oberhaus-Fahne",
+  "description": "Eine kleine Fahne über der Stadt.",
+  "document": {
+    "id": "oberhaus-flag",
+    "name": "Oberhaus-Fahne",
+    "category": "Oberhaus",
+    "description": "Eine kleine Fahne über der Stadt.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#f5c451",
+    "label": "⚑",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#7a4a34",
+        "#f5c451"
+      ],
+      "pixels": [
+        "00011000",
+        "00011110",
+        "00012220",
+        "00011110",
+        "00011000",
+        "00011000",
+        "00011000",
+        "00111100"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00011000",
+                "00011110",
+                "00012220",
+                "00011110",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00111100"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "bob",
+      "speed": 0.4,
+      "amplitude": 0.08
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

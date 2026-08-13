@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://matthaeusstumptner.github.io/franz-lola/schema/franz-lola-level.schema.json",
+  "title": "Franz & Lola Level",
+  "type": "object",
+  "required": ["kind", "schemaVersion", "id", "name", "board", "theme", "actors", "collectibles"],
+  "properties": {
+    "kind": { "const": "franz-lola-level" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "icon": { "type": "string" },
+    "name": { "$ref": "#/$defs/localized" },
+    "description": { "$ref": "#/$defs/localized" },
+    "mission": { "$ref": "#/$defs/localized" },
+    "location": {
+      "type": "object",
+      "required": ["latitude", "longitude", "area"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "area": { "type": "string" }
+      }
+    },
+    "board": {
+      "type": "object",
+      "required": ["columns", "rows", "tileSize", "tunnelRows", "walls"],
+      "properties": {
+        "columns": { "type": "integer", "minimum": 5 },
+        "rows": { "type": "integer", "minimum": 5 },
+        "tileSize": { "type": "integer", "minimum": 8 },
+        "tunnelRows": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 0 } },
+        "walls": { "type": "array", "items": { "$ref": "#/$defs/rectangle" } }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "required": ["id", "landmark", "palette"],
+      "properties": {
+        "id": { "type": "string" },
+        "landmark": { "type": "string" },
+        "palette": {
+          "type": "object",
+          "required": ["ground", "curb", "walls", "water"],
+          "properties": {
+            "ground": { "$ref": "#/$defs/colors" },
+            "curb": { "$ref": "#/$defs/color" },
+            "walls": { "$ref": "#/$defs/colors" },
+            "water": { "$ref": "#/$defs/color" }
+          }
+        },
+        "elements": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/themeElement" } },
+        "edgeEffects": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/edgeEffect" } }
+      }
+    },
+    "actors": {
+      "type": "object",
+      "required": ["player", "cats"],
+      "properties": {
+        "player": { "$ref": "#/$defs/actor" },
+        "cats": { "type": "array", "items": { "$ref": "#/$defs/actor" } },
+        "characters": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/actor" } }
+      }
+    },
+    "collectibles": {
+      "type": "object",
+      "required": ["powerUps"],
+      "properties": { "powerUps": { "type": "array", "items": { "$ref": "#/$defs/point" } } }
+    },
+    "gameplay": {
+      "type": "object",
+      "properties": {
+        "pelletSeed": { "type": "integer" },
+        "treatTargets": {
+          "type": "object",
+          "required": ["easy", "normal", "hard"],
+          "properties": {
+            "easy": { "type": "integer", "minimum": 1 },
+            "normal": { "type": "integer", "minimum": 1 },
+            "hard": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "difficulties": {
+          "type": "object",
+          "properties": {
+            "easy": { "$ref": "#/$defs/difficultyProfile" },
+            "normal": { "$ref": "#/$defs/difficultyProfile" },
+            "hard": { "$ref": "#/$defs/difficultyProfile" }
+          }
+        }
+      }
+    },
+    "decorations": { "type": "array", "items": { "$ref": "#/$defs/decoration" } },
+    "events": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/levelEvent" } },
+    "cutscenes": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/cutscene" } },
+    "source": { "type": "object" }
+  },
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "colors": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/color" } },
+    "localized": {
+      "type": "object",
+      "required": ["standard", "dialect"],
+      "properties": { "standard": { "type": "string" }, "dialect": { "type": "string" } }
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": { "x": { "type": "integer" }, "y": { "type": "integer" } }
+    },
+    "rectangle": {
+      "allOf": [
+        { "$ref": "#/$defs/point" },
+        { "type": "object", "required": ["width", "height"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 }, "color": { "$ref": "#/$defs/color" }, "accent": { "$ref": "#/$defs/color" }, "useThemeColor": { "type": "boolean" }, "pattern": { "enum": ["theme", "solid", "brick", "metal", "windows"] }, "opacity": { "type": "number", "minimum": 0.15, "maximum": 1 }, "effects": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/visualEffect" } } } }
+      ]
+    },
+    "appearance": {
+      "type": ["object", "null"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 4, "maximum": 24 },
+        "height": { "type": "integer", "minimum": 4, "maximum": 24 },
+        "palette": { "type": "array", "minItems": 1, "maxItems": 36, "items": { "type": "string" } },
+        "pixels": { "type": "array", "items": { "type": "string" } },
+        "animations": { "type": "array", "maxItems": 24, "items": { "$ref": "#/$defs/spriteAnimation" } },
+        "stateAnimations": {
+          "type": "object",
+          "properties": {
+            "idle": { "type": "string" },
+            "up": { "type": "string" },
+            "right": { "type": "string" },
+            "down": { "type": "string" },
+            "left": { "type": "string" }
+          }
+        }
+      }
+    },
+    "animationFrame": {
+      "type": "object",
+      "required": ["pixels"],
+      "properties": {
+        "id": { "type": "string" },
+        "time": { "type": "number", "minimum": 0, "maximum": 3600 },
+        "easing": { "enum": ["linear", "step", "ease-in-out"] },
+        "pixels": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "spriteAnimation": {
+      "type": "object",
+      "required": ["id"],
+      "anyOf": [{ "required": ["frames"] }, { "required": ["keyframes"] }],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "fps": { "type": "number", "minimum": 0.25, "maximum": 30 },
+        "duration": { "type": "number", "minimum": 0.1, "maximum": 3600 },
+        "loop": { "type": "boolean" },
+        "frames": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/animationFrame" } },
+        "keyframes": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/animationFrame" } }
+      }
+    },
+    "themeElement": {
+      "type": "object",
+      "required": ["id", "animation"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "animation": { "$ref": "#/$defs/motionAnimation" }
+      }
+    },
+    "visualEffect": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "type": { "enum": ["glitch", "neon", "hologram", "echo", "sparkle"] },
+        "intensity": { "type": "number", "minimum": 0.05, "maximum": 1 },
+        "speed": { "type": "number", "minimum": 0.1, "maximum": 8 },
+        "color": { "$ref": "#/$defs/color" }
+      }
+    },
+    "edgeEffect": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "type": { "enum": ["water-flow", "fish", "boat", "leaves", "fireflies", "mist", "city-lights", "birds", "steam", "sparks", "stage-pulse"] },
+        "side": { "enum": ["left", "right", "both"] },
+        "speed": { "type": "number", "minimum": 0.1, "maximum": 8 },
+        "intensity": { "type": "number", "minimum": 0.05, "maximum": 1 },
+        "count": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "color": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/color" }
+      }
+    },
+    "actorBehavior": {
+      "type": "object",
+      "properties": {
+        "controller": { "enum": ["user", "autopilot", "patrol", "stationary"] },
+        "strategy": { "enum": ["chase", "ambush", "scatter-chase", "scatter", "guard", "random", "stationary"] },
+        "speedMultiplier": { "type": "number", "minimum": 0.1, "maximum": 4 },
+        "lookAhead": { "type": "number", "minimum": 0, "maximum": 12 },
+        "wanderMultiplier": { "type": "number", "minimum": 0, "maximum": 12 },
+        "wander": { "type": "number", "minimum": 0, "maximum": 30 },
+        "respawnDelay": { "type": "number", "minimum": 0, "maximum": 20 },
+        "target": { "$ref": "#/$defs/point" }
+      }
+    },
+    "difficultyProfile": {
+      "type": "object",
+      "properties": {
+        "playerSpeed": { "type": "number", "minimum": 0.1 },
+        "catSpeed": { "type": "number", "minimum": 0.1 },
+        "frightSpeed": { "type": "number", "minimum": 0.1 },
+        "catCount": { "type": "integer", "minimum": 0 },
+        "lives": { "type": "integer", "minimum": 1 },
+        "powerDuration": { "type": "number", "minimum": 0.1 },
+        "target": { "type": "integer", "minimum": 1 },
+        "wander": { "type": "number", "minimum": 0 },
+        "grace": { "type": "number", "minimum": 0 }
+      }
+    },
+    "actor": {
+      "allOf": [
+        { "$ref": "#/$defs/point" },
+        { "type": "object", "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }, "characterId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }, "name": { "type": "string" }, "renderer": { "type": "string" }, "state": { "enum": ["idle", "up", "right", "down", "left"] }, "animation": { "type": "string" }, "scale": { "type": "number", "minimum": 0.5, "maximum": 4 }, "color": { "$ref": "#/$defs/color" }, "accent": { "$ref": "#/$defs/color" }, "appearance": { "$ref": "#/$defs/appearance" }, "effects": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/visualEffect" } }, "behavior": { "$ref": "#/$defs/actorBehavior" } } }
+      ]
+    },
+    "motionAnimation": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["none", "bob", "pulse", "blink", "spin", "keyframes"] },
+        "speed": { "type": "number", "minimum": 0.1, "maximum": 12 },
+        "amplitude": { "type": "number", "minimum": 0, "maximum": 1 },
+        "duration": { "type": "number", "minimum": 0.1, "maximum": 3600 },
+        "loop": { "type": "boolean" },
+        "keyframes": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/motionKeyframe" } }
+      }
+    },
+    "motionKeyframe": {
+      "type": "object",
+      "required": ["id", "time"],
+      "properties": {
+        "id": { "type": "string" },
+        "time": { "type": "number", "minimum": 0, "maximum": 3600 },
+        "x": { "type": "number", "minimum": -48, "maximum": 48 },
+        "y": { "type": "number", "minimum": -48, "maximum": 48 },
+        "scale": { "type": "number", "minimum": 0.05, "maximum": 8 },
+        "rotation": { "type": "number", "minimum": -3600, "maximum": 3600 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "easing": { "enum": ["linear", "step", "ease-in-out"] }
+      }
+    },
+    "eventTrigger": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["zone", "direction-sequence", "time"] },
+        "zones": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/rectangle" } },
+        "sequence": { "type": "array", "maxItems": 32, "items": { "enum": ["up", "down", "left", "right"] } },
+        "seconds": { "type": "number", "minimum": 0, "maximum": 3600 }
+      }
+    },
+    "eventVisual": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["kingfisher", "paw", "bell", "custom", "none"] },
+        "x": { "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "color": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/color" },
+        "label": { "type": "string" },
+        "visibility": { "enum": ["after-trigger", "always"] },
+        "assetId": { "type": "string" },
+        "appearance": { "$ref": "#/$defs/appearance" },
+        "spriteAnimation": { "type": "string" },
+        "animation": { "$ref": "#/$defs/motionAnimation" },
+        "effects": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/visualEffect" } }
+      }
+    },
+    "levelEvent": {
+      "type": "object",
+      "required": ["id", "name", "message", "trigger", "visual"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "kind": { "const": "easter-egg" },
+        "name": { "$ref": "#/$defs/localized" },
+        "message": { "$ref": "#/$defs/localized" },
+        "reward": { "type": "integer", "minimum": -9999, "maximum": 9999 },
+        "scope": { "enum": ["global", "level", "run"] },
+        "trigger": { "$ref": "#/$defs/eventTrigger" },
+        "visual": { "$ref": "#/$defs/eventVisual" }
+      }
+    },
+    "decoration": {
+      "allOf": [
+        { "type": "object", "required": ["x", "y", "width", "height"], "properties": { "x": { "type": "number", "minimum": 0 }, "y": { "type": "number", "minimum": 0 }, "width": { "type": "number", "minimum": 0.25 }, "height": { "type": "number", "minimum": 0.25 } } },
+        { "type": "object", "required": ["id", "type", "color"], "properties": { "id": { "type": "string" }, "assetId": { "type": "string" }, "assetOverrides": { "type": "array", "uniqueItems": true, "items": { "enum": ["name", "type", "width", "height", "color", "label", "appearance", "spriteAnimation", "animation", "effects", "content", "textStyle"] } }, "name": { "type": "string" }, "type": { "enum": ["tree", "bench", "lamp", "flower", "sign", "rock", "water", "custom", "text"] }, "color": { "$ref": "#/$defs/color" }, "label": { "type": "string" }, "layer": { "enum": ["ground", "scenery", "foreground"] }, "locked": { "type": "boolean" }, "appearance": { "$ref": "#/$defs/appearance" }, "spriteAnimation": { "type": "string" }, "animation": { "$ref": "#/$defs/motionAnimation" }, "effects": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/visualEffect" } }, "content": { "$ref": "#/$defs/localized" }, "textStyle": { "$ref": "#/$defs/textStyle" } } }
+      ]
+    },
+    "textStyle": {
+      "type": "object",
+      "properties": {
+        "fontSize": { "type": "number", "minimum": 0.15, "maximum": 4 },
+        "align": { "enum": ["left", "center", "right"] },
+        "verticalAlign": { "enum": ["top", "middle", "bottom"] },
+        "background": { "$ref": "#/$defs/color" },
+        "backgroundOpacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "borderColor": { "$ref": "#/$defs/color" },
+        "borderOpacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "padding": { "type": "number", "minimum": 0, "maximum": 2 },
+        "uppercase": { "type": "boolean" }
+      }
+    },
+    "cutsceneKeyframe": {
+      "type": "object",
+      "required": ["id", "time", "easing"],
+      "properties": {
+        "id": { "type": "string" },
+        "time": { "type": "number", "minimum": 0, "maximum": 3600 },
+        "easing": { "enum": ["linear", "step", "ease-in-out"] },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "zoom": { "type": "number", "minimum": 0.25, "maximum": 4 },
+        "state": { "enum": ["idle", "up", "right", "down", "left"] },
+        "animation": { "type": "string" },
+        "visible": { "type": "boolean" },
+        "duration": { "type": "number", "minimum": 0.1, "maximum": 120 },
+        "speaker": { "type": "string" },
+        "text": { "$ref": "#/$defs/localized" }
+      }
+    },
+    "cutsceneTrack": {
+      "type": "object",
+      "required": ["id", "type", "target", "keyframes"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "enum": ["camera", "actor", "object", "dialogue"] },
+        "target": { "type": "string" },
+        "keyframes": { "type": "array", "minItems": 1, "maxItems": 128, "items": { "$ref": "#/$defs/cutsceneKeyframe" } }
+      }
+    },
+    "cutscene": {
+      "type": "object",
+      "required": ["id", "kind", "name", "duration", "tracks"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "kind": { "enum": ["intro", "outro", "transition"] },
+        "name": { "$ref": "#/$defs/localized" },
+        "duration": { "type": "number", "minimum": 0.5, "maximum": 3600 },
+        "skippable": { "type": "boolean" },
+        "tracks": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/cutsceneTrack" } }
+      }
+    }
+  }
+}

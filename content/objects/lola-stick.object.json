@@ -1,0 +1,76 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "lola-stick",
+  "name": "Lolas Superstöckchen",
+  "description": "Das legendäre Stöckchen aus dem Bschüttpark.",
+  "document": {
+    "id": "lola-stick",
+    "name": "Lolas Superstöckchen",
+    "category": "Bschüttpark",
+    "description": "Das legendäre Stöckchen aus dem Bschüttpark.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#b4794f",
+    "label": "/",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#b4794f"
+      ],
+      "pixels": [
+        "00000000",
+        "00000010",
+        "00000110",
+        "00001100",
+        "00011000",
+        "00110000",
+        "01100000",
+        "01000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00000000",
+                "00000010",
+                "00000110",
+                "00001100",
+                "00011000",
+                "00110000",
+                "01100000",
+                "01000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "spin",
+      "speed": 0.2,
+      "amplitude": 0.04
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

@@ -1,0 +1,77 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "cathedral-bell",
+  "name": "Domglocke",
+  "description": "Die Passauer Glocke als universelles Objekt.",
+  "document": {
+    "id": "cathedral-bell",
+    "name": "Domglocke",
+    "category": "Dom",
+    "description": "Die Passauer Glocke als universelles Objekt.",
+    "type": "custom",
+    "width": 2,
+    "height": 2,
+    "color": "#f5c451",
+    "label": "♜",
+    "appearance": {
+      "width": 8,
+      "height": 8,
+      "palette": [
+        "transparent",
+        "#8f6c2e",
+        "#f5c451"
+      ],
+      "pixels": [
+        "00011000",
+        "00111100",
+        "01111110",
+        "01122110",
+        "01111110",
+        "11111111",
+        "00111100",
+        "00011000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "00011000",
+                "00111100",
+                "01111110",
+                "01122110",
+                "01111110",
+                "11111111",
+                "00111100",
+                "00011000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "spin",
+      "speed": 0.25,
+      "amplitude": 0.08
+    }
+  },
+  "dependencies": [],
+  "references": []
+}

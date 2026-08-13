@@ -1,4 +1,4 @@
-name: Test game
+name: Verify foundation
 
 on:
   pull_request:
@@ -8,21 +8,44 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out workspace
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
-      - run: npm run verify
-      - name: Upload browser regression artifacts
+          cache-dependency-path: package-lock.json
+      - name: Install locked workspace dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run the unified foundation gate
+        run: npm run verify
+      - name: Upload renderer browser artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-game-regression
-          path: output/playwright/game
+          name: renderer-browser-artifacts
+          path: |
+            packages/pixel-renderer/output/playwright/renderer
+          if-no-files-found: ignore
+      - name: Upload game browser artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-browser-artifacts
+          path: |
+            apps/game/output/playwright/game
+          if-no-files-found: ignore
+      - name: Upload studio browser artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-browser-artifacts
+          path: |
+            apps/studio/test-results
           if-no-files-found: ignore

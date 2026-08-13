@@ -4,13 +4,14 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - src/data/levels/*.level.json
-      - src/data/library/characters/*.character.json
-      - src/data/library/tilesets/*.tileset.json
-      - src/data/library/blocks/*.block.json
-      - src/data/library/animations/*.animation.json
-      - src/data/library/cutscenes/*.cutscene.json
-      - src/data/library/objects/*.object.json
+      - content/levels/*.level.json
+      - content/characters/*.character.json
+      - content/tilesets/*.tileset.json
+      - content/blocks/*.block.json
+      - content/animations/*.animation.json
+      - content/cutscenes/*.cutscene.json
+      - content/objects/*.object.json
+      - content/events/*.event.json
 
 permissions:
   actions: write
@@ -31,6 +32,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PUBLISHER_BOT_LOGIN: ${{ vars.PUBLISHER_BOT_LOGIN }}
+        working-directory: apps/game
         run: node scripts/validate-publish-pr.mjs
 
       - name: Check out proposed content data

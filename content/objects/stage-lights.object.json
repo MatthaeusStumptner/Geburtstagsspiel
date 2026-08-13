@@ -1,0 +1,93 @@
+{
+  "kind": "franz-lola-content",
+  "schemaVersion": 2,
+  "type": "object",
+  "id": "stage-lights",
+  "name": "Bühnenlichter",
+  "description": "Farbige Lichtkegel für Konzerte und Szenen.",
+  "document": {
+    "id": "stage-lights",
+    "name": "Bühnenlichter",
+    "category": "Bühne",
+    "description": "Farbige Lichtkegel für Konzerte und Szenen.",
+    "type": "custom",
+    "width": 4,
+    "height": 3,
+    "color": "#ff4f87",
+    "label": "⌁",
+    "appearance": {
+      "width": 16,
+      "height": 12,
+      "palette": [
+        "transparent",
+        "#ff4f87"
+      ],
+      "pixels": [
+        "1000000000000001",
+        "0100000000000010",
+        "0010000000000100",
+        "0011000000001100",
+        "0001000000001000",
+        "0001100000011000",
+        "0000100000010000",
+        "0000110000110000",
+        "0000010000100000",
+        "0000011001100000",
+        "0000001010000000",
+        "0000001110000000"
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "fps": 4,
+          "duration": 0.25,
+          "loop": true,
+          "keyframes": [
+            {
+              "id": "keyframe-1",
+              "time": 0,
+              "easing": "step",
+              "pixels": [
+                "1000000000000001",
+                "0100000000000010",
+                "0010000000000100",
+                "0011000000001100",
+                "0001000000001000",
+                "0001100000011000",
+                "0000100000010000",
+                "0000110000110000",
+                "0000010000100000",
+                "0000011001100000",
+                "0000001010000000",
+                "0000001110000000"
+              ]
+            }
+          ]
+        }
+      ],
+      "stateAnimations": {
+        "idle": "idle",
+        "up": "idle",
+        "right": "idle",
+        "down": "idle",
+        "left": "idle"
+      }
+    },
+    "animation": {
+      "type": "pulse",
+      "speed": 0.7,
+      "amplitude": 0.12
+    },
+    "effects": [
+      {
+        "id": "licht-funkeln",
+        "type": "sparkle",
+        "intensity": 0.55,
+        "speed": 1.4,
+        "color": "#ff4f87"
+      }
+    ]
+  },
+  "dependencies": [],
+  "references": []
+}
