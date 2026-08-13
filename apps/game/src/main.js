@@ -14,6 +14,7 @@ import {
 import {
   DirectionalSwipeInput,
   PassauPixelRenderer,
+  serializePresentationFrame,
 } from '@franz-lola/pixel-renderer';
 import { createRenderCoordinator } from '@franz-lola/render-coordinator';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
@@ -2171,6 +2172,7 @@ if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
   window.__GASSI_RENDERER_DEBUG__ = () => ({
     ...(pixelRenderer?.rendererInfo() ?? { backend: 'initializing' }),
+    presentation: lastCatRadarFrame ? serializePresentationFrame(lastCatRadarFrame) : null,
     scheduler: renderSession.snapshot(),
     staticWorldRevision,
     renderPolicy: currentRenderPolicy().mode,

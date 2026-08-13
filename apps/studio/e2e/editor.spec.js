@@ -1,62 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { loadStaticCanvasFixture, openCleanEditor, persistActiveDraft } from './studio-test-helpers.js';
 
 const renderCoordinatorBrowserUrl = `/@fs/${fileURLToPath(new URL('../../../packages/render-coordinator/src/index.js', import.meta.url)).replaceAll('\\', '/')}`;
 
-async function openCleanEditor(page) {
-  const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForTimeout(150);
-  if (!await page.locator('#level-canvas').count()) throw new Error(`Editor konnte nicht starten: ${errors.join(' | ') || 'keine Page-Error-Meldung'}`);
-  await expect(page.locator('#level-canvas')).toBeVisible();
-  return errors;
-}
-
-async function loadStaticCanvasFixture(page) {
-  await page.evaluate(() => {
-    const key = 'franz-lola-level-editor-workspace-v2';
-    const workspace = JSON.parse(localStorage.getItem(key));
-    const level = workspace.drafts[workspace.activeId].level;
-    level.collectibles.powerUps = [];
-    level.theme = { ...level.theme, landmark: 'dog-park', edgeEffects: [], elements: [] };
-    level.board.walls = [];
-    level.actors = {
-      ...level.actors,
-      cats: [],
-      characters: [],
-      player: {
-        ...level.actors.player,
-        animation: '',
-        effects: [],
-        appearance: {
-          width: 4,
-          height: 4,
-          palette: ['transparent', '#f4eee0'],
-          pixels: ['0110', '1111', '1001', '0110'],
-          animations: [{ id: 'idle', fps: 4, loop: true, frames: [{ pixels: ['0110', '1111', '1001', '0110'] }] }],
-          stateAnimations: { idle: 'idle' },
-        },
-      },
-    };
-    level.decorations = [{ type: 'rock', x: 5, y: 5, width: 1, height: 1 }];
-    level.events = [];
-    localStorage.setItem(key, JSON.stringify(workspace));
-  });
-  await page.reload();
-  await expect(page.locator('#level-canvas')).toBeVisible();
-}
-async function persistActiveDraft(page) {
-  await page.locator('[data-tool="wall"]').click();
-  const point = await canvasPoint(page, 1, 1);
-  await page.mouse.click(point.x, point.y);
-  await page.waitForFunction(() => {
-    const workspace = JSON.parse(localStorage.getItem('franz-lola-level-editor-workspace-v2'));
-    return Boolean(workspace?.drafts?.[workspace.activeId]?.level);
-  });
-}
 async function openProject(page) {
   const button = page.locator('.brand:visible, .mobile-project-button:visible').first();
   await button.click();
@@ -114,7 +61,9 @@ async function openConflictingCloudEditor(page, { dirty = false } = {}) {
   const writes = [];
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const origin = request.headers().origin;
+    if (!origin) throw new Error('Publisher request is missing its browser Origin header.');
+    const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     const metadata = { id: remote.id, name: remote.name.standard, icon: remote.icon, area: remote.location.area, revision: 2, status: 'published', updatedBy: 'github', updatedAt: '2026-08-08T12:00:00.000Z' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
@@ -1091,7 +1040,9 @@ test('authorized non-technical editors share and publish mixed exact content rev
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4187', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const origin = request.headers().origin;
+    if (!origin) throw new Error('Publisher request is missing its browser Origin header.');
+    const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
     if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [...shared.values()].map(({ level, ...draft }) => draft) } });

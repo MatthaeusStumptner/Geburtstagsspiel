@@ -6,11 +6,16 @@ import {
   assertDprContract,
   assertFinalHealth,
   assertHighRefreshResult,
+  highRefreshCaptureTimeout,
   assertRadarPresentationContract,
   assertRectNear,
   assertReducedPostProcess,
   assertReducedRadarMotion,
   assertVideoEvidence,
+  assertBrowserCoverage,
+  assertFiveSecondBudgets,
+  assertRequiredArtifacts,
+  assertWebGpuDisposition,
   readRendererCounters,
   settleCleanup,
 } from '../scripts/browser-regression-contracts.mjs';
@@ -19,7 +24,7 @@ function healthyRenderer() {
   return {
     requestedBackend: 'webgl2', backend: 'webgl2', contextLost: false, fallbackReason: null,
     frameCount: 12, uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
-    worldOverlayUploadedBytes: 6, staticWorldRevision: 2,
+    worldOverlayUploadedBytes: 6, textureReallocations: 0, staticWorldRevision: 2,
     scheduler: { renderCount: 12 },
   };
 }
@@ -29,14 +34,56 @@ test('renderer counters fail closed when required diagnostics are missing or non
   assert.throws(() => readRendererCounters({ ...healthyRenderer(), uploadedBytes: Number.NaN }, 'nan'), /uploadedBytes/);
   assert.deepEqual(readRendererCounters(healthyRenderer(), 'healthy'), {
     rendererFrames: 12, schedulerFrames: 12, uploadedBytes: 20, sceneUploadedBytes: 10,
-    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, staticWorldRevision: 2,
+    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, textureReallocations: 0, staticWorldRevision: 2,
   });
   const canvas = { ...healthyRenderer(), backend: 'canvas2d' };
-  delete canvas.uploadedBytes; delete canvas.sceneUploadedBytes; delete canvas.overlayUploadedBytes; delete canvas.worldOverlayUploadedBytes;
-  assert.deepEqual(readRendererCounters(canvas, 'canvas'), {
-    rendererFrames: 12, schedulerFrames: 12, uploadedBytes: 0, sceneUploadedBytes: 0,
-    overlayUploadedBytes: 0, worldOverlayUploadedBytes: 0, staticWorldRevision: 2,
-  });
+  delete canvas.uploadedBytes;
+  assert.throws(() => readRendererCounters(canvas, 'canvas'), /uploadedBytes/);
+});
+
+test('five-second rendering budgets reject missing, non-finite, slow, or desynchronized counters', () => {
+  const valid = {
+    durationMs: 5_000,
+    staticEditorPresentations: 1,
+    hiddenThumbnailPresentations: 0,
+    animatedThumbnailPresentations: 150,
+    activePresentations: 300,
+    pausedPresentations: 0,
+    mapPresentations: 0,
+    textureReallocations: 0,
+    radarUpdates: 300,
+  };
+  assert.doesNotThrow(() => assertFiveSecondBudgets(valid, 'valid'));
+  assert.throws(() => assertFiveSecondBudgets({ ...valid, activePresentations: undefined }, 'missing'), /activePresentations/);
+  assert.throws(() => assertFiveSecondBudgets({ ...valid, animatedThumbnailPresentations: 144 }, 'slow-thumbnail'), /145/);
+  assert.throws(() => assertFiveSecondBudgets({ ...valid, activePresentations: 302, radarUpdates: 302 }, 'fast-active'), /301/);
+  assert.throws(() => assertFiveSecondBudgets({ ...valid, radarUpdates: 299 }, 'radar-drift'), /radar/);
+});
+
+test('completion coverage requires every backend viewport refresh and reduced-motion scenario', () => {
+  const coverage = [];
+  for (const backend of ['webgl2', 'canvas2d']) {
+    coverage.push(
+      { backend, width: 390, height: 844, deviceScaleFactor: 3, refreshRate: 60, reducedMotion: false },
+      { backend, width: 412, height: 915, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: false },
+      { backend, width: 915, height: 412, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: false },
+      { backend, width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 60, reducedMotion: false },
+      { backend, width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 120, reducedMotion: false },
+      { backend, width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 175, reducedMotion: false },
+      { backend, width: 412, height: 915, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: true },
+    );
+  }
+  assert.doesNotThrow(() => assertBrowserCoverage(coverage));
+  assert.throws(() => assertBrowserCoverage(coverage.slice(1)), /390x844/);
+});
+
+test('required artifact manifest fails closed and WebGPU skip records the real probe reason', () => {
+  const artifact = { screenshot: { path: 'state.png', bytes: 9_000 }, video: { path: 'state.webm', bytes: 40_000, durationSeconds: 5.1 } };
+  assert.doesNotThrow(() => assertRequiredArtifacts([artifact], 1));
+  assert.throws(() => assertRequiredArtifacts([{ ...artifact, video: null }], 1), /video/);
+  assert.doesNotThrow(() => assertWebGpuDisposition({ available: false, reason: 'requestAdapter() returned null' }, { status: 'skipped', reason: 'requestAdapter() returned null' }));
+  assert.throws(() => assertWebGpuDisposition({ available: false, reason: 'requestAdapter() returned null' }, { status: 'skipped', reason: 'generic unavailable' }), /probe reason/);
+  assert.doesNotThrow(() => assertWebGpuDisposition({ available: true, reason: null }, { status: 'passed', resolvedBackend: 'webgpu' }));
 });
 
 test('final health fails on crashes, evaluation gaps, and dirty browser diagnostics', () => {
@@ -52,19 +99,31 @@ test('final health fails on crashes, evaluation gaps, and dirty browser diagnost
 
 test('video evidence requires the Playwright video, readable path, bytes, and actual WebM duration', () => {
   assert.throws(() => assertVideoEvidence({ video: null, path: null, bytes: 0, durationSeconds: 0 }, 'missing'), /video object/);
-  assert.throws(() => assertVideoEvidence({ video: {}, path: 'test.webm', bytes: 40_000, durationSeconds: 2.99 }, 'short'), /three seconds/);
-  assert.doesNotThrow(() => assertVideoEvidence({ video: {}, path: 'test.webm', bytes: 40_000, durationSeconds: 3.01 }, 'valid'));
+  assert.throws(() => assertVideoEvidence({ video: {}, path: 'test.webm', bytes: 40_000, durationSeconds: 4.99 }, 'short'), /five seconds/);
+  assert.doesNotThrow(() => assertVideoEvidence({ video: {}, path: 'test.webm', bytes: 40_000, durationSeconds: 5.01 }, 'valid'));
 });
 
 test('high-refresh and reduced-motion diagnostics are required and finite', () => {
   assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1 }, 'zero'), /positive/);
-  assert.throws(() => assertHighRefreshResult({ presentationDelta: 122, positionError: 0, tolerance: 0.1 }, 'fast'), /121/);
-  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 120, positionError: 0, tolerance: 0.1 }, 'valid'));
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 302, positionError: 0, tolerance: 0.1 }, 'fast'), /301/);
+  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 300, positionError: 0, tolerance: 0.1 }, 'valid'));
   assert.throws(() => assertReducedPostProcess(null, 'missing'), /postProcess/);
   assert.throws(() => assertReducedPostProcess({ scanlines: Number.NaN, rgbSplitTexels: 0 }, 'nan'), /scanlines/);
   assert.doesNotThrow(() => assertReducedPostProcess({ scanlines: 0, rgbSplitTexels: 0 }, 'valid'));
 });
 
+test('high-refresh capture waits for the real-browser frame supply at every required refresh rate', async () => {
+  assert.equal(highRefreshCaptureTimeout(60), 10_000);
+  assert.equal(highRefreshCaptureTimeout(120), 15_000);
+  assert.equal(highRefreshCaptureTimeout(175), 19_584);
+  assert.throws(() => highRefreshCaptureTimeout(Number.NaN), /refresh rate/);
+  const source = await readFile(new URL('../scripts/browser-game-regression.mjs', import.meta.url), 'utf8');
+  const start = source.indexOf('async function highRefreshWindow');
+  const diagnostic = source.slice(start, source.indexOf('async function reducedRadarMotion', start));
+  assert.ok(diagnostic.includes('__GASSI_DEBUG_SET_PLAYER__'));
+  assert.ok(diagnostic.includes('EXPECTED_HOME_POSITION'));
+  assert.ok(diagnostic.includes('highRefreshCaptureTimeout(scenario.refreshRate)'));
+});
 test('reduced motion removes radar pulsing without suppressing direct position updates', () => {
   assert.doesNotThrow(() => assertReducedRadarMotion({
     animationName: 'none',
@@ -221,6 +280,14 @@ test('cleanup attempts every closer even when one rejects', async () => {
   assert.deepEqual(attempted.sort(), ['browser', 'http', 'vite']);
   assert.equal(errors.length, 1);
   assert.match(errors[0].message, /browser close failed/);
+});
+
+test('visual health rejects blank and gray canvases without weakening screenshot evidence', async () => {
+  const { assertVisualHealth } = await import('../scripts/browser-regression-contracts.mjs');
+  assert.doesNotThrow(() => assertVisualHealth({ opaquePixels: 1024, uniqueColors: 32, chromaPixels: 280, luminanceRange: 170 }, 'healthy'));
+  assert.throws(() => assertVisualHealth({ opaquePixels: 0, uniqueColors: 1, chromaPixels: 0, luminanceRange: 0 }, 'blank'), /opaque/);
+  assert.throws(() => assertVisualHealth({ opaquePixels: 1024, uniqueColors: 3, chromaPixels: 0, luminanceRange: 12 }, 'gray'), /gray|chroma/);
+  assert.throws(() => assertVisualHealth({ opaquePixels: 1024, uniqueColors: Number.NaN, chromaPixels: 280, luminanceRange: 170 }, 'nan'), /finite/);
 });
 
 test('pause overlay must match every board-frame edge', () => {

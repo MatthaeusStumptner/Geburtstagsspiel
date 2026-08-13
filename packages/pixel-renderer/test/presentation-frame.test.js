@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPresentationFrame, isPresentationFrame } from '../src/presentation-frame.js';
+import { createPresentationFrame, isPresentationFrame, serializePresentationFrame } from '../src/presentation-frame.js';
+
+test('diagnostic capture returns a detached serializable copy and rejects malformed frames', () => {
+  const frame = createPresentationFrame(sampleInput());
+  const captured = serializePresentationFrame(frame);
+
+  assert.deepEqual(captured, frame);
+  assert.notStrictEqual(captured, frame);
+  assert.notStrictEqual(captured.camera, frame.camera);
+  captured.camera.source.x = 99;
+  assert.equal(frame.camera.source.x, 10);
+  assert.equal(JSON.parse(JSON.stringify(captured)).frameId, 7);
+  assert.throws(() => serializePresentationFrame({ ...frame, frameId: Number.NaN }), /valid PresentationFrame/i);
+});
 
 function sampleInput() {
   return {

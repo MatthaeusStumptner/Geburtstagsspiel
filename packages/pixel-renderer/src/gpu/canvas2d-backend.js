@@ -47,7 +47,17 @@ export class Canvas2DPresentationBackend {
   }
 
   snapshot() {
-    return { backend: this.kind, frameCount: this.frameCount, gpuAccelerated: false, contextLost: false };
+    return {
+      backend: this.kind,
+      frameCount: this.frameCount,
+      gpuAccelerated: false,
+      contextLost: false,
+      uploadedBytes: 0,
+      sceneUploadedBytes: 0,
+      overlayUploadedBytes: 0,
+      worldOverlayUploadedBytes: 0,
+      textureReallocations: 0,
+    };
   }
 
   finish() {}

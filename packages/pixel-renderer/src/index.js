@@ -27,7 +27,7 @@ export {
 } from './camera.js';
 
 export { PassauPixelRenderer } from './passau-pixel-renderer.js';
-export { createPresentationFrame, isPresentationFrame } from './presentation-frame.js';
+export { createPresentationFrame, isPresentationFrame, serializePresentationFrame } from './presentation-frame.js';
 export { EFFECT_MODES, resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLimit } from './gpu/effect-profile.js';
 export { RENDER_BUDGETS, evaluatePerformanceBudget, summarizeRenderSamples } from './performance.js';
 export { drawPixelSprite } from './painters/sprites.js';

@@ -65,8 +65,10 @@ test('Mehrere Entwürfe lassen sich gemeinsam zur Veröffentlichung auswählen @
   await page.addInitScript(() => localStorage.clear());
   const shared = new Map();
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const request = route.request(); const path = new URL(request.url()).pathname;
+    const origin = request.headers().origin;
+    if (!origin) throw new Error('Publisher request is missing its browser Origin header.');
+    const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });
     if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [] } });
@@ -114,7 +116,9 @@ test('Alter Browser-Entwurf übernimmt automatisch die gemeinsame Cloud-Basis @v
   });
   await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
-    const headers = { 'Access-Control-Allow-Origin': 'http://127.0.0.1:4191', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
+    const origin = request.headers().origin;
+    if (!origin) throw new Error('Publisher request is missing its browser Origin header.');
+    const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' };
     const metadata = { id: remote.id, name: remote.name.standard, icon: remote.icon, area: remote.location.area, revision: 2, status: 'published', updatedBy: 'github', updatedAt: '2026-08-08T12:00:00.000Z' };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Franz-Lola-Redaktion' } });

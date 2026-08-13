@@ -105,6 +105,25 @@ test('level canvas renders immediately after a pointer edit and sleeps when unch
   assert.equal(harness.level.renderCount, 1);
 });
 
+test('a coalesced hover-down-up burst presents the latest pointer state once under the first pending reason', () => {
+  const clock = createFrameClock();
+  const coordinator = createRenderCoordinator(clock.adapter);
+  const frames = [];
+  let pointerState = 'idle';
+  const session = createStudioRenderSession({
+    coordinator,
+    render: (frame) => frames.push({ reason: frame.reason, pointerState }),
+  });
+  pointerState = 'hover'; session.invalidate('pointer:hover');
+  pointerState = 'down'; session.invalidate('pointer:down');
+  pointerState = 'up'; session.invalidate('pointer:up');
+  assert.equal(clock.pendingCount(), 1);
+  clock.present(10);
+  assert.deepEqual(frames, [{ reason: 'pointer:hover', pointerState: 'up' }]);
+  assert.equal(clock.pendingCount(), 0);
+  session.destroy();
+});
+
 test('animated content stays awake until it becomes static', () => {
   const harness = createStudioRenderHarness();
   harness.level.setActive(true);

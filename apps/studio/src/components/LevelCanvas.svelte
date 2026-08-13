@@ -5,6 +5,8 @@
   import { worldPointFromScreen, worldTilePointFromScreen } from '../editor-tools.js';
   import { getLevelAnimationActivity } from '../render/studio-render-session.svelte.js';
   import { levelCanvasRenderInputs } from '../render/level-canvas-render-inputs.js';
+  import { captureStudioPresentation } from '../render/studio-render-diagnostics.js';
+  import { resolveStudioRendererBackend } from '../render/studio-render-backend.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let { studio, compact = false, ariaLabel = 'Bearbeitbares Levelraster' } = $props();
@@ -81,6 +83,7 @@
     canvas.dataset.cameraSourceHeight = String(renderResult.camera.source.height);
     canvas.dataset.tileSize = String(tileSize);
     if (diagnosticsEnabled) {
+      captureStudioPresentation('studio-level-canvas', renderResult, { renderCount: renderCount + 1, profile: 'editor' });
       canvas.dataset.renderCount = String(renderCount + 1);
       canvas.dataset.lastRenderReason = reason ?? 'unknown';
     }
@@ -152,7 +155,7 @@
     let disposed = false;
     // Authoring text and transform handles must retain the device pixel ratio even
     // when CI or a low-core device would select the gameplay performance tier.
-    PassauPixelRenderer.create(canvas, { zoom: 1, backend: 'auto', preferWebGPU: true, quality: 'quality', powerPreference: 'low-power' }).then((instance) => {
+    PassauPixelRenderer.create(canvas, { zoom: 1, backend: resolveStudioRendererBackend(location.search, { development: import.meta.env.DEV }), preferWebGPU: true, quality: 'quality', powerPreference: 'low-power' }).then((instance) => {
       if (disposed) { instance.destroy(); return; }
       renderer = instance;
       renderer.setLevel(studio.editorLevel);

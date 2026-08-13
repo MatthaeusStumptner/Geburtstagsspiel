@@ -57,14 +57,46 @@ function unexpectedBrowserMessages(messages) {
     || (!text.includes('GPU stall due to ReadPixels') && text !== 'No available adapters.'));
 }
 
+async function webmDurationSeconds(path, name) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.setContent('<input id="video-file" type="file"><video id="probe" muted></video>');
+    await page.locator('#video-file').setInputFiles(path);
+    return await page.evaluate(async (scenario) => {
+      const file = document.querySelector('#video-file').files?.[0];
+      if (!file) throw new Error(`${scenario} finalized WebM is missing`);
+      const video = document.querySelector('#probe'); const objectUrl = URL.createObjectURL(file);
+      try {
+        video.src = objectUrl;
+        await new Promise((resolveMetadata, rejectMetadata) => {
+          const timeout = setTimeout(() => rejectMetadata(new Error(`${scenario} WebM metadata timeout`)), 10_000);
+          video.addEventListener('loadedmetadata', () => { clearTimeout(timeout); resolveMetadata(); }, { once: true });
+          video.addEventListener('error', () => { clearTimeout(timeout); rejectMetadata(new Error(`${scenario} WebM metadata unreadable`)); }, { once: true });
+        });
+        if (!Number.isFinite(video.duration)) {
+          await new Promise((resolveDuration, rejectDuration) => {
+            const timeout = setTimeout(() => rejectDuration(new Error(`${scenario} WebM duration timeout`)), 10_000);
+            video.addEventListener('timeupdate', () => { clearTimeout(timeout); resolveDuration(); }, { once: true });
+            video.currentTime = Number.MAX_SAFE_INTEGER;
+          });
+        }
+        return video.duration;
+      } finally { URL.revokeObjectURL(objectUrl); }
+    }, name);
+  } finally { await context.close(); }
+}
+
 async function preserveVideo(video, name) {
-  if (!video) return null;
+  assert.ok(video, `${name} Playwright video is mandatory`);
   const source = await video.path();
   const target = artifactPath(name, 'webm');
   await rename(source, target);
   const metadata = await stat(target);
-  assert.ok(metadata.size > 1_000, `${name} video must contain rendered frames`);
-  return target;
+  assert.ok(metadata.size > 20_000, `${name} video must contain rendered frames`);
+  const durationSeconds = await webmDurationSeconds(target, name);
+  assert.ok(durationSeconds >= 5, `${name} video must contain at least five seconds`);
+  return { path: target, bytes: metadata.size, durationSeconds };
 }
 
 async function runBenchmarkScenario({
@@ -118,9 +150,11 @@ async function runBenchmarkScenario({
     assert.equal(runtime.result.renderer.backend, runtime.result.resolvedBackend, `${name} diagnostics must report the resolved backend`);
 
     if (capture) {
-      assert.ok(Date.now() - startedAt >= 2_000, `${name} must record at least two seconds of camera movement`);
+      const remaining = 5_000 - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, remaining));
+      assert.ok(Date.now() - startedAt >= 5_000, `${name} must record at least five seconds of camera movement`);
       const screenshot = await page.locator('#benchmark').screenshot({ path: screenshotPath });
-      assert.ok(screenshot.byteLength > 1_000, `${name} screenshot must contain rendered pixels`);
+      assert.ok(screenshot.byteLength > 8_000, `${name} screenshot must contain rendered pixels`);
     }
     const extra = evaluate ? await evaluate(page, runtime) : null;
     if (name === 'webgl2-fractional-dpr' && injectLateConsoleError) {
@@ -164,13 +198,28 @@ async function runBenchmarkScenario({
     }
     await page?.close().catch(() => {});
     await context?.close().catch(() => {});
-    videoPath = await preserveVideo(video, name).catch((error) => {
-      if (capture) throw error;
-      return null;
-    });
+    videoPath = capture ? await preserveVideo(video, name) : null;
     if (scenario) scenario.video = videoPath;
     if (finalHealthError) throw finalHealthError;
   }
+}
+
+async function probeWebGpu() {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(`${server.resolvedUrls.local[0].replace(/\/$/, '')}/benchmark.html?backend=canvas2d&frames=1`, { waitUntil: 'domcontentloaded' });
+    return await page.evaluate(async () => {
+      if (!navigator.gpu) return { available: false, reason: 'navigator.gpu is not exposed' };
+      try {
+        return await navigator.gpu.requestAdapter()
+          ? { available: true, reason: null }
+          : { available: false, reason: 'requestAdapter() returned null' };
+      } catch (error) {
+        return { available: false, reason: `requestAdapter() failed: ${error?.message ?? error}` };
+      }
+    });
+  } finally { await context.close(); }
 }
 
 async function run() {
@@ -188,6 +237,8 @@ async function run() {
   assert.notEqual(address.port, 5173, 'Vite must not use its fixed default port');
   report.port = address.port;
   browser = await chromium.launch({ headless: true });
+
+  const webGpuProbe = await probeWebGpu();
 
   const fractional = await runBenchmarkScenario({
     name: 'webgl2-fractional-dpr',
@@ -209,6 +260,7 @@ async function run() {
     viewport: { width: 412, height: 915 },
     deviceScaleFactor: 2.625,
     reducedMotion: 'reduce',
+    capture: true,
     evaluate: async (_page, runtime) => {
       assert.equal(runtime.result.postProcess.scanlines, 0);
       assert.equal(runtime.result.postProcess.rgbSplitTexels, 0);
@@ -244,7 +296,7 @@ async function run() {
     assert.ok(presentations <= 121, `${refreshRate} Hz presented ${presentations} frames, above the 121-frame ceiling`);
   }
 
-  if (fractional.runtime.navigatorGpu) {
+  if (webGpuProbe.available) {
     const webgpu = await runBenchmarkScenario({
       name: 'webgpu-fractional-dpr',
       path: '/benchmark.html?backend=webgpu&quality=quality&frames=180',
@@ -257,15 +309,10 @@ async function run() {
         return null;
       },
     });
-    report.webgpu = webgpu.scenario.resolvedBackend === 'webgpu'
-      ? { status: 'passed', resolvedBackend: 'webgpu' }
-      : {
-          status: 'fallback',
-          resolvedBackend: webgpu.scenario.resolvedBackend,
-          reason: webgpu.scenario.fallbackReason,
-        };
+    assert.equal(webgpu.scenario.resolvedBackend, 'webgpu', 'available WebGPU must resolve natively');
+    report.webgpu = { status: 'passed', resolvedBackend: 'webgpu' };
   } else {
-    report.webgpu = { status: 'skipped', reason: 'navigator.gpu is unavailable in this Chromium runtime.' };
+    report.webgpu = { status: 'skipped', reason: webGpuProbe.reason };
   }
 }
 

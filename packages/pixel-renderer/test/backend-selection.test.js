@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { createPresentationBackend, selectPresentationBackend } from '../src/gpu/presentation-backend.js';
 import { createWebGL2Backend } from '../src/gpu/webgl2-backend.js';
 import { createWebGPUBackend, webGPUAdapterOptions } from '../src/gpu/webgpu-backend.js';
+import { Canvas2DPresentationBackend } from '../src/gpu/canvas2d-backend.js';
+
+test('Canvas2D reports explicit zero upload and texture counters', () => {
+  const backend = new Canvas2DPresentationBackend({ getContext: () => ({}) });
+  assert.deepEqual(backend.snapshot(), {
+    backend: 'canvas2d', frameCount: 0, gpuAccelerated: false, contextLost: false,
+    uploadedBytes: 0, sceneUploadedBytes: 0, overlayUploadedBytes: 0,
+    worldOverlayUploadedBytes: 0, textureReallocations: 0,
+  });
+});
 
 test('omits ignored WebGPU power preference on Windows', () => {
   assert.deepEqual(webGPUAdapterOptions(

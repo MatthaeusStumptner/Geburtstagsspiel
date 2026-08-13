@@ -8,14 +8,19 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import {
   assertActionableBoundingBox,
+  assertBrowserCoverage,
   assertDprContract,
   assertFinalHealth,
   assertHighRefreshResult,
+  highRefreshCaptureTimeout,
   assertRadarPresentationContract,
+  assertRequiredArtifacts,
   assertRectNear,
   assertReducedPostProcess,
   assertReducedRadarMotion,
   assertVideoEvidence,
+  assertVisualHealth,
+  assertWebGpuDisposition,
   readRendererCounters,
   settleCleanup,
 } from './browser-regression-contracts.mjs';
@@ -27,16 +32,18 @@ const SAVE_KEY = 'gassi-runde-hals-save';
 const APP_WARNING = /(?:renderer|webgl|webgpu|svelte|unhandled|context\s*lost|gassi)/i;
 const FIXED_STEP_TOLERANCE = (5.8 / 120) + 0.006;
 const EXPECTED_HOME_POSITION = Object.freeze({ x: 7, y: 20 });
-const BASE_MATRIX = [
-  { name: 'mobile-390-dpr3', width: 390, height: 844, deviceScaleFactor: 3, backend: 'webgl2', mobile: true },
-  { name: 'mobile-412-dpr2625', width: 412, height: 915, deviceScaleFactor: 2.625, backend: 'webgl2', mobile: true },
-  { name: 'mobile-reduced-motion', width: 412, height: 915, deviceScaleFactor: 2.625, backend: 'webgl2', mobile: true, reducedMotion: 'reduce' },
-  { name: 'landscape-915-dpr2625', width: 915, height: 412, deviceScaleFactor: 2.625, backend: 'webgl2', mobile: true },
-  { name: 'desktop-webgl2-60hz', width: 1366, height: 768, deviceScaleFactor: 1, backend: 'webgl2', rafHz: 60 },
-  { name: 'desktop-webgl2-120hz', width: 1366, height: 768, deviceScaleFactor: 1, backend: 'webgl2', rafHz: 120 },
-  { name: 'desktop-webgl2-175hz', width: 1366, height: 768, deviceScaleFactor: 1, backend: 'webgl2', rafHz: 175 },
-  { name: 'desktop-canvas2d', width: 1366, height: 768, deviceScaleFactor: 1, backend: 'canvas2d' },
+const MATRIX_PROFILES = [
+  { name: 'mobile-390-dpr3-60hz', width: 390, height: 844, deviceScaleFactor: 3, mobile: true, refreshRate: 60 },
+  { name: 'mobile-412-dpr2625-60hz', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
+  { name: 'landscape-915-dpr2625-60hz', width: 915, height: 412, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
+  { name: 'desktop-60hz', width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 60 },
+  { name: 'desktop-120hz', width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 120 },
+  { name: 'desktop-175hz', width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 175 },
+  { name: 'mobile-reduced-motion-60hz', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60, reducedMotion: 'reduce' },
 ];
+const BASE_MATRIX = ['webgl2', 'canvas2d'].flatMap((backend) => MATRIX_PROFILES.map((profile) => ({
+  ...profile, name: `${profile.name}-${backend}`, backend, rafHz: profile.refreshRate,
+})));
 
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 const hash = (buffer) => createHash('sha256').update(buffer).digest('hex');
@@ -122,7 +129,7 @@ function initBrowserState({ save, rafHz }) {
       const radarSample = sampleRadar();
       if (radarSample) radarSamples.push(radarSample);
     }
-    if (marked && !captured && virtualTimestamp - epoch >= 2_000 && window.__GASSI_DEBUG__ && window.__GASSI_RENDERER_DEBUG__) {
+    if (marked && !captured && virtualTimestamp - epoch >= 5_000 && window.__GASSI_DEBUG__ && window.__GASSI_RENDERER_DEBUG__) {
       captured = { game: window.__GASSI_DEBUG__(), renderer: window.__GASSI_RENDERER_DEBUG__(), radarSamples, raf: { hz: rafHz, step, nativeFrames, virtualTimestamp, elapsed: virtualTimestamp - epoch } };
     }
   });
@@ -163,12 +170,13 @@ async function settleStatic(page, scenario, policy) {
   throw new Error(`[${scenario}] ${policy} render state did not settle`);
 }
 
-async function assertStaticSleep(page, scenario, policy, label) {
+async function assertStaticSleep(page, scenario, policy, label, durationMs = 5_000) {
   const before = await settleStatic(page, scenario, policy);
-  await delay(1_000);
+  const startedAt = Date.now();
+  await delay(durationMs);
   const after = readRendererCounters(await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null), scenario);
   assert.deepEqual(after, before, `[${scenario}] ${label} advanced while static`);
-  return { before, after };
+  return { durationMs: Date.now() - startedAt, before, after, deltas: Object.fromEntries(Object.keys(after).map((key) => [key, after[key] - before[key]])) };
 }
 
 async function geometry(page) {
@@ -240,6 +248,29 @@ async function shot(page, artifactDir, name) {
   return { path, bytes: info.size };
 }
 
+async function canvasVisualHealth(page, scenario) {
+  const sample = await page.evaluate(() => {
+    const source = document.querySelector('#game');
+    if (!(source instanceof HTMLCanvasElement)) throw new Error('Game canvas is missing');
+    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(source, 0, 0, 32, 32);
+    const pixels = context.getImageData(0, 0, 32, 32).data;
+    let opaquePixels = 0; let chromaPixels = 0; let minLuminance = 255; let maxLuminance = 0;
+    const colors = new Set();
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index]; const green = pixels[index + 1]; const blue = pixels[index + 2]; const alpha = pixels[index + 3];
+      if (alpha > 0) opaquePixels += 1;
+      if (Math.max(red, green, blue) - Math.min(red, green, blue) >= 12) chromaPixels += 1;
+      const luminance = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
+      minLuminance = Math.min(minLuminance, luminance); maxLuminance = Math.max(maxLuminance, luminance);
+      colors.add(`${red >> 3},${green >> 3},${blue >> 3},${alpha >> 5}`);
+    }
+    return { opaquePixels, uniqueColors: colors.size, chromaPixels, luminanceRange: maxLuminance - minLuminance };
+  });
+  return assertVisualHealth(sample, scenario);
+}
+
 async function enterLevel(page, scenario) {
   const marker = page.locator('[data-level-id="home"] .map-marker');
   await marker.waitFor({ state: 'visible', timeout: 12_000 });
@@ -269,22 +300,31 @@ async function enterLevel(page, scenario) {
 }
 
 async function highRefreshWindow(page, scenario) {
+  await page.evaluate(({ player, cat }) => {
+    const game = window.__GASSI_DEBUG__();
+    window.__GASSI_DEBUG_SET_PLAYER__(player.x, player.y);
+    window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: game.radar.frame.cats.length }, (_, index) => ({ x: cat.x + index, y: cat.y })));
+  }, { player: EXPECTED_HOME_POSITION, cat: { x: 40, y: 4 } });
+  await waitFor(page, scenario.name, ({ game }) => game?.player?.x === EXPECTED_HOME_POSITION.x && game?.player?.y === EXPECTED_HOME_POSITION.y && game.radar?.state?.visible, 'deterministic high-Hz fixture');
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz baseline pause');
   await page.keyboard.press('ArrowLeft');
   const baseline = await page.evaluate(() => ({ player: window.__GASSI_DEBUG__().player, radar: window.__GASSI_DEBUG__().radar, renderer: window.__GASSI_RENDERER_DEBUG__(), mark: window.__PW_RAF__.mark() }));
   await page.locator('#overlay-button').click();
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'high-Hz resume');
-  await page.waitForFunction(() => window.__PW_RAF__.captured(), null, { timeout: 10_000 });
+  await page.waitForFunction(() => window.__PW_RAF__.captured(), null, { timeout: highRefreshCaptureTimeout(scenario.refreshRate) });
   const measured = await page.evaluate(() => window.__PW_RAF__.captured());
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz final pause');
-  const presentationDelta = readRendererCounters(measured.renderer, scenario.name).rendererFrames
-    - readRendererCounters(baseline.renderer, scenario.name).rendererFrames;
+  const baselineCounters = readRendererCounters(baseline.renderer, scenario.name);
+  const measuredCounters = readRendererCounters(measured.renderer, scenario.name);
+  const presentationDelta = measuredCounters.rendererFrames - baselineCounters.rendererFrames;
+  const textureReallocations = measuredCounters.textureReallocations - baselineCounters.textureReallocations;
+  assert.equal(textureReallocations, 0, `[${scenario.name}] texture reallocated during stable-size active rendering`);
   const positionError = Math.hypot(measured.game.player.x - EXPECTED_HOME_POSITION.x, measured.game.player.y - EXPECTED_HOME_POSITION.y);
   assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE }, scenario.name);
   const radar = assertRadarPresentationContract({ presentationDelta, baselineRadar: baseline.radar, measuredRadar: measured.game.radar, samples: measured.radarSamples }, scenario.name);
-  return { baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, radar, raf: measured.raf };
+  return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, textureReallocations, radar, raf: measured.raf };
 }
 
 async function reducedRadarMotion(page, scenario) {
@@ -530,13 +570,13 @@ async function runScenario(browser, baseUrl, scenario) {
     }
     await enterLevel(page, scenario); await delay(320);
     screenshots.push(await shot(page, artifactDir, 'active-level'));
+    const visualHealth = await canvasVisualHealth(page, scenario.name);
     const active = await geometry(page); assertGeometryDpr(active, scenario); if (scenario.mobile) assertMobileGeometry(active, scenario);
     const reducedRadar = scenario.reducedMotion === 'reduce' ? await reducedRadarMotion(page, scenario) : null;
     const directMap = await directPlayingToMap(page, scenario, artifactDir);
     if (directMap.status === 'exercised') screenshots.push(directMap.screenshot);
     const fullscreen = await exerciseFullscreen(page, scenario, directMap.resumedGeometry ?? active);
-    const highRefresh = scenario.rafHz ? await highRefreshWindow(page, scenario) : null;
-    if (!scenario.rafHz) { await page.keyboard.press('KeyP'); await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'pause'); }
+    const highRefresh = await highRefreshWindow(page, scenario);
     const paused = await geometry(page); assertGeometryDpr(paused, scenario); if (scenario.mobile) assertMobileGeometry(paused, scenario);
     assertRectNear(paused.overlay, paused.boardFrame, 1, scenario.name, 'pause overlay');
     screenshots.push(await shot(page, artifactDir, 'paused-level'));
@@ -552,12 +592,14 @@ async function runScenario(browser, baseUrl, scenario) {
     const remaining = 3_200 - (Date.now() - startedAt); if (remaining > 0) await delay(remaining);
     const late = await page.evaluate(() => ({ renderer: window.__GASSI_RENDERER_DEBUG__?.() ?? null, game: window.__GASSI_DEBUG__?.() ?? null }));
     result = {
-      name: scenario.name, status: 'passed', requestedBackend: scenario.backend, resolvedBackend: late.renderer?.backend,
+      name: scenario.name, status: 'passed', backend: scenario.backend, requestedBackend: scenario.backend, resolvedBackend: late.renderer?.backend,
+      width: scenario.width, height: scenario.height, deviceScaleFactor: scenario.deviceScaleFactor,
+      refreshRate: scenario.refreshRate, reducedMotionEnabled: scenario.reducedMotion === 'reduce',
       quality: late.renderer?.quality, pixelRatio: late.renderer?.pixelRatio, display: late.renderer?.display,
       counters: readRendererCounters(late.renderer, `${scenario.name}:result`),
       geometry: { active, paused, resize }, staticSleep: { paused: pausedSleep, map: mapSleep }, highRefresh,
       reducedMotion: { map: reducedMap, renderer: reducedRenderer, radar: reducedRadar }, directMap, fullscreen,
-      screenshots, pausedFrameHash: hash(frameOne), ignoredDriverWarnings, elapsedMs: Date.now() - startedAt,
+      screenshots, visualHealth, pausedFrameHash: hash(frameOne), ignoredDriverWarnings, elapsedMs: Date.now() - startedAt,
     };
   } catch (error) {
     result = markScenarioFailed(result, scenario, error, startedAt);
@@ -627,12 +669,24 @@ async function main() {
     summary.server = { host: '127.0.0.1', port: address.port, baseUrl, assignment: 'node-http-listen-0' };
     browser = await chromium.launch({ headless: true });
     const matrix = [...BASE_MATRIX]; const webGpu = await probeWebGpu(browser, baseUrl);
-    if (webGpu.available) matrix.push({ name: 'mobile-412-dpr2625-webgpu', width: 412, height: 915, deviceScaleFactor: 2.625, backend: 'webgpu', mobile: true });
-    else summary.skips.push({ scenario: 'mobile-412-dpr2625-webgpu', status: 'skipped', reason: webGpu.reason });
+    if (webGpu.available) matrix.push({ name: 'mobile-412-dpr2625-60hz-webgpu', width: 412, height: 915, deviceScaleFactor: 2.625, backend: 'webgpu', mobile: true, refreshRate: 60, rafHz: 60 });
+    else summary.skips.push({ scenario: 'mobile-412-dpr2625-60hz-webgpu', status: 'skipped', reason: webGpu.reason });
     const only = process.env.GASSI_BROWSER_SCENARIO;
     for (const scenario of only ? matrix.filter((item) => item.name === only) : matrix) {
       process.stdout.write(`\n[browser] ${scenario.name} ... `); const result = await runScenario(browser, baseUrl, scenario); summary.scenarios.push(result); process.stdout.write(`${result.status}\n`);
       if (result.status !== 'passed') process.stderr.write(`${result.error}\n`);
+    }
+    const webGpuResult = summary.scenarios.find((item) => item.backend === 'webgpu');
+    summary.webGpu = webGpu.available
+      ? { status: webGpuResult?.status === 'passed' ? 'passed' : 'failed', resolvedBackend: webGpuResult?.resolvedBackend ?? null }
+      : { status: 'skipped', reason: webGpu.reason };
+    assertWebGpuDisposition(webGpu, summary.webGpu);
+    if (!only) {
+      assertBrowserCoverage(summary.scenarios.map((item) => ({ ...item, reducedMotion: item.reducedMotionEnabled })));
+      assertRequiredArtifacts(summary.scenarios.map((item) => ({
+        screenshot: item.screenshots?.find((artifact) => artifact.path.endsWith('active-level.png')),
+        video: item.video,
+      })), matrix.length);
     }
     const failed = summary.scenarios.filter((item) => item.status !== 'passed'); if (failed.length) failure = new Error(`${failed.length} browser scenario(s) failed: ${failed.map((item) => item.name).join(', ')}`);
     if (only && summary.scenarios.length === 0) failure = new Error(`Unknown browser scenario: ${only}`);

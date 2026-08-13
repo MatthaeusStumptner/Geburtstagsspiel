@@ -125,6 +125,12 @@ export function createPresentationFrame(input) {
   });
 }
 
+export function serializePresentationFrame(frame) {
+  if (!isPresentationFrame(frame)) throw new TypeError('Diagnostic capture requires a valid PresentationFrame.');
+  const { kind, frameId, presentationTime, camera, player, cats, characters, display, renderer } = frame;
+  return JSON.parse(JSON.stringify({ kind, frameId, presentationTime, camera, player, cats, characters, display, renderer }));
+}
+
 export function isPresentationFrame(value) {
   try {
     if (!isRecord(value) || value.kind !== FRAME_KIND) return false;

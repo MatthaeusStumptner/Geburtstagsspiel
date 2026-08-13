@@ -14,16 +14,15 @@ export function readRendererCounters(debug, scenario) {
   assert.ok(debug && typeof debug === 'object', `[${scenario}] renderer diagnostics are missing`);
   const rendererFrames = requiredFinite(debug.frameCount, 'frameCount', scenario);
   assert.ok(debug.scheduler && typeof debug.scheduler === 'object', `[${scenario}] scheduler diagnostics are missing`);
-  const uploadCounter = (name) => debug.backend === 'canvas2d' && debug[name] === undefined
-    ? 0
-    : requiredFinite(debug[name], name, scenario);
+
   return {
     rendererFrames,
     schedulerFrames: requiredFinite(debug.scheduler.renderCount, 'scheduler.renderCount', scenario),
-    uploadedBytes: uploadCounter('uploadedBytes'),
-    sceneUploadedBytes: uploadCounter('sceneUploadedBytes'),
-    overlayUploadedBytes: uploadCounter('overlayUploadedBytes'),
-    worldOverlayUploadedBytes: uploadCounter('worldOverlayUploadedBytes'),
+    uploadedBytes: requiredFinite(debug.uploadedBytes, 'uploadedBytes', scenario),
+    sceneUploadedBytes: requiredFinite(debug.sceneUploadedBytes, 'sceneUploadedBytes', scenario),
+    overlayUploadedBytes: requiredFinite(debug.overlayUploadedBytes, 'overlayUploadedBytes', scenario),
+    worldOverlayUploadedBytes: requiredFinite(debug.worldOverlayUploadedBytes, 'worldOverlayUploadedBytes', scenario),
+    textureReallocations: requiredFinite(debug.textureReallocations, 'textureReallocations', scenario),
     staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
   };
 }
@@ -54,15 +53,20 @@ export function assertVideoEvidence({ video, path, bytes, durationSeconds }, sce
   assert.ok(video && typeof video === 'object', `[${scenario}] Playwright video object is missing`);
   assert.ok(typeof path === 'string' && path.length > 0, `[${scenario}] WebM path is missing`);
   assert.ok(Number.isFinite(bytes) && bytes > 20_000, `[${scenario}] WebM artifact is missing, unreadable, or too small`);
-  assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 3, `[${scenario}] WebM must contain at least three seconds of media`);
+  assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 5, `[${scenario}] WebM must contain at least five seconds of media`);
 }
 
 export function assertHighRefreshResult({ presentationDelta, positionError, tolerance }, scenario) {
   assert.ok(Number.isFinite(presentationDelta) && presentationDelta > 0, `[${scenario}] presentation delta must be a positive finite number`);
-  assert.ok(presentationDelta <= 121, `[${scenario}] presentation delta exceeds 121`);
+  assert.ok(presentationDelta <= 301, `[${scenario}] presentation delta exceeds 301`);
   assert.ok(Number.isFinite(positionError), `[${scenario}] position error must be finite`);
   assert.ok(Number.isFinite(tolerance) && tolerance >= 0, `[${scenario}] position tolerance must be finite`);
   assert.ok(positionError <= tolerance, `[${scenario}] player drift exceeds one fixed step`);
+}
+
+export function highRefreshCaptureTimeout(refreshRate) {
+  assert.ok(Number.isFinite(refreshRate) && refreshRate > 0, 'refresh rate must be a positive finite number');
+  return Math.ceil(5_000 * Math.max(1, refreshRate / 60) + 5_000);
 }
 
 function readRadarSnapshot(radar, scenario) {
@@ -203,6 +207,87 @@ export function assertRectNear(actual, expected, tolerance, scenario, label) {
       `[${scenario}] ${label} ${edge} differs from board frame (${actual[edge]} vs ${expected[edge]})`);
   }
 }
+export function assertFiveSecondBudgets(budgets, scenario) {
+  assert.ok(budgets && typeof budgets === 'object', `[${scenario}] five-second budgets are missing`);
+  const required = [
+    'durationMs', 'staticEditorPresentations', 'hiddenThumbnailPresentations',
+    'animatedThumbnailPresentations', 'activePresentations', 'pausedPresentations',
+    'mapPresentations', 'textureReallocations', 'radarUpdates',
+  ];
+  const values = Object.fromEntries(required.map((name) => [name, requiredFinite(budgets[name], name, scenario)]));
+  assert.ok(values.durationMs >= 5_000, `[${scenario}] budget window must cover five seconds`);
+  assert.ok(values.staticEditorPresentations <= 1, `[${scenario}] static editor exceeded one presentation`);
+  assert.equal(values.hiddenThumbnailPresentations, 0, `[${scenario}] hidden thumbnail presented`);
+  assert.ok(values.animatedThumbnailPresentations >= 145 && values.animatedThumbnailPresentations <= 155,
+    `[${scenario}] animated thumbnail must present 145-155 frames`);
+  assert.ok(values.activePresentations <= 301, `[${scenario}] active game/playtest exceeded 301 presentations`);
+  assert.equal(values.pausedPresentations, 0, `[${scenario}] paused scene presented after settle`);
+  assert.equal(values.mapPresentations, 0, `[${scenario}] map presented after settle`);
+  assert.equal(values.textureReallocations, 0, `[${scenario}] texture reallocations occurred during stable-size activity`);
+  assert.equal(values.radarUpdates, values.activePresentations, `[${scenario}] radar updates differ from active presentations`);
+  return values;
+}
+
+export function assertBrowserCoverage(results) {
+  assert.ok(Array.isArray(results), 'browser coverage results must be an array');
+  const expected = [];
+  for (const backend of ['webgl2', 'canvas2d']) {
+    expected.push(
+      [backend, 390, 844, 3, 60, false],
+      [backend, 412, 915, 2.625, 60, false],
+      [backend, 915, 412, 2.625, 60, false],
+      [backend, 1366, 768, 1, 60, false],
+      [backend, 1366, 768, 1, 120, false],
+      [backend, 1366, 768, 1, 175, false],
+      [backend, 412, 915, 2.625, 60, true],
+    );
+  }
+  for (const [backend, width, height, dpr, refreshRate, reducedMotion] of expected) {
+    const found = results.some((result) => result?.backend === backend
+      && result.width === width && result.height === height && result.deviceScaleFactor === dpr
+      && result.refreshRate === refreshRate && result.reducedMotion === reducedMotion);
+    assert.ok(found, `browser coverage is missing ${backend} ${width}x${height} DPR${dpr} ${refreshRate}Hz reduced=${reducedMotion}`);
+  }
+}
+
+export function assertRequiredArtifacts(entries, expectedCount) {
+  assert.ok(Array.isArray(entries), 'required artifacts must be an array');
+  assert.equal(entries.length, expectedCount, 'required artifact scenario count differs');
+  entries.forEach((entry, index) => {
+    assert.ok(typeof entry?.screenshot?.path === 'string' && entry.screenshot.path.length > 0, `artifact ${index} screenshot path is missing`);
+    assert.ok(Number.isFinite(entry.screenshot.bytes) && entry.screenshot.bytes > 8_000, `artifact ${index} screenshot is unreadable`);
+    assert.ok(typeof entry?.video?.path === 'string' && entry.video.path.length > 0, `artifact ${index} video path is missing`);
+    assert.ok(Number.isFinite(entry.video.bytes) && entry.video.bytes > 20_000, `artifact ${index} video is unreadable`);
+    assert.ok(Number.isFinite(entry.video.durationSeconds) && entry.video.durationSeconds >= 5, `artifact ${index} video is shorter than five seconds`);
+  });
+}
+
+export function assertVisualHealth(sample, scenario) {
+  assert.ok(sample && typeof sample === 'object', `[${scenario}] visual health sample is missing`);
+  const opaquePixels = requiredFinite(sample.opaquePixels, 'visual.opaquePixels', scenario);
+  const uniqueColors = requiredFinite(sample.uniqueColors, 'visual.uniqueColors', scenario);
+  const chromaPixels = requiredFinite(sample.chromaPixels, 'visual.chromaPixels', scenario);
+  const luminanceRange = requiredFinite(sample.luminanceRange, 'visual.luminanceRange', scenario);
+  assert.ok(opaquePixels >= 512, `[${scenario}] rendered canvas has insufficient opaque pixels`);
+  assert.ok(uniqueColors >= 8, `[${scenario}] rendered canvas has insufficient color variation`);
+  assert.ok(chromaPixels >= 32, `[${scenario}] rendered canvas is blank or gray (insufficient chroma)`);
+  assert.ok(luminanceRange >= 32, `[${scenario}] rendered canvas has insufficient luminance range`);
+  return { opaquePixels, uniqueColors, chromaPixels, luminanceRange };
+}
+
+export function assertWebGpuDisposition(probe, disposition) {
+  assert.ok(probe && typeof probe.available === 'boolean', 'WebGPU availability probe is malformed');
+  assert.ok(disposition && typeof disposition === 'object', 'WebGPU disposition is missing');
+  if (probe.available) {
+    assert.equal(disposition.status, 'passed', 'available WebGPU must pass');
+    assert.equal(disposition.resolvedBackend, 'webgpu', 'available WebGPU must resolve natively');
+    return;
+  }
+  assert.ok(typeof probe.reason === 'string' && probe.reason.trim().length > 0, 'unavailable WebGPU probe reason is missing');
+  assert.equal(disposition.status, 'skipped', 'unavailable WebGPU must be a structured skip');
+  assert.equal(disposition.reason, probe.reason, 'WebGPU skip must preserve the real probe reason');
+}
+
 export async function settleCleanup(entries) {
   const results = await Promise.allSettled(entries.map(({ close }) => Promise.resolve().then(close)));
   return results.flatMap((result, index) => result.status === 'rejected'

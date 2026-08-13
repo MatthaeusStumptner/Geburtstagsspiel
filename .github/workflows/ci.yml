@@ -26,26 +26,27 @@ jobs:
       - name: Run the unified foundation gate
         run: npm run verify
       - name: Upload renderer browser artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: renderer-browser-artifacts
           path: |
             packages/pixel-renderer/output/playwright/renderer
-          if-no-files-found: ignore
+          if-no-files-found: error
       - name: Upload game browser artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: game-browser-artifacts
           path: |
             apps/game/output/playwright/game
-          if-no-files-found: ignore
+          if-no-files-found: error
       - name: Upload studio browser artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: studio-browser-artifacts
           path: |
             apps/studio/test-results
-          if-no-files-found: ignore
+            apps/studio/output/playwright
+          if-no-files-found: error

@@ -4,6 +4,8 @@
   import { cutsceneById, sampleCutscene } from '@franz-lola/game-core';
   import { DirectionalSwipeInput, PassauPixelRenderer } from '@franz-lola/pixel-renderer';
   import { PlaytestEngine, createPlaytestPresentation, playtestFrameDelta } from '../playtest-engine.js';
+  import { captureStudioPresentation } from '../render/studio-render-diagnostics.js';
+  import { resolveStudioRendererBackend } from '../render/studio-render-backend.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
 
   let { studio } = $props();
@@ -93,6 +95,9 @@
     canvas.dataset.cameraSource = JSON.stringify(result.camera.source);
     canvas.dataset.cameraViewport = JSON.stringify(result.camera.viewport);
     presentationCount = renderCount + 1;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+      captureStudioPresentation('studio-playtest-workspace', result, { renderCount: presentationCount, profile });
+    }
     presentedProfile = profile;
   }
   function present(frame) {
@@ -136,7 +141,7 @@
   onMount(() => {
     let disposed = false;
     window.addEventListener('keydown', keyboard);
-    PassauPixelRenderer.create(canvas, { zoom: 1.12, backend: 'auto', preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
+    PassauPixelRenderer.create(canvas, { zoom: 1.12, backend: resolveStudioRendererBackend(location.search, { development: import.meta.env.DEV }), preferWebGPU: true, quality: 'auto', powerPreference: 'low-power' }).then((instance) => {
       if (disposed) { instance.destroy(); return; }
       renderer = instance; rendererReady = true; renderer.setLevel(studio.level); surface.invalidate('renderer:ready');
       if (pendingStart) queueMicrotask(start);
