@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { validateRendererResourceMetrics } from '@franz-lola/pixel-renderer';
+export { assertVisualHealth } from '../../../tools/browser-visual-health.mjs';
 
 function requiredFinite(value, label, scenario) {
   assert.ok(Number.isFinite(value), `[${scenario}] ${label} must be a finite number`);
@@ -14,18 +16,28 @@ export function readRendererCounters(debug, scenario) {
   assert.ok(debug && typeof debug === 'object', `[${scenario}] renderer diagnostics are missing`);
   const rendererFrames = requiredFinite(debug.frameCount, 'frameCount', scenario);
   assert.ok(debug.scheduler && typeof debug.scheduler === 'object', `[${scenario}] scheduler diagnostics are missing`);
-  const uploadCounter = (name) => debug.backend === 'canvas2d' && debug[name] === undefined
-    ? 0
-    : requiredFinite(debug[name], name, scenario);
-  return {
+  const common = {
     rendererFrames,
     schedulerFrames: requiredFinite(debug.scheduler.renderCount, 'scheduler.renderCount', scenario),
-    uploadedBytes: uploadCounter('uploadedBytes'),
-    sceneUploadedBytes: uploadCounter('sceneUploadedBytes'),
-    overlayUploadedBytes: uploadCounter('overlayUploadedBytes'),
-    worldOverlayUploadedBytes: uploadCounter('worldOverlayUploadedBytes'),
     staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
   };
+  const resources = validateRendererResourceMetrics(debug);
+  if (resources.applicability === 'applicable') {
+    const { applicability, kind, value, ...resourceCounters } = resources;
+    return { ...common, ...resourceCounters, resources: { applicability, kind, value, ...resourceCounters } };
+  }
+  return { ...common, resources };
+}
+
+export function assertStableResourceWindow(before, after, scenario) {
+  assert.ok(before?.resources && after?.resources, `[${scenario}] resource counters are missing`);
+  assert.equal(after.resources.applicability, before.resources.applicability, `[${scenario}] resource applicability changed`);
+  assert.equal(after.resources.kind, before.resources.kind, `[${scenario}] resource counter kind changed`);
+  const delta = requiredFinite(after.resources.value, 'resource counter', scenario)
+    - requiredFinite(before.resources.value, 'baseline resource counter', scenario);
+  const label = after.resources.kind === 'gpu-textures' ? 'texture reallocations' : 'backing-store resizes';
+  assert.equal(delta, 0, `[${scenario}] ${label} occurred during stable-size activity`);
+  return { applicability: after.resources.applicability, ...(after.resources.reason ? { reason: after.resources.reason } : {}), kind: after.resources.kind, delta };
 }
 
 export function assertFinalHealth({ scenario, expectedBackend, health, consoleErrors, warnings, pageErrors, crashes }) {
@@ -54,15 +66,120 @@ export function assertVideoEvidence({ video, path, bytes, durationSeconds }, sce
   assert.ok(video && typeof video === 'object', `[${scenario}] Playwright video object is missing`);
   assert.ok(typeof path === 'string' && path.length > 0, `[${scenario}] WebM path is missing`);
   assert.ok(Number.isFinite(bytes) && bytes > 20_000, `[${scenario}] WebM artifact is missing, unreadable, or too small`);
-  assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 3, `[${scenario}] WebM must contain at least three seconds of media`);
+  assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 5, `[${scenario}] WebM must contain at least five seconds of media`);
 }
 
-export function assertHighRefreshResult({ presentationDelta, positionError, tolerance }, scenario) {
+export function assertHighRefreshResult({ presentationDelta, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer, trajectorySamples }, scenario) {
   assert.ok(Number.isFinite(presentationDelta) && presentationDelta > 0, `[${scenario}] presentation delta must be a positive finite number`);
-  assert.ok(presentationDelta <= 121, `[${scenario}] presentation delta exceeds 121`);
+  assert.ok(presentationDelta <= 301, `[${scenario}] presentation delta exceeds 301`);
   assert.ok(Number.isFinite(positionError), `[${scenario}] position error must be finite`);
   assert.ok(Number.isFinite(tolerance) && tolerance >= 0, `[${scenario}] position tolerance must be finite`);
   assert.ok(positionError <= tolerance, `[${scenario}] player drift exceeds one fixed step`);
+  for (const [label, point] of Object.entries({ baselinePlayer, finalPlayer, expectedPlayer })) {
+    assert.ok(Number.isFinite(point?.x) && Number.isFinite(point?.y), `[${scenario}] ${label} must be finite`);
+  }
+  assert.ok(Math.hypot(expectedPlayer.x - baselinePlayer.x, expectedPlayer.y - baselinePlayer.y) >= 20,
+    `[${scenario}] reference trajectory must contain nontrivial movement`);
+  assert.ok(Math.hypot(finalPlayer.x - baselinePlayer.x, finalPlayer.y - baselinePlayer.y) >= 20,
+    `[${scenario}] measured trajectory must contain nontrivial movement`);
+  assert.ok(Array.isArray(trajectorySamples) && trajectorySamples.length === 5,
+    `[${scenario}] trajectory must contain all five one-second samples`);
+  trajectorySamples.forEach((sample, index) => {
+    const targetMs = (index + 1) * 1_000;
+    assert.ok(Number.isFinite(sample?.elapsedMs) && sample.elapsedMs >= targetMs && sample.elapsedMs <= targetMs + 17,
+      `[${scenario}] trajectory sample ${index + 1} must represent second ${index + 1}`);
+    for (const [label, point] of Object.entries({ player: sample?.player, expectedPlayer: sample?.expectedPlayer })) {
+      assert.ok(Number.isFinite(point?.x) && Number.isFinite(point?.y), `[${scenario}] trajectory sample ${index + 1} ${label} must be finite`);
+    }
+    assert.ok(Math.hypot(sample.player.x - sample.expectedPlayer.x, sample.player.y - sample.expectedPlayer.y) <= tolerance,
+      `[${scenario}] trajectory sample ${index + 1} drifts beyond one fixed step`);
+  });
+  assert.ok(Math.hypot(
+    trajectorySamples[4].player.x - trajectorySamples[3].player.x,
+    trajectorySamples[4].player.y - trajectorySamples[3].player.y,
+  ) >= 5, `[${scenario}] terminal trajectory segment must keep moving through the fifth second`);
+}
+export function highRefreshCaptureTimeout(refreshRate) {
+  assert.ok(Number.isFinite(refreshRate) && refreshRate > 0, 'refresh rate must be a positive finite number');
+  return Math.ceil(5_000 * Math.max(1, refreshRate / 60) + 5_000);
+}
+
+function readRadarSnapshot(radar, scenario) {
+  assert.ok(radar && typeof radar === 'object', `[${scenario}] radar diagnostics are missing`);
+  const updateCount = requiredFinite(radar.updateCount, 'radar.updateCount', scenario);
+  assert.ok(Number.isSafeInteger(updateCount) && updateCount >= 0, `[${scenario}] radar.updateCount must be a non-negative safe integer`);
+  assert.ok(radar.frame && typeof radar.frame === 'object', `[${scenario}] radar frame diagnostics are missing`);
+  assert.ok(Number.isSafeInteger(radar.frame.frameId) && radar.frame.frameId > 0, `[${scenario}] radar frameId must be positive`);
+  const viewport = radar.frame.camera?.viewport;
+  assert.ok(viewport && typeof viewport === 'object', `[${scenario}] radar viewport diagnostics are missing`);
+  for (const key of ['x', 'y', 'width', 'height']) requiredFinite(viewport[key], `radar.viewport.${key}`, scenario);
+  assert.ok(viewport.width > 0 && viewport.height > 0, `[${scenario}] radar viewport must be positive`);
+  const playerScreen = radar.frame.player?.screen;
+  assert.ok(playerScreen && typeof playerScreen === 'object', `[${scenario}] radar player screen diagnostics are missing`);
+  for (const key of ['x', 'y']) requiredFinite(playerScreen[key], `radar.player.screen.${key}`, scenario);
+  const cats = requiredArray(radar.frame.cats, 'radar frame cats', scenario);
+  cats.forEach((cat, index) => {
+    assert.ok(cat && typeof cat.id === 'string' && cat.id.length > 0, `[${scenario}] radar cat ${index} id is missing`);
+    for (const key of ['x', 'y']) requiredFinite(cat.screen?.[key], `radar.cat.${cat.id}.screen.${key}`, scenario);
+    assert.equal(typeof cat.onScreen, 'boolean', `[${scenario}] radar cat ${cat.id} onScreen is missing`);
+    requiredFinite(cat.respawnTimer, `radar.cat.${cat.id}.respawnTimer`, scenario);
+  });
+  assert.ok(radar.state && typeof radar.state.visible === 'boolean', `[${scenario}] radar state diagnostics are missing`);
+  const indicators = requiredArray(radar.state.indicators, 'radar indicators', scenario);
+  indicators.forEach((indicator, index) => {
+    assert.ok(indicator && typeof indicator.id === 'string' && indicator.id.length > 0, `[${scenario}] radar indicator ${index} id is missing`);
+    for (const key of ['x', 'y', 'angle', 'distance']) requiredFinite(indicator[key], `radar.indicator.${indicator.id}.${key}`, scenario);
+    assert.equal(typeof indicator.hidden, 'boolean', `[${scenario}] radar indicator ${indicator.id} hidden is missing`);
+  });
+  return radar;
+}
+
+function angleDifference(left, right) {
+  return Math.abs(((left - right + 180) % 360 + 360) % 360 - 180);
+}
+
+export function assertRadarPresentationContract({ presentationDelta, baselineRadar, measuredRadar, samples }, scenario) {
+  requiredFinite(presentationDelta, 'presentation delta', scenario);
+  const baseline = readRadarSnapshot(baselineRadar, `${scenario}:baseline`);
+  const measured = readRadarSnapshot(measuredRadar, `${scenario}:measured`);
+  const radarDelta = measured.updateCount - baseline.updateCount;
+  assert.equal(radarDelta, presentationDelta, `[${scenario}] radar update delta differs from presentation delta`);
+  const sampled = requiredArray(samples, 'radar samples', scenario);
+  assert.ok(sampled.length > 0, `[${scenario}] radar samples are empty`);
+  let visibleBubbleCount = 0;
+
+  sampled.forEach((sample, sampleIndex) => {
+    const label = `${scenario}:radar-sample-${sampleIndex}`;
+    const radar = readRadarSnapshot(sample?.radar, label);
+    const viewport = sample?.viewport;
+    assert.ok(viewport && typeof viewport === 'object', `[${label}] gameplay viewport geometry is missing`);
+    for (const edge of ['left', 'top', 'right', 'bottom']) requiredFinite(viewport[edge], `gameplay viewport.${edge}`, label);
+    assert.ok(viewport.right > viewport.left && viewport.bottom > viewport.top, `[${label}] gameplay viewport geometry is empty`);
+    const bubbles = requiredArray(sample?.bubbles, 'radar bubbles', label);
+    const visibleIndicators = radar.state.indicators.filter((indicator) => !indicator.hidden);
+    assert.equal(bubbles.length, visibleIndicators.length, `[${label}] visible radar bubble count differs from state`);
+
+    bubbles.forEach((bubble) => {
+      visibleBubbleCount += 1;
+      assert.ok(bubble && typeof bubble.id === 'string' && bubble.id.length > 0, `[${label}] radar bubble id is missing`);
+      for (const edge of ['left', 'top', 'right', 'bottom']) requiredFinite(bubble[edge], `radar bubble ${bubble.id}.${edge}`, label);
+      const actualAngle = requiredFinite(bubble.angle, `radar bubble ${bubble.id}.angle`, label);
+      assert.ok(bubble.left >= viewport.left - 1 && bubble.top >= viewport.top - 1
+        && bubble.right <= viewport.right + 1 && bubble.bottom <= viewport.bottom + 1,
+      `[${label}] radar bubble ${bubble.id} leaves the gameplay viewport`);
+      const cat = radar.frame.cats.find((candidate) => candidate.id === bubble.id);
+      assert.ok(cat, `[${label}] radar bubble ${bubble.id} has no matching frame entity`);
+      const expectedAngle = Math.atan2(
+        cat.screen.y - radar.frame.player.screen.y,
+        cat.screen.x - radar.frame.player.screen.x,
+      ) * 180 / Math.PI + 90;
+      assert.ok(angleDifference(actualAngle, expectedAngle) <= 0.5,
+        `[${label}] radar bubble ${bubble.id} differs by more than 0.5 degrees from its frame entity`);
+    });
+  });
+
+  assert.ok(visibleBubbleCount > 0, `[${scenario}] radar samples contain no visible bubbles`);
+  return { radarDelta, visibleBubbleCount };
 }
 
 export function assertReducedPostProcess(postProcess, scenario) {
@@ -71,6 +188,15 @@ export function assertReducedPostProcess(postProcess, scenario) {
   const rgbSplitTexels = requiredFinite(postProcess.rgbSplitTexels, 'postProcess.rgbSplitTexels', scenario);
   assert.equal(scanlines, 0, `[${scenario}] reduced motion left scanlines enabled`);
   assert.equal(rgbSplitTexels, 0, `[${scenario}] reduced motion left RGB split enabled`);
+}
+
+export function assertReducedRadarMotion({ animationName, beforeTransform, afterTransform, modelDanger, indicatorDanger }, scenario) {
+  assert.equal(modelDanger, true, '[' + scenario + '] reduced radar fixture did not originate from model danger state');
+  assert.equal(indicatorDanger, true, '[' + scenario + '] radar view did not reflect the model danger class');
+  assert.equal(animationName, 'none', `[${scenario}] reduced motion left decorative animation enabled`);
+  assert.ok(typeof beforeTransform === 'string' && beforeTransform.length > 0, `[${scenario}] initial radar transform is missing`);
+  assert.ok(typeof afterTransform === 'string' && afterTransform.length > 0, `[${scenario}] updated radar transform is missing`);
+  assert.notEqual(afterTransform, beforeTransform, `[${scenario}] reduced motion suppressed the direct radar position update`);
 }
 
 export function assertActionableBoundingBox({ visible, enabled, box, viewport }, scenario) {
@@ -116,6 +242,77 @@ export function assertRectNear(actual, expected, tolerance, scenario, label) {
       `[${scenario}] ${label} ${edge} differs from board frame (${actual[edge]} vs ${expected[edge]})`);
   }
 }
+export function assertFiveSecondBudgets(budgets, scenario) {
+  assert.ok(budgets && typeof budgets === 'object', `[${scenario}] five-second budgets are missing`);
+  const required = [
+    'durationMs', 'staticEditorPresentations', 'hiddenThumbnailPresentations',
+    'animatedThumbnailPresentations', 'activePresentations', 'pausedPresentations',
+    'mapPresentations', 'radarUpdates',
+  ];
+  const values = Object.fromEntries(required.map((name) => [name, requiredFinite(budgets[name], name, scenario)]));
+  assert.ok(values.durationMs >= 5_000, `[${scenario}] budget window must cover five seconds`);
+  assert.ok(values.staticEditorPresentations <= 1, `[${scenario}] static editor exceeded one presentation`);
+  assert.equal(values.hiddenThumbnailPresentations, 0, `[${scenario}] hidden thumbnail presented`);
+  assert.ok(values.animatedThumbnailPresentations >= 145 && values.animatedThumbnailPresentations <= 155,
+    `[${scenario}] animated thumbnail must present 145-155 frames`);
+  assert.ok(values.activePresentations <= 301, `[${scenario}] active game/playtest exceeded 301 presentations`);
+  assert.equal(values.pausedPresentations, 0, `[${scenario}] paused scene presented after settle`);
+  assert.equal(values.mapPresentations, 0, `[${scenario}] map presented after settle`);
+  assert.ok(budgets.resourceStability && typeof budgets.resourceStability === 'object', `[${scenario}] resource stability is missing`);
+  assert.equal(requiredFinite(budgets.resourceStability.delta, 'resourceStability.delta', scenario), 0,
+    `[${scenario}] stable-size resource counter advanced`);
+  assert.equal(values.radarUpdates, values.activePresentations, `[${scenario}] radar updates differ from active presentations`);
+  return { ...values, resourceStability: budgets.resourceStability };
+}
+
+export function assertBrowserCoverage(results) {
+  assert.ok(Array.isArray(results), 'browser coverage results must be an array');
+  const expected = [];
+  for (const backend of ['webgl2', 'canvas2d']) {
+    expected.push(
+      [backend, 390, 844, 3, 60, false],
+      [backend, 412, 915, 2.625, 60, false],
+      [backend, 915, 412, 2.625, 60, false],
+      [backend, 1366, 768, 1, 60, false],
+      [backend, 1366, 768, 1, 120, false],
+      [backend, 1366, 768, 1, 175, false],
+      [backend, 412, 915, 2.625, 60, true],
+    );
+  }
+  for (const [backend, width, height, dpr, refreshRate, reducedMotion] of expected) {
+    const found = results.some((result) => result?.backend === backend
+      && result.width === width && result.height === height && result.deviceScaleFactor === dpr
+      && result.refreshRate === refreshRate && result.reducedMotion === reducedMotion);
+    assert.ok(found, `browser coverage is missing ${backend} ${width}x${height} DPR${dpr} ${refreshRate}Hz reduced=${reducedMotion}`);
+  }
+}
+
+export function assertRequiredArtifacts(entries, expectedCount) {
+  assert.ok(Array.isArray(entries), 'required artifacts must be an array');
+  assert.equal(entries.length, expectedCount, 'required artifact scenario count differs');
+  entries.forEach((entry, index) => {
+    assert.ok(typeof entry?.screenshot?.path === 'string' && entry.screenshot.path.length > 0, `artifact ${index} screenshot path is missing`);
+    assert.ok(Number.isFinite(entry.screenshot.bytes) && entry.screenshot.bytes > 8_000, `artifact ${index} screenshot is unreadable`);
+    assert.ok(typeof entry?.video?.path === 'string' && entry.video.path.length > 0, `artifact ${index} video path is missing`);
+    assert.ok(Number.isFinite(entry.video.bytes) && entry.video.bytes > 20_000, `artifact ${index} video is unreadable`);
+    assert.ok(Number.isFinite(entry.video.durationSeconds) && entry.video.durationSeconds >= 5, `artifact ${index} video is shorter than five seconds`);
+  });
+}
+
+
+export function assertWebGpuDisposition(probe, disposition) {
+  assert.ok(probe && typeof probe.available === 'boolean', 'WebGPU availability probe is malformed');
+  assert.ok(disposition && typeof disposition === 'object', 'WebGPU disposition is missing');
+  if (probe.available) {
+    assert.equal(disposition.status, 'passed', 'available WebGPU must pass');
+    assert.equal(disposition.resolvedBackend, 'webgpu', 'available WebGPU must resolve natively');
+    return;
+  }
+  assert.ok(typeof probe.reason === 'string' && probe.reason.trim().length > 0, 'unavailable WebGPU probe reason is missing');
+  assert.equal(disposition.status, 'skipped', 'unavailable WebGPU must be a structured skip');
+  assert.equal(disposition.reason, probe.reason, 'WebGPU skip must preserve the real probe reason');
+}
+
 export async function settleCleanup(entries) {
   const results = await Promise.allSettled(entries.map(({ close }) => Promise.resolve().then(close)));
   return results.flatMap((result, index) => result.status === 'rejected'

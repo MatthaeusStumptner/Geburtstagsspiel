@@ -2,6 +2,34 @@ import { DIRECTIONS, createGameSession } from '@franz-lola/game-core';
 
 export { DIRECTIONS };
 
+export function playtestFrameDelta(previousTimestamp, timestamp, { resume = false } = {}) {
+  if (resume || previousTimestamp === null || previousTimestamp === undefined) return 0;
+  const previous = Number(previousTimestamp);
+  const current = Number(timestamp);
+  if (!Number.isFinite(previous) || !Number.isFinite(current)) return 0;
+  return Math.min(0.1, Math.max(0, (current - previous) / 1000));
+}
+
+export function createPlaytestPresentation(snapshot, {
+  cameraEnabled = true,
+  zoom = 1.12,
+  reducedMotion = false,
+  presentationTime = snapshot?.elapsed,
+} = {}) {
+  if (!snapshot || typeof snapshot !== 'object') throw new TypeError('playtest snapshot is required');
+  if (!Number.isFinite(presentationTime)) throw new TypeError('playtest presentationTime must be finite');
+  return Object.freeze({
+    snapshot,
+    options: Object.freeze({
+      cameraEnabled: Boolean(cameraEnabled),
+      zoom,
+      alpha: snapshot.interpolationAlpha,
+      presentationTime,
+      reducedMotion: Boolean(reducedMotion),
+    }),
+  });
+}
+
 export class PlaytestEngine {
   constructor(level, difficulty = 'easy', options = {}) {
     this.session = createGameSession({

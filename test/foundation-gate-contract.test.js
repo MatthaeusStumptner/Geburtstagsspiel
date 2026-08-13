@@ -24,13 +24,14 @@ function workflowSteps(source) {
 test('root verify command executes every planned package, build, benchmark, and browser boundary', async () => {
   const root = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.deepEqual(Object.fromEntries([
-    'test:structure', 'test:packages', 'test', 'build', 'test:browser', 'verify:foundation', 'verify',
+    'test:structure', 'test:packages', 'test:presentation-parity', 'test', 'build', 'test:browser', 'verify:foundation', 'verify',
   ].map((name) => [name, root.scripts[name]])), {
     'test:structure': 'node --test test/*.test.js',
     'test:packages': 'npm run test --workspaces --if-present',
+    'test:presentation-parity': 'node --test packages/testkit/test/presentation-parity.test.js',
     test: 'npm run test:structure && npm run test:packages',
     build: 'npm run build --workspace @franz-lola/pixel-renderer && npm run build --workspace @franz-lola/game && npm run build --workspace @franz-lola/studio',
-    'test:browser': 'npm run test:browser --workspace @franz-lola/pixel-renderer && npm run test:browser --workspace @franz-lola/game && npm run test:e2e --workspace @franz-lola/studio',
+    'test:browser': 'npm run test:browser --workspace @franz-lola/pixel-renderer && npm run test:browser --workspace @franz-lola/game && npm run test:e2e --workspace @franz-lola/studio && npm run test:visual --workspace @franz-lola/studio && npm run test:rendering --workspace @franz-lola/studio',
     'verify:foundation': 'npm test && npm run build && npm run benchmark:assert --workspace @franz-lola/pixel-renderer && npm run test:browser',
     verify: 'npm run verify:foundation',
   });
@@ -53,7 +54,7 @@ test('root verify command executes every planned package, build, benchmark, and 
     const workspaces = [
       ['apps/game', '@franz-lola/game', ['test', 'build', 'test:browser']],
       ['apps/publisher', '@franz-lola/publisher', ['test']],
-      ['apps/studio', '@franz-lola/studio', ['test', 'build', 'test:e2e']],
+      ['apps/studio', '@franz-lola/studio', ['test', 'build', 'test:e2e', 'test:visual', 'test:rendering']],
       ['packages/content-model', '@franz-lola/content-model', ['test']],
       ['packages/game-core', '@franz-lola/game-core', ['test']],
       ['packages/pixel-renderer', '@franz-lola/pixel-renderer', ['test', 'build', 'benchmark:assert', 'test:browser']],
@@ -78,7 +79,7 @@ test('root verify command executes every planned package, build, benchmark, and 
     });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     const trace = (await readFile(path.join(temporaryRoot, 'trace.log'), 'utf8')).trim().split(/\r?\n/);
-    assert.deepEqual(trace.slice(-7), [
+    assert.deepEqual(trace.slice(-9), [
       'build:@franz-lola/pixel-renderer',
       'build:@franz-lola/game',
       'build:@franz-lola/studio',
@@ -86,8 +87,10 @@ test('root verify command executes every planned package, build, benchmark, and 
       'test:browser:@franz-lola/pixel-renderer',
       'test:browser:@franz-lola/game',
       'test:e2e:@franz-lola/studio',
+      'test:visual:@franz-lola/studio',
+      'test:rendering:@franz-lola/studio',
     ]);
-    assert.equal(trace.length, 14, JSON.stringify(trace));
+    assert.equal(trace.length, 16, JSON.stringify(trace));
     assert.deepEqual(new Set(trace.filter((entry) => entry.startsWith('test:@'))), new Set(workspaces.map(([, name]) => `test:${name}`)));
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
@@ -111,12 +114,13 @@ test('CI runs the root gate once and retains each browser surface on failure', a
 
   const artifacts = steps.filter(({ uses }) => uses?.startsWith('actions/upload-artifact@'));
   assert.equal(artifacts.length, 3);
-  assert.deepEqual(artifacts.map(({ if: condition }) => condition), ['failure()', 'failure()', 'failure()']);
+  assert.deepEqual(artifacts.map(({ if: condition }) => condition), ['always()', 'always()', 'always()']);
   assert.deepEqual(artifacts.map(({ with: inputs }) => [inputs.name, String(inputs.path).trim().split(/\r?\n/)]), [
     ['renderer-browser-artifacts', ['packages/pixel-renderer/output/playwright/renderer']],
     ['game-browser-artifacts', ['apps/game/output/playwright/game']],
-    ['studio-browser-artifacts', ['apps/studio/test-results']],
+    ['studio-browser-artifacts', ['apps/studio/test-results', 'apps/studio/output/playwright']],
   ]);
+  assert.deepEqual(artifacts.map(({ with: inputs }) => inputs['if-no-files-found']), ['error', 'error', 'error']);
 });
 
 function assertCriticalCiTopology(source) {

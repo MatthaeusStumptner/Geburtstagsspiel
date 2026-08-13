@@ -12,14 +12,16 @@
     "catalog:generate": "node scripts/generate-game-catalog.mjs",
     "pretest": "npm run catalog:generate",
     "test": "node --test test/*.test.js",
-    "test:e2e": "playwright test",
-    "test:visual": "playwright test --config=playwright.visual.config.js",
+    "test:e2e": "node scripts/run-playwright-gate.mjs",
+    "test:visual": "node scripts/run-playwright-gate.mjs --config=playwright.visual.config.js",
+    "test:rendering": "node scripts/run-playwright-gate.mjs --config=playwright.rendering.config.js",
     "test:all": "npm test && npm run test:e2e && npm run build"
   },
   "dependencies": {
     "@franz-lola/content-model": "0.0.0-monorepo",
     "@franz-lola/game-core": "0.0.0-monorepo",
     "@franz-lola/pixel-renderer": "0.0.0-monorepo",
+    "@franz-lola/render-coordinator": "0.0.0-monorepo",
     "svelte": "^5.56.8"
   },
   "devDependencies": {

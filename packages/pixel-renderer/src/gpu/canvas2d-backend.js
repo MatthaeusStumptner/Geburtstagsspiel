@@ -5,11 +5,14 @@ export class Canvas2DPresentationBackend {
     if (!this.context) throw new Error('Canvas2D-Kontext konnte nicht erstellt werden.');
     this.kind = 'canvas2d';
     this.frameCount = 0;
+    this.backingStoreResizes = 0;
   }
 
   resize(width, height) {
+    const resized = this.canvas.width !== width || this.canvas.height !== height;
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
+    if (resized) this.backingStoreResizes += 1;
   }
 
   present({ scene, overlay, hasOverlay = true, worldOverlay, hasWorldOverlay = false, camera, worldCamera = camera, pixelRatio, sceneScale = 2, worldOverlayScale = 2 }) {
@@ -47,7 +50,14 @@ export class Canvas2DPresentationBackend {
   }
 
   snapshot() {
-    return { backend: this.kind, frameCount: this.frameCount, gpuAccelerated: false, contextLost: false };
+    return {
+      backend: this.kind,
+      frameCount: this.frameCount,
+      gpuAccelerated: false,
+      contextLost: false,
+      resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' },
+      backingStoreResizes: this.backingStoreResizes,
+    };
   }
 
   finish() {}

@@ -1,102 +1,59 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createRenderCoordinator } from '@franz-lola/render-coordinator';
 import { createRenderScheduler } from '../src/render/render-scheduler.js';
 
-test('renders continuous states through the pacer and static states once', () => {
-  const renders = [];
-  const scheduler = createRenderScheduler({
-    render: (reason) => renders.push(reason),
-    pacer: { shouldPresent: () => true, reset() {} },
+function createHarness() {
+  let pending = null;
+  let handle = 0;
+  const reasons = [];
+  const coordinator = createRenderCoordinator({
+    requestFrame(callback) {
+      pending = { callback, handle: ++handle };
+      return handle;
+    },
+    cancelFrame(cancelledHandle) {
+      if (pending?.handle === cancelledHandle) pending = null;
+    },
+    now() {
+      return 0;
+    },
   });
-  scheduler.frame(0, 'continuous');
-  scheduler.frame(16, 'continuous');
-  scheduler.request('pause-enter');
-  scheduler.frame(32, 'once');
-  scheduler.frame(48, 'once');
-  scheduler.request('hud-change');
-  scheduler.frame(64, 'once');
-  scheduler.frame(80, 'hidden');
-  assert.deepEqual(renders, ['continuous', 'continuous', 'pause-enter', 'hud-change']);
+  const scheduler = createRenderScheduler({
+    coordinator,
+    render: (reason) => reasons.push(reason),
+  });
+  return {
+    reasons,
+    scheduler,
+    present(timestamp) {
+      const frame = pending;
+      pending = null;
+      frame?.callback(timestamp);
+    },
+  };
+}
+
+test('legacy scheduler entry point delegates presentation to the shared coordinator', () => {
+  const harness = createHarness();
+  harness.scheduler.invalidate('state:paused');
+  harness.scheduler.frame(0, { mode: 'once' });
+  assert.deepEqual(harness.reasons, []);
+  harness.present(0);
+  harness.present(16);
+  assert.deepEqual(harness.reasons, ['state:paused']);
 });
 
-test('clears pending work without rendering while hidden', () => {
-  const renders = [];
-  const scheduler = createRenderScheduler({
-    render: (reason) => renders.push(reason),
-    pacer: { shouldPresent: () => true, reset() {} },
-  });
-
-  scheduler.request('state:ready');
-  scheduler.request('layout:resize-observer');
-  scheduler.frame(10, 'hidden');
-  scheduler.frame(20, 'once');
-
-  assert.deepEqual(renders, []);
-  assert.deepEqual(scheduler.snapshot(), {
-    pendingReason: 'idle',
-    renderCount: 0,
-    hiddenSkips: 1,
-    lastReason: 'idle',
-  });
-  assert.equal(Object.isFrozen(scheduler.snapshot()), true);
-});
-
-test('keeps the first request reason before the first once frame', () => {
-  const renders = [];
-  const scheduler = createRenderScheduler({
-    render: (reason) => renders.push(reason),
-    pacer: { shouldPresent: () => true, reset() {} },
-  });
-
-  scheduler.request('state:won');
-  scheduler.request('overlay:show');
-  scheduler.frame(10, 'once');
-
-  assert.deepEqual(renders, ['state:won']);
-  assert.deepEqual(scheduler.snapshot(), {
+test('legacy scheduler entry point exposes the coordinator-backed diagnostics', () => {
+  const harness = createHarness();
+  harness.scheduler.invalidate('state:won');
+  harness.scheduler.invalidate('overlay:show');
+  harness.scheduler.frame(0, { mode: 'once' });
+  harness.present(0);
+  assert.deepEqual(harness.scheduler.snapshot(), {
     pendingReason: 'idle',
     renderCount: 1,
     hiddenSkips: 0,
     lastReason: 'state:won',
   });
-});
-
-test('uses a pending reason on the next paced continuous frame', () => {
-  const renders = [];
-  const presentedAt = [];
-  const scheduler = createRenderScheduler({
-    render: (reason, timestamp) => renders.push([reason, timestamp]),
-    pacer: {
-      shouldPresent(timestamp) {
-        presentedAt.push(timestamp);
-        return timestamp >= 16;
-      },
-      reset() {},
-    },
-  });
-
-  scheduler.request('state:playing');
-  scheduler.frame(0, 'continuous');
-  scheduler.frame(16, 'continuous');
-
-  assert.deepEqual(presentedAt, [0, 16]);
-  assert.deepEqual(renders, [['state:playing', 16]]);
-  assert.deepEqual(scheduler.snapshot(), {
-    pendingReason: 'idle',
-    renderCount: 1,
-    hiddenSkips: 0,
-    lastReason: 'state:playing',
-  });
-});
-
-test('reset delegates its timestamp to the presentation pacer', () => {
-  const resets = [];
-  const scheduler = createRenderScheduler({
-    render() {},
-    pacer: { shouldPresent: () => false, reset: (timestamp) => resets.push(timestamp) },
-  });
-
-  scheduler.reset(125);
-
-  assert.deepEqual(resets, [125]);
 });

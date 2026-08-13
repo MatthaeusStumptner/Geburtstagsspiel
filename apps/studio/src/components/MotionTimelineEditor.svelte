@@ -1,7 +1,7 @@
 <script>
-  import { onMount } from 'svelte';
   import { sampleMotionAnimation } from '@franz-lola/pixel-renderer';
   import { prepareMotionForEditing } from '../animation-tools.js';
+  import { useRenderSurface } from '../render/use-render-surface.svelte.js';
   import ObjectThumbnail from './ObjectThumbnail.svelte';
 
   let { animation, previewAsset, title = 'Bewegungsanimation', onsave = () => {}, oncancel = () => {} } = $props();
@@ -11,17 +11,43 @@
   let playhead = $state(0);
   let playing = $state(false);
   let lastTimestamp = 0;
-  let frame;
+  let presentationCount = $state(0);
+  let presentedProfile = $state('thumbnail-animated');
   let selected = $derived(draft.keyframes.find((entry) => entry.id === selectedId) ?? draft.keyframes[0]);
   let sample = $derived(sampleMotionAnimation(draft, playhead));
   let preview = $derived({ ...previewAsset, animation: { type: 'none', speed: 1, amplitude: 0 }, x: 0, y: 0 });
 
-  function tick(timestamp) {
+  function present({ timestamp, renderCount, profile }) {
     if (playing) {
-      if (lastTimestamp) playhead += (timestamp - lastTimestamp) / 1000;
+      const delta = lastTimestamp ? timestamp - lastTimestamp : 0;
+      if (delta > 0 && delta <= 100) playhead += delta / 1000;
       if (playhead >= draft.duration) { if (draft.loop) playhead %= draft.duration; else { playhead = draft.duration; playing = false; } }
     }
-    lastTimestamp = timestamp; frame = requestAnimationFrame(tick);
+    lastTimestamp = timestamp;
+    presentationCount = renderCount + 1;
+    presentedProfile = profile;
+  }
+
+  const surface = useRenderSurface({
+    id: 'studio-motion-timeline-playback',
+    profile: 'thumbnail-animated',
+    render: present,
+  });
+  const renderSurface = surface.action;
+
+  function stopPlayback() {
+    playhead = 0;
+    playing = false;
+    lastTimestamp = 0;
+    surface.setActive(false);
+    surface.invalidate('playback:stop');
+  }
+  function togglePlayback() {
+    if (playhead >= draft.duration) playhead = 0;
+    playing = !playing;
+    lastTimestamp = 0;
+    surface.setActive(playing);
+    surface.invalidate(playing ? 'playback:start' : 'playback:pause');
   }
   function addKeyframe() {
     let index = draft.keyframes.length + 1;
@@ -32,15 +58,26 @@
   function removeKeyframe() { if (draft.keyframes.length > 1) { draft.keyframes = draft.keyframes.filter((entry) => entry.id !== selectedId); selectedId = draft.keyframes[0].id; } }
   function number(event) { return Number(event.currentTarget.value); }
   function sortKeyframes() { draft.keyframes.sort((left, right) => left.time - right.time); }
-  onMount(() => { frame = requestAnimationFrame(tick); return () => cancelAnimationFrame(frame); });
+
+  $effect(() => {
+    playing; draft.duration; draft.loop; playhead;
+    surface.setActive(playing);
+    surface.invalidate('motion:reactive');
+  });
 </script>
 
 <section class="motion-studio">
   <header><div><span class="eyebrow">KEYFRAME-ANIMATOR</span><h3>{title}</h3><p>Position, Größe, Drehung und Sichtbarkeit werden auf einer gemeinsamen Timeline animiert.</p></div><div class="modal-actions"><button onclick={oncancel}>Abbrechen</button><button class="primary" onclick={() => onsave(JSON.parse(JSON.stringify(draft)))}>Animation übernehmen</button></div></header>
-  <div class="motion-preview">
+  <div
+    class="motion-preview"
+    use:renderSurface
+    data-render-count={presentationCount}
+    data-render-profile={presentedProfile}
+    data-playhead={playhead.toFixed(2)}
+  >
     <div class="motion-preview-object" style={`transform:translate(${sample.x * 30}px,${sample.y * 30}px) rotate(${sample.rotation}deg) scale(${sample.scale});opacity:${sample.opacity}`}><ObjectThumbnail asset={preview} /></div>
   </div>
-  <div class="keyframe-transport"><button onclick={() => { playhead = 0; playing = false; }}>■</button><button class="primary" onclick={() => { if (playhead >= draft.duration) playhead = 0; playing = !playing; lastTimestamp = 0; }}>{playing ? 'Ⅱ Pause' : '▶ Playback'}</button><input type="range" min="0" max={draft.duration} step="0.01" bind:value={playhead} /><code>{playhead.toFixed(2)} / {draft.duration.toFixed(2)} s</code></div>
+  <div class="keyframe-transport"><button onclick={stopPlayback}>■</button><button class="primary" onclick={togglePlayback}>{playing ? 'Ⅱ Pause' : '▶ Playback'}</button><input type="range" min="0" max={draft.duration} step="0.01" bind:value={playhead} /><code>{playhead.toFixed(2)} / {draft.duration.toFixed(2)} s</code></div>
   <div class="keyframe-ruler" style={`--timeline-duration:${draft.duration}`}>
     <div class="timeline-playhead" style:left={`${playhead / draft.duration * 100}%`}></div>
     {#each draft.keyframes as keyframe}<button class:active={keyframe.id === selectedId} style:left={`${keyframe.time / draft.duration * 100}%`} onclick={() => { selectedId = keyframe.id; playhead = keyframe.time; }} title={`${keyframe.id} · ${keyframe.time.toFixed(2)} s`}></button>{/each}

@@ -9,6 +9,7 @@ const FOUNDATION_PACKAGES = [
   '@franz-lola/game-core',
   '@franz-lola/pixel-renderer',
   '@franz-lola/publisher',
+  '@franz-lola/render-coordinator',
   '@franz-lola/render-testkit',
   '@franz-lola/studio',
 ];

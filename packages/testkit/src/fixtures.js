@@ -6,6 +6,69 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
+const presentationFrameBaseline = {
+  kind: 'franz-lola-presentation-frame',
+  frameId: 1,
+  presentationTime: 0,
+  camera: {
+    source: { x: 0, y: 0, width: 400, height: 300 },
+    viewport: { x: 0, y: 0, width: 400, height: 300 },
+  },
+  player: {
+    id: 'player',
+    world: { x: 200, y: 150 },
+    screen: { x: 200, y: 150 },
+  },
+  cats: [],
+  characters: [],
+  display: {
+    width: 400,
+    height: 300,
+    actualPixelRatio: 1,
+    pixelRatio: 1,
+    bufferWidth: 400,
+    bufferHeight: 300,
+  },
+  renderer: {
+    requestedBackend: 'canvas2d',
+    backend: 'canvas2d',
+    fallbackReason: null,
+    contextLost: false,
+  },
+};
+
+const presentationOverrideKeys = new Set(['viewport', 'player', 'cats', 'characters']);
+
+function mergeFixtureValue(base, override) {
+  if (override === undefined) return base;
+  if (Array.isArray(override)) return override.map((item) => mergeFixtureValue(undefined, item));
+  if (!override || typeof override !== 'object') return override;
+  const source = base && typeof base === 'object' && !Array.isArray(base) ? base : {};
+  return Object.fromEntries(new Set([...Object.keys(source), ...Object.keys(override)])
+    .values()
+    .map((key) => [key, mergeFixtureValue(source[key], override[key])]));
+}
+
+export function fixturePresentationFrame(overrides = {}) {
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new TypeError('Presentation frame fixture overrides must be an object.');
+  }
+  const unknownKeys = Object.keys(overrides).filter((key) => !presentationOverrideKeys.has(key));
+  if (unknownKeys.length > 0) {
+    throw new TypeError('Unknown presentation frame fixture override: ' + unknownKeys.join(', '));
+  }
+  return deepFreeze({
+    ...presentationFrameBaseline,
+    camera: {
+      ...presentationFrameBaseline.camera,
+      viewport: mergeFixtureValue(presentationFrameBaseline.camera.viewport, overrides.viewport),
+    },
+    player: mergeFixtureValue(presentationFrameBaseline.player, overrides.player),
+    cats: mergeFixtureValue(presentationFrameBaseline.cats, overrides.cats),
+    characters: mergeFixtureValue(presentationFrameBaseline.characters, overrides.characters),
+  });
+}
+
 const validation = validateLevelDocument({
   kind: 'franz-lola-level',
   schemaVersion: 1,

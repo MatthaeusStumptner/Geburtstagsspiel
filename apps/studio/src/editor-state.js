@@ -305,6 +305,7 @@ export function createStarterLevel() {
     board: { columns: 25, rows: 25, tileSize: 24, tunnelRows: [12], walls: [] },
     theme: { landmark: 'dog-park' },
     actors: { player: { x: 12, y: 20 }, cats: [], characters: [] },
+    collectibles: { powerUps: [] },
     decorations: [],
   });
 }

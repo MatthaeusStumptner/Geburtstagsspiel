@@ -1624,7 +1624,7 @@ kbd {
 .cat-radar {
   position: absolute;
   z-index: 12;
-  inset: 0;
+  inset: 39px 13px 13px;
   overflow: hidden;
   pointer-events: none;
 }
@@ -1637,22 +1637,37 @@ kbd {
 .cat-indicator {
   --cat-color: var(--coral);
   position: absolute;
+  top: 0;
+  left: 0;
   display: grid;
   width: 34px;
   height: 34px;
+  margin: -17px 0 0 -17px;
   place-items: center;
   border: 2px solid var(--cat-color);
   border-radius: 50%;
   background: rgba(5, 15, 23, 0.9);
   color: var(--cat-color);
   box-shadow: 0 0 0 3px rgba(5, 15, 23, 0.58), 0 0 18px color-mix(in srgb, var(--cat-color) 55%, transparent);
-  transform: translate(-50%, -50%);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.cat-indicator::before {
+  position: absolute;
+  inset: -5px;
+  border: 2px solid var(--cat-color);
+  border-radius: inherit;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
 }
 
 .cat-indicator-arrow {
   display: block;
   font-size: 14px;
   line-height: 1;
+  transform: rotate(var(--cat-angle, 0deg));
 }
 
 .cat-indicator small {
@@ -1670,12 +1685,13 @@ kbd {
   font-size: var(--fluid-micro);
 }
 
-.cat-indicator.danger {
+.cat-indicator.danger::before {
   animation: cat-radar-pulse 700ms steps(2, end) infinite;
 }
 
 @keyframes cat-radar-pulse {
-  50% { filter: brightness(1.65); }
+  0%, 100% { opacity: 0.2; transform: scale(0.94); }
+  50% { opacity: 0.78; transform: scale(1.08); }
 }
 
 @keyframes map-grid-translate {
@@ -2111,6 +2127,12 @@ body.mobile-game-active .mobile-game-location,
   backdrop-filter: blur(5px);
 }
 
+body.mobile-game-active .cat-radar,
+.board-column:fullscreen .cat-radar,
+.board-column:-webkit-full-screen .cat-radar {
+  inset: var(--mobile-game-header-height, 0px) 0 0;
+}
+
 body.mobile-game-active .game-overlay,
 .board-column:fullscreen .game-overlay,
 .board-column:-webkit-full-screen .game-overlay {
@@ -2263,6 +2285,10 @@ body.mobile-game-active .level-cutscene:has(.level-cutscene-dialogue:not([hidden
   .location-ribbon {
     padding-bottom: 6px;
     font-size: 0.6875rem;
+  }
+
+  .cat-radar {
+    inset: 27px 8px 8px;
   }
 
   .game-overlay {
@@ -2555,6 +2581,10 @@ body.cutscene-ui-reveal #svelte-board-hud .level-status {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion]) .cat-indicator.danger::before {
+    animation: none;
+  }
+
   .passau-map-screen .map-canvas::before,
   .passau-map-screen #passau-map .district,
   .passau-map-screen #passau-map .map-glint,
@@ -2571,6 +2601,10 @@ body.cutscene-ui-reveal #svelte-board-hud .level-status {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+html.reduced-motion .cat-indicator.danger::before {
+  animation: none;
 }
 
 html.reduced-motion *,

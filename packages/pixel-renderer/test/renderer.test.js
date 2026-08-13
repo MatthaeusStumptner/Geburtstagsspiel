@@ -101,6 +101,81 @@ test('reuses externally measured display metrics without reading layout during r
   });
 });
 
+test('omits an absent resize reason and returns one frame for every completed presentation', () => {
+  const presentations = [];
+  const backend = {
+    ...fakePresentationBackend(),
+    present(frame) { presentations.push(frame); },
+  };
+  const renderer = createTestRenderer(backend);
+  const resizeResult = renderer.resize({ width: 320, height: 240, devicePixelRatio: 1 });
+  assert.equal(Object.hasOwn(resizeResult, 'reason'), false);
+  assert.equal(Object.hasOwn(renderer.displayMetrics, 'reason'), false);
+  assert.equal(Object.hasOwn(renderer.rendererInfo().display, 'reason'), false);
+
+  let first;
+  let firstError;
+  try {
+    first = renderer.render(sampleSnapshot(), { presentationTime: 1 });
+  } catch (error) {
+    firstError = error;
+  }
+
+  assert.equal(presentations.length, 1, 'the backend presentation must complete before frame construction');
+  assert.equal(firstError, undefined);
+  const second = renderer.render(sampleSnapshot(), { presentationTime: 2 });
+
+  assert.deepEqual([first.frameId, second.frameId], [1, 2]);
+  assert.equal(presentations.length, 2);
+  for (const result of [first, second]) {
+    assert.equal(Object.hasOwn(result.display, 'reason'), false);
+    assert.equal(Object.hasOwn(result.renderer.display, 'reason'), false);
+  }
+});
+test('returns one immutable fixed-contract presentation frame per render', () => {
+  const renderer = createTestRenderer();
+  const level = sampleLevel();
+  renderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+  const snapshot = {
+    level,
+    elapsed: 3,
+    player: { id: 'player', x: 2, y: 3, previousX: 0, previousY: 1 },
+    cats: [{ id: 'cat-1', x: 5, y: 2, previousX: 3, previousY: 2, color: '#ff00ff', respawnTimer: 4 }],
+    characters: [{ id: 'character-1', x: 4, y: 3, previousX: 2, previousY: 1, color: '#00ffff' }],
+  };
+
+  const first = renderer.render(snapshot, { alpha: 0.5, cameraEnabled: false, presentationTime: 12.5 });
+  const second = renderer.render(snapshot, { alpha: 0.5, cameraEnabled: false });
+
+  assert.equal(first.kind, 'franz-lola-presentation-frame');
+  assert.equal(first.frameId, 1);
+  assert.equal(second.frameId, 2);
+  assert.equal(first.presentationTime, 12.5);
+  assert.equal(second.presentationTime, 3);
+  assert.equal(first.player.world.x, renderer.level.board.tileSize * 1.5);
+  assert.equal(first.cats[0].world.x, renderer.level.board.tileSize * 4.5);
+  assert.equal(first.cats[0].onScreen, true);
+  assert.equal(first.cats[0].distance, 3);
+  assert.equal(first.cats[0].color, '#ff00ff');
+  assert.equal(first.cats[0].respawnTimer, 4);
+  assert.deepEqual(Object.keys(first), ['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer', 'playerScreen', 'entities', 'characterEntities']);
+  assert.throws(() => { first.cats[0].world.x = 1; }, TypeError);
+});
+
+test('keeps frame IDs private and independent from public writes', () => {
+  const firstRenderer = createTestRenderer();
+  const secondRenderer = createTestRenderer();
+  const firstSnapshot = { level: sampleLevel() };
+  const secondSnapshot = { level: sampleLevel() };
+  firstRenderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+  secondRenderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
+
+  assert.equal(Object.hasOwn(firstRenderer, 'frameId'), false);
+  firstRenderer.frameId = 100;
+  assert.equal(firstRenderer.render(firstSnapshot).frameId, 1);
+  assert.equal(secondRenderer.render(secondSnapshot).frameId, 1);
+  assert.equal(firstRenderer.render(firstSnapshot).frameId, 2);
+});
 test('skips backend resize for unchanged externally measured display metrics', () => {
   const backend = fakePresentationBackend();
   const renderer = new PassauPixelRenderer(fakeCanvas({ width: 412, height: 712 }), { presentationBackend: backend });
@@ -141,10 +216,11 @@ test('reports the requested backend, selected backend, and fallback reason', asy
     frameCount: 0,
     gpuAccelerated: false,
     contextLost: false,
+    resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' },
+    backingStoreResizes: 0,
     quality: 'quality',
     pixelRatio: 1,
     display: null,
-    gpuCropResizes: 0,
     staticWorldBuilds: 0,
     postProcess: null,
   });

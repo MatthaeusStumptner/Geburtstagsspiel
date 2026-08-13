@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -18,6 +19,16 @@ function runHarness(argument) {
 function combinedOutput(result) {
   return `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
 }
+
+test('renderer harness requires five-second video evidence for every scenario and probes a real WebGPU adapter', async () => {
+  const source = await readFile(join(projectRoot, 'scripts', 'browser-regression.mjs'), 'utf8');
+  assert.match(source, /durationSeconds\s*>=\s*5/);
+  assert.match(source, /metadata\.size\s*>\s*20_000/);
+  assert.match(source, /name:\s*'webgl2-reduced-motion'[\s\S]*?capture:\s*true/);
+  assert.match(source, /navigator\.gpu\.requestAdapter\(\)/);
+  assert.match(source, /status:\s*'skipped'[\s\S]*?reason/);
+  assert.doesNotMatch(source, /status:\s*'fallback'/);
+});
 
 test('fails on a browser console error emitted after capture and scenario evaluation', { timeout: 70_000 }, () => {
   const result = runHarness('--inject-late-console-error');

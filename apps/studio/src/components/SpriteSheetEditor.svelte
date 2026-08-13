@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
   import { PLAYER_STATES } from '../character-template.js';
   import { insertSpriteKeyframe, keyframeAtTime, prepareAppearanceForEditing } from '../animation-tools.js';
   import {
@@ -15,6 +14,7 @@
     selectPixelsByToken
   } from '../pixel-selection.js';
   import { resizeAppearance, SPRITE_SIZES } from '../sprite-appearance.js';
+  import { useRenderSurface } from '../render/use-render-surface.svelte.js';
   import ActorThumbnail from './ActorThumbnail.svelte';
 
   let { appearance, title = 'Sprite-Sheet', showStates = true, onsave = () => {}, oncancel = () => {} } = $props();
@@ -45,7 +45,8 @@
   let history = $state([]);
   let future = $state([]);
   let lastTimestamp = 0;
-  let animationFrame;
+  let presentationCount = $state(0);
+  let presentedProfile = $state('thumbnail-animated');
   let gestureSnapshot = null;
   let gestureChanged = false;
   let gestureToken = '0';
@@ -94,16 +95,26 @@
     future = future.slice(0, -1); restore(entry.snapshot);
   }
 
-  function tick(timestamp) {
+  function present({ timestamp, renderCount, profile }) {
     if (playing && selectedAnimation) {
-      if (lastTimestamp) playhead += (timestamp - lastTimestamp) / 1000;
+      const delta = lastTimestamp ? timestamp - lastTimestamp : 0;
+      if (delta > 0 && delta <= 100) playhead += delta / 1000;
       if (playhead >= selectedAnimation.duration) {
         if (selectedAnimation.loop) playhead %= selectedAnimation.duration;
         else { playhead = selectedAnimation.duration; playing = false; }
       }
     }
-    lastTimestamp = timestamp; animationFrame = requestAnimationFrame(tick);
+    lastTimestamp = timestamp;
+    presentationCount = renderCount + 1;
+    presentedProfile = profile;
   }
+
+  const surface = useRenderSurface({
+    id: 'studio-sprite-playback',
+    profile: 'thumbnail-animated',
+    render: present,
+  });
+  const renderSurface = surface.action;
   function tokenColor(token) { return draft.palette[Number.parseInt(token, 36)] || 'transparent'; }
   function selectAnimation(id) {
     selectedAnimationId = id; const animation = draft.animations.find((entry) => entry.id === id);
@@ -278,14 +289,24 @@
     draft.animations.forEach((animation) => { animation.frames = animation.keyframes.map((frame) => ({ pixels: frame.pixels })); });
     onsave(clone(draft));
   }
-  onMount(() => { animationFrame = requestAnimationFrame(tick); return () => cancelAnimationFrame(animationFrame); });
+  $effect(() => {
+    playing; selectedAnimation?.duration; selectedAnimation?.loop; playhead;
+    surface.setActive(playing && Boolean(selectedAnimation));
+    surface.invalidate('sprite:reactive');
+  });
 </script>
 
 <svelte:window onkeydown={editorKeyboard} />
 
 <section class="sprite-studio" aria-label={title}>
   <header><div><span class="eyebrow">SPRITE-SHEET · KEYFRAMES</span><h3>{title}</h3><p>Zustand → Animation → Keyframe → Pixel. Mit echter 24×24-Arbeitsfläche, Timeline und Playback.</p></div><div class="modal-actions sprite-studio-actions"><div class="history-actions" aria-label="Änderungsverlauf"><button onclick={undo} disabled={!canUndo} aria-label="Sprite-Änderung rückgängig" title={history.at(-1)?.label ?? 'Nichts rückgängig zu machen'}>↶</button><button onclick={redo} disabled={!canRedo} aria-label="Sprite-Änderung wiederholen" title={future.at(-1)?.label ?? 'Nichts zu wiederholen'}>↷</button></div><button onclick={oncancel}>Abbrechen</button><button class="primary" onclick={save}>Sprite übernehmen</button></div></header>
-  <div class="sprite-playback-stage">
+  <div
+    class="sprite-playback-stage"
+    use:renderSurface
+    data-render-count={presentationCount}
+    data-render-profile={presentedProfile}
+    data-playhead={playhead.toFixed(2)}
+  >
     <ActorThumbnail appearance={draft} kind="player" state={selectedState} animationId={selectedAnimationId === 'base' ? '' : selectedAnimationId} elapsed={playhead} class="sprite-playback-preview" label={`${title} Playback-Vorschau`} />
     <div class="keyframe-transport"><button onclick={() => { playhead = 0; playing = false; }}>■</button><button class="primary" disabled={!selectedAnimation} onclick={() => { if (playhead >= selectedAnimation.duration) playhead = 0; playing = !playing; lastTimestamp = 0; }}>{playing ? 'Ⅱ Pause' : '▶ Playback'}</button><input type="range" min="0" max={selectedAnimation?.duration ?? 1} step="0.01" bind:value={playhead} disabled={!selectedAnimation} /><code>{playhead.toFixed(2)} / {(selectedAnimation?.duration ?? 0).toFixed(2)} s</code></div>
     {#if selectedAnimation}<div class="keyframe-ruler"><div class="timeline-playhead" style:left={`${playhead / selectedAnimation.duration * 100}%`}></div>{#each selectedAnimation.keyframes as frame}<button class:active={frame.id === selectedKeyframeId} style:left={`${frame.time / selectedAnimation.duration * 100}%`} onclick={() => { selectedKeyframeId = frame.id; playhead = frame.time; playing = false; }} title={`${frame.id} · ${frame.time.toFixed(2)} s`}></button>{/each}</div>{/if}

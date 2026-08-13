@@ -14,9 +14,10 @@ import {
 import {
   DirectionalSwipeInput,
   PassauPixelRenderer,
-  PresentationFramePacer,
-  recommendedPresentationRate,
+  presentationFrameFromRenderResult,
+  serializePresentationFrame,
 } from '@franz-lola/pixel-renderer';
+import { createRenderCoordinator } from '@franz-lola/render-coordinator';
 import { BrowserAudioService } from './audio/browser-audio-service.js';
 import { soundscapeProfile } from './audio/level-soundscapes.js';
 import { ONBOARDING_GUIDE, TEXT } from './content/game-copy.js';
@@ -24,8 +25,10 @@ import {
   createBrowserGameSession,
   restoreBrowserGameSession,
   saveBrowserGameSession,
+  setDebugCatPositions,
   setDebugPlayerPosition,
 } from './game/game-session-adapter.js';
+import { createGamePresentation } from './game/game-presentation.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
@@ -44,7 +47,9 @@ import {
   settingsContextForState,
 } from './ui/ui-preferences.js';
 import { renderPolicyForState } from './render/render-policy.js';
-import { createRenderScheduler } from './render/render-scheduler.js';
+import { createGameRenderSession } from './render/game-render-session.js';
+import { calculateCatRadar } from './render/cat-radar-model.js';
+import { resetCatRadarView, updateCatRadarView } from './render/cat-radar-view.js';
 import {
   createGameplayLayout,
   highestVisibleBlockerBottom,
@@ -63,10 +68,14 @@ const pixelRendererReady = PassauPixelRenderer.create(canvas, {
   quality: 'auto',
   powerPreference: 'high-performance',
 });
-const presentationPacer = new PresentationFramePacer({ framesPerSecond: 60 });
-const renderScheduler = createRenderScheduler({
-  render: (_reason, timestamp) => render(timestamp),
-  pacer: presentationPacer,
+const renderCoordinator = createRenderCoordinator({
+  requestFrame: (callback) => window.requestAnimationFrame(callback),
+  cancelFrame: (handle) => window.cancelAnimationFrame(handle),
+  now: () => performance.now(),
+});
+const renderSession = createGameRenderSession({
+  coordinator: renderCoordinator,
+  render: presentGame,
 });
 const gameplayLayout = createGameplayLayout();
 const levelCutscenePlayer = new LevelCutscenePlayer();
@@ -183,7 +192,9 @@ let settingsReturnFocus = null;
 let confettiTimer = null;
 let cutsceneUiRevealTimer = null;
 let appliedGameplayLayoutRevision = -1;
-let lastRadarPaint = Number.NEGATIVE_INFINITY;
+let catRadarUpdateCount = 0;
+let lastCatRadarFrame = null;
+let lastCatRadarState = { visible: false, indicators: [] };
 let onboardingComplete = !requiresOnboarding;
 let onboardingLanguage = language;
 let onboardingDifficulty = difficulty;
@@ -194,11 +205,17 @@ let gameSession = null;
 let gameSessionSnapshot = null;
 let gameSessionScore = 0;
 let simulationFrameTimestamp = null;
+let appliedRenderPolicy = null;
 let staticWorldRevision = 0;
 const audioService = new BrowserAudioService(() => soundEnabled);
 
 function requestRender(reason) {
-  renderScheduler.request(reason);
+  const policy = currentRenderPolicy();
+  if (policy !== appliedRenderPolicy) {
+    renderSession.frame(performance.now(), policy);
+    appliedRenderPolicy = policy;
+  }
+  renderSession.invalidate(reason);
 }
 
 function invalidateStaticWorld(reason) {
@@ -208,6 +225,12 @@ function invalidateStaticWorld(reason) {
 
 function currentRenderPolicy() {
   return renderPolicyForState(state, settingsReturnState, uiSession.snapshot().onboarding.open);
+}
+
+function resetCatRadarPresentation() {
+  resetCatRadarView(ui.catRadar);
+  lastCatRadarFrame = null;
+  lastCatRadarState = { visible: false, indicators: [] };
 }
 
 function t(key, values = {}) {
@@ -279,6 +302,7 @@ function showOnboarding() {
   });
   ui.appShell.inert = true;
   document.body.classList.add('onboarding-open');
+  resetCatRadarPresentation();
   requestRender('onboarding:open');
 }
 
@@ -744,6 +768,7 @@ function openMap() {
   closeMapSelection(false);
   if (state === 'playing' || state === 'hit') setPauseButtons(true);
   state = 'map';
+  resetCatRadarPresentation();
   requestRender('state:map');
   document.body.classList.add('map-active');
   mapSelectionId = selectedLevelId;
@@ -858,6 +883,7 @@ function startLevelCutscene() {
 
 function enterLevelPlay() {
   const leavingCutscene = document.body.classList.contains('cutscene-active');
+  if (leavingCutscene) resetCatRadarPresentation();
   levelCutscenePlayer.reset();
   hideLevelCutsceneUi();
   state = 'playing';
@@ -883,6 +909,7 @@ function resetGameProgress() {
   leaveMobileGameMode(true);
   document.body.classList.add('map-active');
   state = 'map';
+  resetCatRadarPresentation();
   requestRender('state:map');
   score = 0;
   best = 0;
@@ -1720,13 +1747,11 @@ function vibrate(pattern) {
   if ('vibrate' in navigator) navigator.vibrate(pattern);
 }
 
-function render(frameTimestamp) {
+function presentGame(_reason, timestamp) {
   if (!pixelRenderer || !activeLevelDocument || !player) return;
-  const forceRadarPaint = !Number.isFinite(frameTimestamp);
-  const paintTimestamp = forceRadarPaint ? performance.now() : frameTimestamp;
   const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
-  const renderState = pixelRenderer.render(cutsceneSnapshot ? {
+  const presentation = createGamePresentation(cutsceneSnapshot ? {
     level: activeLevelDocument,
     player: cutsceneSnapshot.player,
     cats: cutsceneSnapshot.cats,
@@ -1761,13 +1786,22 @@ function render(frameTimestamp) {
     } : undefined,
     zoom: cutsceneSnapshot?.camera?.zoom ?? CAMERA_ZOOM,
     reducedMotion,
+    presentationTime: timestamp,
     staticRevision: staticWorldRevision,
     sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
+  const renderState = pixelRenderer.render(presentation.snapshot, presentation.options);
+  const catRadarState = calculateCatRadar(renderState, {
+    active: isCameraGameView() && ['playing', 'hit'].includes(state),
+  });
+  updateCatRadarView(ui.catRadar, catRadarState);
+  catRadarUpdateCount += 1;
+  lastCatRadarFrame = presentationFrameFromRenderResult(renderState);
+  lastCatRadarState = catRadarState;
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
-  canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
-  canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
+  canvas.dataset.playerScreenX = renderState.player.screen.x.toFixed(1);
+  canvas.dataset.playerScreenY = renderState.player.screen.y.toFixed(1);
   canvas.dataset.playerX = (cutsceneSnapshot?.player.x ?? player.x).toFixed(3);
   canvas.dataset.playerY = (cutsceneSnapshot?.player.y ?? player.y).toFixed(3);
   canvas.dataset.playerDirection = cutsceneSnapshot?.player.direction?.name ?? player.dir.name;
@@ -1776,16 +1810,7 @@ function render(frameTimestamp) {
   canvas.dataset.cutsceneTime = state === 'cutscene' ? levelCutscenePlayer.time.toFixed(3) : '';
   canvas.dataset.gameplayTop = playViewport.y.toFixed(1);
   canvas.dataset.gameplayBottom = (playViewport.y + playViewport.height).toFixed(1);
-  if (forceRadarPaint || paintTimestamp - lastRadarPaint >= 50) {
-    updateCatRadar(
-      renderState.camera.source.x,
-      renderState.camera.source.y,
-      renderState.camera.source.width,
-      renderState.camera.source.height,
-      playViewport,
-    );
-    lastRadarPaint = paintTimestamp;
-  }
+
 }
 
 function launchLevelConfetti() {
@@ -1877,69 +1902,6 @@ function measureGameplayLayout(reason, entries = []) {
   return layout;
 }
 
-function ensureCatRadarIndicators() {
-  while (ui.catRadar.children.length < cats.length) {
-    const indicator = document.createElement('div');
-    indicator.className = 'cat-indicator';
-    indicator.innerHTML = '<span class="cat-indicator-arrow" aria-hidden="true">▲</span><small></small>';
-    ui.catRadar.append(indicator);
-  }
-  while (ui.catRadar.children.length > cats.length) ui.catRadar.lastElementChild.remove();
-  return [...ui.catRadar.children];
-}
-
-function updateCatRadar(sourceX, sourceY, sourceWidth, sourceHeight, playViewport) {
-  const active = isCameraGameView() && ['playing', 'hit'].includes(state);
-  ui.catRadar.hidden = !active;
-  if (!active) return;
-
-  const indicators = ensureCatRadarIndicators();
-  const centerX = playViewport.x + playViewport.width / 2;
-  const centerY = playViewport.y + playViewport.height / 2;
-  const horizontalInset = Math.min(28, playViewport.width * 0.08);
-  const verticalInset = Math.min(26, playViewport.height * 0.1);
-  const safeLeft = playViewport.x + horizontalInset;
-  const safeRight = playViewport.x + playViewport.width - horizontalInset;
-  const safeTop = playViewport.y + verticalInset;
-  const safeBottom = playViewport.y + playViewport.height - verticalInset;
-  let visibleIndicators = 0;
-
-  cats.forEach((cat, index) => {
-    const indicator = indicators[index];
-    const catX = playViewport.x
-      + ((cat.x * TILE + TILE / 2 - sourceX) / sourceWidth) * playViewport.width;
-    const catY = playViewport.y
-      + ((cat.y * TILE + TILE / 2 - sourceY) / sourceHeight) * playViewport.height;
-    const onScreen = catX >= playViewport.x
-      && catX <= playViewport.x + playViewport.width
-      && catY >= playViewport.y
-      && catY <= playViewport.y + playViewport.height;
-    const hidden = onScreen || cat.respawnTimer > 0;
-    indicator.hidden = hidden;
-    if (hidden) return;
-
-    const dx = catX - centerX;
-    const dy = catY - centerY;
-    const intersections = [];
-    if (dx > 0) intersections.push((safeRight - centerX) / dx);
-    if (dx < 0) intersections.push((safeLeft - centerX) / dx);
-    if (dy > 0) intersections.push((safeBottom - centerY) / dy);
-    if (dy < 0) intersections.push((safeTop - centerY) / dy);
-    const factor = Math.min(...intersections.filter((value) => value >= 0));
-    const distance = Math.max(1, Math.round(Math.hypot(player.x - cat.x, player.y - cat.y)));
-
-    indicator.style.left = `${centerX + dx * factor}px`;
-    indicator.style.top = `${centerY + dy * factor}px`;
-    indicator.style.setProperty('--cat-color', cat.color);
-    indicator.querySelector('.cat-indicator-arrow').style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90}deg)`;
-    indicator.querySelector('small').textContent = distance;
-    indicator.classList.toggle('danger', distance <= 5);
-    visibleIndicators += 1;
-  });
-
-  ui.catRadar.hidden = visibleIndicators === 0;
-}
-
 function frame(now) {
   const frameSeconds = simulationFrameTimestamp === null
     ? 0
@@ -1951,7 +1913,9 @@ function frame(now) {
     autoSaveElapsed += applyGameSessionSnapshot(snapshot);
     if (autoSaveElapsed >= 2) { autoSaveElapsed = 0; saveGame(true); }
   }
-  renderScheduler.frame(now, currentRenderPolicy());
+  const policy = currentRenderPolicy();
+  renderSession.frame(now, policy);
+  appliedRenderPolicy = policy;
   requestAnimationFrame(frame);
 }
 
@@ -2140,7 +2104,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
   if (!document.hidden) {
     simulationFrameTimestamp = null;
-    renderScheduler.reset();
+    renderSession.reset();
     requestRender('visibility:return');
   }
 });
@@ -2169,8 +2133,7 @@ window.addEventListener('pagehide', () => {
 
 pixelRendererReady.then((renderer) => {
   pixelRenderer = renderer;
-  presentationPacer.setFramesPerSecond(recommendedPresentationRate(renderer.rendererInfo().quality));
-  renderScheduler.reset();
+  renderSession.reset();
   if (storedGame) restoreGame(storedGame);
   else {
     buildLevel();
@@ -2186,13 +2149,36 @@ pixelRendererReady.then((renderer) => {
   ui.announcement.textContent = 'Die Grafik konnte nicht initialisiert werden. Bitte die Seite neu laden.';
 });
 
+function catRadarDebugSnapshot() {
+  const frame = lastCatRadarFrame;
+  return {
+    updateCount: catRadarUpdateCount,
+    frame: frame ? {
+      frameId: frame.frameId,
+      camera: { viewport: { ...frame.camera.viewport } },
+      player: { screen: { ...frame.player.screen } },
+      cats: frame.cats.map((cat) => ({
+        id: cat.id,
+        screen: { ...cat.screen },
+        onScreen: cat.onScreen,
+        respawnTimer: cat.respawnTimer,
+      })),
+    } : null,
+    state: {
+      visible: lastCatRadarState.visible,
+      indicators: lastCatRadarState.indicators.map((indicator) => ({ ...indicator })),
+    },
+  };
+}
+
 if (import.meta.env.DEV) {
   window.__GASSI_AUDIO_DEBUG__ = () => audioService.soundscapeSnapshot();
   window.__GASSI_RENDERER_DEBUG__ = () => ({
     ...(pixelRenderer?.rendererInfo() ?? { backend: 'initializing' }),
-    scheduler: renderScheduler.snapshot(),
+    presentation: lastCatRadarFrame ? serializePresentationFrame(lastCatRadarFrame) : null,
+    scheduler: renderSession.snapshot(),
     staticWorldRevision,
-    renderPolicy: currentRenderPolicy(),
+    renderPolicy: currentRenderPolicy().mode,
   });
   window.__GASSI_DEBUG__ = () => ({
     state,
@@ -2217,6 +2203,7 @@ if (import.meta.env.DEV) {
     treatsTotal: levelTreatTotal,
     eggs: [...unlockedEggs],
     saved: loadGame(),
+    radar: catRadarDebugSnapshot(),
   });
   window.__GASSI_DEBUG_STEP__ = (seconds) => {
     const steps = Math.max(0, Math.round(seconds * 60));
@@ -2228,6 +2215,12 @@ if (import.meta.env.DEV) {
     const positioned = setDebugPlayerPosition(gameSession, { x, y }, { evaluateEvents: true });
     applyGameSessionSnapshot(positioned);
     requestRender('debug:player-position');
+    return window.__GASSI_DEBUG__();
+  };
+  window.__GASSI_DEBUG_SET_CATS__ = (positions) => {
+    const positioned = setDebugCatPositions(gameSession, positions);
+    applyGameSessionSnapshot(positioned, { processEvents: false });
+    requestRender('debug:cat-positions');
     return window.__GASSI_DEBUG__();
   };
   window.__GASSI_DEBUG_COMPLETE__ = () => {

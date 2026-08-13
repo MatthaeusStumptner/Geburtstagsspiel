@@ -7,6 +7,8 @@ import { drawWithVisualEffects } from './visual-effects.js';
 import { resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLimit } from './gpu/effect-profile.js';
 import { resolveStableCropSize } from './gpu/crop-buffer.js';
 import { createPresentationBackend, createSyncPresentationBackend } from './gpu/presentation-backend.js';
+import { createPresentationFrame } from './presentation-frame.js';
+import { createPresentationRenderResult } from './presentation-render-result.js';
 
 const clampRatio = (value, maximum = 2) => Math.min(maximum, Math.max(1, Number(value) || 1));
 const normalizeDisplayDimension = (value) => {
@@ -28,6 +30,7 @@ const isStaticWorldDecoration = (item, frameControlled = false) => !frameControl
   && (!item.animation?.type || item.animation.type === 'none')
   && !item.effects?.length;
 const collectionSize = (items) => items?.size ?? items?.length ?? 0;
+const isCanonicalString = (value) => typeof value === 'string' && value.length > 0 && value.trim() === value;
 const environmentCadenceFrame = (backend, quality, elapsed) => {
   if (backend !== 'canvas2d') return 0;
   const framesPerSecond = quality === 'performance' ? 8 : quality === 'balanced' ? 15 : 20;
@@ -49,6 +52,7 @@ function drawScaledActor(context, actor, tileSize, draw) {
 }
 
 export class PassauPixelRenderer {
+  #frameId = 0;
   static async create(canvas, options = {}) {
     const presentationBackend = await createPresentationBackend(canvas, options);
     return new PassauPixelRenderer(canvas, { ...options, presentationBackend });
@@ -131,16 +135,18 @@ export class PassauPixelRenderer {
     if (changed) this.presentation.resize(bufferWidth, bufferHeight);
     if (this.overlay.width !== bufferWidth) this.overlay.width = bufferWidth; if (this.overlay.height !== bufferHeight) this.overlay.height = bufferHeight;
     this.pixelRatio = pixelRatio;
-    this.displayMetrics = { width, height, actualPixelRatio, pixelRatio, bufferWidth, bufferHeight, reason: metrics?.reason ?? (legacy ? 'legacy' : undefined) };
-    return { width, height, pixelRatio, bufferWidth, bufferHeight, changed, reason: this.displayMetrics.reason };
+    const reason = metrics?.reason ?? (legacy ? 'legacy' : undefined);
+    this.displayMetrics = { width, height, actualPixelRatio, pixelRatio, bufferWidth, bufferHeight, ...(reason === undefined ? {} : { reason }) };
+    return { width, height, pixelRatio, bufferWidth, bufferHeight, changed, ...(reason === undefined ? {} : { reason }) };
   }
 
   render(snapshot, options = {}) {
+    const frameId = this.#frameId += 1;
     const level = snapshot.level ? this.setLevelIfChanged(snapshot.level) : this.level;
     if (!level) throw new Error('Vor dem Rendern muss ein Level gesetzt sein.');
     const alpha = Math.min(1, Math.max(0, Number(options.alpha) || 0));
     const player = interpolate({ ...level.actors.player, ...(snapshot.player ?? {}) }, alpha);
-    const cats = (snapshot.cats ?? level.actors.cats).map((cat, index) => interpolate({ ...(level.actors.cats[index] ?? {}), ...cat }, alpha)); const elapsed = Number(snapshot.elapsed) || 0;
+    const cats = (snapshot.cats ?? level.actors.cats).map((cat, index) => interpolate({ ...(level.actors.cats[index] ?? {}), ...cat }, alpha)); const elapsed = Number.isFinite(snapshot.elapsed) ? snapshot.elapsed : 0; const presentationTime = options.presentationTime ?? elapsed;
     const characters = (snapshot.characters ?? level.actors.characters ?? []).map((character, index) => interpolate({ ...(level.actors.characters?.[index] ?? {}), ...character }, alpha));
     const renderLevel = snapshot.decorations ? { ...level, decorations: snapshot.decorations } : level;
     const frameControlledDecorations = snapshot.decorations != null;
@@ -175,7 +181,8 @@ export class PassauPixelRenderer {
       scene.fillStyle = color;
       scene.fillRect(x * level.board.tileSize + 2, y * level.board.tileSize + 2, width * level.board.tileSize - 4, height * level.board.tileSize - 4);
     }
-    const display = this.displayMetrics ?? this.resize(); const viewport = options.viewport ?? { x: 0, y: 0, width: display.width, height: display.height };
+    if (!this.displayMetrics) this.resize();
+    const display = this.displayMetrics; const viewport = options.viewport ?? { x: 0, y: 0, width: display.width, height: display.height };
     const cameraTarget = options.cameraTarget ?? { x: player.x * level.board.tileSize + level.board.tileSize / 2, y: player.y * level.board.tileSize + level.board.tileSize / 2 };
     const calculatedCamera = calculateCamera({ worldWidth, worldHeight, viewport, target: cameraTarget, zoom: options.zoom ?? this.zoom, enabled: options.cameraEnabled !== false });
     const camera = snapCameraToTexels(calculatedCamera, this.sceneScale, worldWidth, worldHeight);
@@ -210,10 +217,59 @@ export class PassauPixelRenderer {
       hasOverlay,
     });
     this.present(camera, profile, elapsed, hasOverlay, overlayChanged, worldTextOverlay, options.sceneChanged !== false);
-    const tile = level.board.tileSize; const playerScreen = projectWorldPoint(camera, { x: player.x * tile + tile / 2, y: player.y * tile + tile / 2 }); const bounds = visibleWorldBounds(camera);
-    const entities = cats.map((cat, index) => { const world = { x: cat.x * tile + tile / 2, y: cat.y * tile + tile / 2 }; return { id: cat.id ?? `cat-${index + 1}`, index, screen: projectWorldPoint(camera, world), onScreen: world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom, distance: Math.hypot(player.x - cat.x, player.y - cat.y), color: cat.color, respawnTimer: cat.respawnTimer ?? 0 }; });
-    const characterEntities = characters.map((character, index) => { const world = { x: character.x * tile + tile / 2, y: character.y * tile + tile / 2 }; return { id: character.id ?? `character-${index + 1}`, index, screen: projectWorldPoint(camera, world), onScreen: world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom, distance: Math.hypot(player.x - character.x, player.y - character.y), color: character.color }; });
-    return { camera, playerScreen, entities, characterEntities, display, renderer: this.rendererInfo() };
+    const tile = level.board.tileSize;
+    const playerWorld = { x: player.x * tile + tile / 2, y: player.y * tile + tile / 2 };
+    const bounds = visibleWorldBounds(camera);
+    const onScreen = (world) => world.x >= bounds.left && world.x <= bounds.right && world.y >= bounds.top && world.y <= bounds.bottom;
+    const playerPresentation = {
+      id: player.id ?? 'player',
+      world: playerWorld,
+      screen: projectWorldPoint(camera, playerWorld),
+    };
+    const catPresentations = cats.map((cat, index) => {
+      const world = { x: cat.x * tile + tile / 2, y: cat.y * tile + tile / 2 };
+      return {
+        id: cat.id ?? `cat-${index + 1}`,
+        index,
+        world,
+        screen: projectWorldPoint(camera, world),
+        onScreen: onScreen(world),
+        distance: Math.hypot(player.x - cat.x, player.y - cat.y),
+        color: isCanonicalString(cat.color) ? cat.color : '#ff6b5f',
+        respawnTimer: Number.isFinite(cat.respawnTimer) ? Math.max(0, cat.respawnTimer) : 0,
+      };
+    });
+    const characterPresentations = characters.map((character, index) => {
+      const world = { x: character.x * tile + tile / 2, y: character.y * tile + tile / 2 };
+      return {
+        id: character.id ?? `character-${index + 1}`,
+        index,
+        world,
+        screen: projectWorldPoint(camera, world),
+        onScreen: onScreen(world),
+        distance: Math.hypot(player.x - character.x, player.y - character.y),
+        color: character.color,
+      };
+    });
+    const rendererInfo = this.rendererInfo();
+    const frame = createPresentationFrame({
+      frameId,
+      presentationTime,
+      camera,
+      player: playerPresentation,
+      cats: catPresentations,
+      characters: characterPresentations,
+      display,
+      renderer: {
+        ...rendererInfo,
+        requestedBackend: rendererInfo.requestedBackend ?? this.presentation.kind,
+        backend: rendererInfo.backend ?? this.presentation.kind,
+        fallbackReason: rendererInfo.fallbackReason ?? null,
+        contextLost: rendererInfo.contextLost ?? false,
+      },
+    });
+    return createPresentationRenderResult(frame);
+
   }
 
   setLevelIfChanged(levelInput) {
@@ -475,9 +531,9 @@ export class PassauPixelRenderer {
         pixelRatio: this.displayMetrics.pixelRatio,
         bufferWidth: this.displayMetrics.bufferWidth,
         bufferHeight: this.displayMetrics.bufferHeight,
-        reason: this.displayMetrics.reason,
+        ...(Object.hasOwn(this.displayMetrics, 'reason') ? { reason: this.displayMetrics.reason } : {}),
       } : null,
-      gpuCropResizes: this.gpuCropResizes,
+      ...(this.presentation.kind === 'canvas2d' ? {} : { gpuCropResizes: this.gpuCropResizes }),
       staticWorldBuilds: this.staticWorldBuilds,
       postProcess: this.lastPostProcessProfile ? {
         scanlines: this.lastPostProcessProfile.scanlines,

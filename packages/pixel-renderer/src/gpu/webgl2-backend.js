@@ -188,6 +188,7 @@ export class WebGL2PresentationBackend {
       frameCount: this.frameCount,
       gpuAccelerated: true,
       contextLost: this.contextLost,
+      resourceMetrics: { applicability: 'applicable' },
       uploadedBytes: this.uploadedBytes,
       sceneUploadedBytes: this.sceneUploadedBytes,
       overlayUploadedBytes: this.overlayUploadedBytes,

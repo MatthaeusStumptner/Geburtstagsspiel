@@ -7,7 +7,8 @@
   "scripts": { "test": "node --test" },
   "dependencies": {
     "@franz-lola/content-model": "0.0.0-monorepo",
-    "@franz-lola/game-core": "0.0.0-monorepo"
+    "@franz-lola/game-core": "0.0.0-monorepo",
+    "@franz-lola/pixel-renderer": "0.0.0-monorepo"
   },
   "engines": { "node": ">=22.14.0" }
 }

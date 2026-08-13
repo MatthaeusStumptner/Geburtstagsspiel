@@ -1,4 +1,5 @@
 import { PassauPixelRenderer, createLevelDocument, evaluatePerformanceBudget, summarizeRenderSamples } from '../src/index.js';
+import { summarizeBenchmarkResources } from './resource-summary.js';
 
 const parameters = new URLSearchParams(location.search);
 const requestedBackend = parameters.get('backend') ?? 'webgl2';
@@ -115,14 +116,8 @@ async function run() {
     pixelRatio: info.pixelRatio,
     renderer: info,
     postProcess: info.postProcess,
-    uploadedMegabytes: Math.round((info.uploadedBytes ?? 0) / 1024 / 1024 * 10) / 10,
-    sceneUploadedMegabytes: Math.round((info.sceneUploadedBytes ?? 0) / 1024 / 1024 * 10) / 10,
-    overlayUploadedMegabytes: Math.round((info.overlayUploadedBytes ?? 0) / 1024 / 1024 * 10) / 10,
-    worldOverlayUploadedMegabytes: Math.round((info.worldOverlayUploadedBytes ?? 0) / 1024 / 1024 * 10) / 10,
-    textureReallocations: info.textureReallocations ?? 0,
-    gpuCropResizes: info.gpuCropResizes ?? 0,
-    overlayUploadSkips: info.overlayUploadSkips ?? 0,
-    worldOverlayUploadSkips: info.worldOverlayUploadSkips ?? 0,
+    ...summarizeBenchmarkResources(info),
+
     ...summary,
     budget,
   });
