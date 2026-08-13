@@ -161,7 +161,7 @@ async function publish(request, env, session) {
   const drafts = await publicationDrafts(body, env, session);
   const contentItems = await resolveContentReferences(env.LEVEL_DB, Array.isArray(body?.items) ? body.items : []);
   if (!drafts.length && !contentItems.length) throw new Error('Bitte mindestens einen Inhalt auswählen.');
-  if (drafts.length + contentItems.length > 20) throw new Error('Es können höchstens 20 Inhalte auf einmal veröffentlicht werden.');
+  if (drafts.length + contentItems.length > 10) throw new Error('Es können höchstens 10 Inhalte auf einmal veröffentlicht werden.');
   const [draftSummaries, allItems] = await Promise.all([
     listDrafts(env.LEVEL_DB),
     listContentItems(env.LEVEL_DB, { includeContent: true }),

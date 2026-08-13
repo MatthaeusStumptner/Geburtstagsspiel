@@ -88,8 +88,8 @@
         ...references.items.map((value) => ({ kind: 'item', value })),
       ];
       let result = null;
-      for (let offset = 0; offset < queue.length; offset += 20) {
-        const batch = queue.slice(offset, offset + 20);
+      for (let offset = 0; offset < queue.length; offset += 10) {
+        const batch = queue.slice(offset, offset + 10);
         const completed = Math.min(queue.length, offset + batch.length);
         setPublication({ phase: 'uploading', phaseLabel: 'Inhalte live schalten', progress: 12 + Math.round(completed / queue.length * 78), detail: `${completed} von ${queue.length} Inhalten werden als unveränderlicher Cloud-Stand übernommen.` });
         result = await publisher.publishContent({ drafts: batch.filter((entry) => entry.kind === 'draft').map((entry) => entry.value), items: batch.filter((entry) => entry.kind === 'item').map((entry) => entry.value) });

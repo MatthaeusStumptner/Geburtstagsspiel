@@ -9,6 +9,7 @@ class FakeD1 {
   releases = new Map();
   pointer = null;
   batchCalls = 0;
+  batchSizes = [];
   prepare(sql) {
     const statement = {
       sql, values: [],
@@ -30,6 +31,7 @@ class FakeD1 {
   }
   async batch(statements) {
     this.batchCalls += 1;
+    this.batchSizes.push(statements.length);
     const pending = { releases: new Map(this.releases), pointer: this.pointer };
     for (const statement of statements) {
       const name = marker(statement.sql);
@@ -41,7 +43,7 @@ class FakeD1 {
         assert.equal(manifest.createdBy, createdBy);
         pending.releases.set(id, manifest);
       } else if (name === 'upsert-live-pointer') pending.pointer = statement.values[0];
-      else if (!['insert-live-level', 'insert-live-item', 'mark-live-level', 'mark-live-item'].includes(name)) throw new Error(`Unbekannter batch()-Marker: ${name}`);
+      else if (!['insert-live-levels', 'insert-live-items', 'mark-live-level', 'mark-live-item'].includes(name)) throw new Error(`Unbekannter batch()-Marker: ${name}`);
     }
     this.releases = pending.releases;
     this.pointer = pending.pointer;
@@ -60,6 +62,7 @@ test('publication preserves unselected live content and atomically replaces sele
     drafts: [{ id: 'home', revision: 4, level: level('home', 'Home neu') }], items: [],
   });
   assert.equal(db.batchCalls, 1);
+  assert.ok(db.batchSizes[0] <= 14);
   assert.equal(db.pointer, 'release-1');
   assert.deepEqual(first.manifest.levels.map(({ id, revision }) => [id, revision]), [['hals', 0], ['home', 4]]);
   assert.equal(first.manifest.levels.find(({ id }) => id === 'home').document.name.standard, 'Home neu');
