@@ -127,7 +127,7 @@ test('returns one immutable fixed-contract presentation frame per render', () =>
   assert.equal(first.cats[0].distance, 3);
   assert.equal(first.cats[0].color, '#ff00ff');
   assert.equal(first.cats[0].respawnTimer, 4);
-  assert.deepEqual(Object.keys(first), ['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer']);
+  assert.deepEqual(Object.keys(first), ['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer', 'playerScreen', 'entities', 'characterEntities']);
   assert.throws(() => { first.cats[0].world.x = 1; }, TypeError);
 });
 

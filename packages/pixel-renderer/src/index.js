@@ -28,6 +28,7 @@ export {
 
 export { PassauPixelRenderer } from './passau-pixel-renderer.js';
 export { createPresentationFrame, isPresentationFrame, serializePresentationFrame } from './presentation-frame.js';
+export { GPU_ONLY_RENDERER_FIELDS, validateRendererResourceMetrics } from './renderer-resource-metrics.js';
 export { EFFECT_MODES, resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLimit } from './gpu/effect-profile.js';
 export { RENDER_BUDGETS, evaluatePerformanceBudget, summarizeRenderSamples } from './performance.js';
 export { drawPixelSprite } from './painters/sprites.js';

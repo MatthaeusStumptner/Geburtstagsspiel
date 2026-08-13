@@ -266,7 +266,12 @@ export class PassauPixelRenderer {
         contextLost: rendererInfo.contextLost ?? false,
       },
     });
-    return frame;
+    return Object.freeze({
+      ...frame,
+      playerScreen: frame.player.screen,
+      entities: frame.cats,
+      characterEntities: frame.characters,
+    });
   }
 
   setLevelIfChanged(levelInput) {

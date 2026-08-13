@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { validateRendererResourceMetrics } from '@franz-lola/pixel-renderer';
 export { assertVisualHealth } from '../../../tools/browser-visual-health.mjs';
 
 function requiredFinite(value, label, scenario) {
@@ -20,24 +21,17 @@ export function readRendererCounters(debug, scenario) {
     schedulerFrames: requiredFinite(debug.scheduler.renderCount, 'scheduler.renderCount', scenario),
     staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
   };
-  if (debug.resourceMetrics?.applicability === 'applicable') return {
+  const resources = validateRendererResourceMetrics(debug);
+  if (resources.applicability === 'applicable') return {
     ...common,
     uploadedBytes: requiredFinite(debug.uploadedBytes, 'uploadedBytes', scenario),
     sceneUploadedBytes: requiredFinite(debug.sceneUploadedBytes, 'sceneUploadedBytes', scenario),
     overlayUploadedBytes: requiredFinite(debug.overlayUploadedBytes, 'overlayUploadedBytes', scenario),
     worldOverlayUploadedBytes: requiredFinite(debug.worldOverlayUploadedBytes, 'worldOverlayUploadedBytes', scenario),
     gpuCropResizes: requiredFinite(debug.gpuCropResizes, 'gpuCropResizes', scenario),
-    resources: { applicability: 'applicable', kind: 'gpu-textures', value: requiredFinite(debug.textureReallocations, 'textureReallocations', scenario) },
+    resources,
   };
-  assert.equal(debug.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] resource metric applicability is missing`);
-  assert.equal(debug.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource metric reason is invalid`);
-  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes']) {
-    assert.equal(Object.hasOwn(debug, key), false, `[${scenario}] Canvas2D must not expose ${key} as a fake GPU metric`);
-  }
-  return {
-    ...common,
-    resources: { applicability: 'not-applicable', reason: debug.resourceMetrics.reason, kind: 'canvas-backing-store', value: requiredFinite(debug.backingStoreResizes, 'backingStoreResizes', scenario) },
-  };
+  return { ...common, resources };
 }
 
 export function assertStableResourceWindow(before, after, scenario) {

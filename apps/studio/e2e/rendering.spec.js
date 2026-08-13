@@ -10,6 +10,7 @@ import {
   assertVisualHealth,
   assertWebGpuDisposition,
 } from '../../game/scripts/browser-regression-contracts.mjs';
+import { validateRendererResourceMetrics } from '@franz-lola/pixel-renderer';
 import { loadStaticCanvasFixture, openCleanEditor, persistActiveDraft } from './studio-test-helpers.js';
 import { completeRenderingGate, renderingErrorRecord, runCapturedScenario } from './rendering-gate-runner.js';
 
@@ -150,17 +151,11 @@ function assertPresentationCapture(debug, surfaceId, backend, scenario) {
   assert.equal(frame.renderer?.fallbackReason, null, `[${scenario}] backend fallback is not allowed`);
   assert.equal(frame.renderer?.contextLost, false, `[${scenario}] renderer reports context loss`);
   finite(frame.renderer?.frameCount, 'renderer.frameCount', scenario);
-  let resources;
+  const resources = validateRendererResourceMetrics(frame.renderer);
   if (backend === 'canvas2d') {
-    assert.equal(frame.renderer?.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] Canvas2D GPU resources must be not-applicable`);
-    assert.equal(frame.renderer.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource reason is invalid`);
-    assert.equal(Object.hasOwn(frame.renderer, 'textureReallocations'), false, `[${scenario}] Canvas2D must not expose fake texture reallocations`);
-    assert.equal(Object.hasOwn(frame.renderer, 'gpuCropResizes'), false, `[${scenario}] Canvas2D must not expose fake GPU crop resizes`);
-    resources = { applicability: 'not-applicable', reason: frame.renderer.resourceMetrics.reason, kind: 'canvas-backing-store', value: finite(frame.renderer.backingStoreResizes, 'renderer.backingStoreResizes', scenario) };
+    assert.equal(resources.applicability, 'not-applicable', `[${scenario}] Canvas2D GPU resources must be not-applicable`);
   } else {
-    assert.equal(frame.renderer?.resourceMetrics?.applicability, 'applicable', `[${scenario}] GPU resource applicability is invalid`);
-    finite(frame.renderer.gpuCropResizes, 'renderer.gpuCropResizes', scenario);
-    resources = { applicability: 'applicable', kind: 'gpu-textures', value: finite(frame.renderer.textureReallocations, 'renderer.textureReallocations', scenario) };
+    assert.equal(resources.applicability, 'applicable', `[${scenario}] GPU resource applicability is invalid`);
   }
   return { ...capture, resources };
 }

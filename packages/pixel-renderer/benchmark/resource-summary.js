@@ -1,3 +1,5 @@
+import { validateRendererResourceMetrics } from '../src/renderer-resource-metrics.js';
+
 function requireFiniteNonNegative(info, key) {
   const value = info[key];
   if (!Number.isFinite(value) || value < 0) {
@@ -11,37 +13,25 @@ function megabytes(bytes) {
 }
 
 export function summarizeBenchmarkResources(info) {
-  const applicability = info?.resourceMetrics?.applicability;
-  if (applicability === 'not-applicable') {
-    const reason = info.resourceMetrics.reason;
-    if (typeof reason !== 'string' || reason.length === 0) {
-      throw new TypeError('not-applicable resource metrics require a reason');
-    }
-    for (const key of [
-      'uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes',
-      'textureReallocations', 'gpuCropResizes', 'overlayUploadSkips', 'worldOverlayUploadSkips',
-    ]) {
-      if (Object.hasOwn(info, key)) throw new TypeError(`Canvas2D must not expose ${key} as a fake GPU metric`);
-    }
+  const resources = validateRendererResourceMetrics(info);
+  if (resources.applicability === 'not-applicable') {
     return {
       resourceMetrics: {
-        applicability,
-        reason,
-        backingStoreResizes: requireFiniteNonNegative(info, 'backingStoreResizes'),
+        applicability: resources.applicability,
+        reason: resources.reason,
+        backingStoreResizes: resources.value,
       },
     };
   }
-  if (applicability !== 'applicable') {
-    throw new TypeError('renderer resourceMetrics.applicability must be explicit');
-  }
   return {
-    resourceMetrics: { applicability },
+    resourceMetrics: { applicability: resources.applicability },
     uploadedMegabytes: megabytes(requireFiniteNonNegative(info, 'uploadedBytes')),
     sceneUploadedMegabytes: megabytes(requireFiniteNonNegative(info, 'sceneUploadedBytes')),
     overlayUploadedMegabytes: megabytes(requireFiniteNonNegative(info, 'overlayUploadedBytes')),
     worldOverlayUploadedMegabytes: megabytes(requireFiniteNonNegative(info, 'worldOverlayUploadedBytes')),
     textureReallocations: requireFiniteNonNegative(info, 'textureReallocations'),
     gpuCropResizes: requireFiniteNonNegative(info, 'gpuCropResizes'),
+    sceneUploadSkips: requireFiniteNonNegative(info, 'sceneUploadSkips'),
     overlayUploadSkips: requireFiniteNonNegative(info, 'overlayUploadSkips'),
     worldOverlayUploadSkips: requireFiniteNonNegative(info, 'worldOverlayUploadSkips'),
   };

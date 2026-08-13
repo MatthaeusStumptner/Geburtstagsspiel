@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { captureLocatorPngVisualHealth } from '../../../tools/browser-visual-health.mjs';
 import { waitForMinimumDuration } from './browser-minimum-duration.mjs';
+import { validateRendererResourceMetrics } from '../src/renderer-resource-metrics.js';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const artifactDirectory = join(projectRoot, 'output', 'playwright', 'renderer');
@@ -151,6 +152,7 @@ async function runBenchmarkScenario({
     assert.ok(runtime.result, `${name} must expose window.__RENDER_BENCHMARK_RESULT__`);
     assert.equal(runtime.renderer, runtime.result.resolvedBackend, `${name} dataset must report the resolved backend`);
     assert.equal(runtime.result.renderer.backend, runtime.result.resolvedBackend, `${name} diagnostics must report the resolved backend`);
+    validateRendererResourceMetrics(runtime.result.renderer);
 
     if (capture) {
       await waitForMinimumDuration({ startedAt, minimumMs: 5_000 });

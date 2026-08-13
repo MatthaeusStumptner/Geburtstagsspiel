@@ -19,7 +19,7 @@ test('benchmark reports Canvas resource metrics as not applicable without synthe
   for (const key of [
     'uploadedMegabytes', 'sceneUploadedMegabytes', 'overlayUploadedMegabytes',
     'worldOverlayUploadedMegabytes', 'textureReallocations', 'gpuCropResizes',
-    'overlayUploadSkips', 'worldOverlayUploadSkips',
+    'sceneUploadSkips', 'overlayUploadSkips', 'worldOverlayUploadSkips',
   ]) assert.equal(Object.hasOwn(summary, key), false, `${key} must remain N/A for Canvas2D`);
 });
 
@@ -33,6 +33,7 @@ test('benchmark requires and reports finite GPU resource metrics for an applicab
     worldOverlayUploadedBytes: 262_144,
     textureReallocations: 3,
     gpuCropResizes: 2,
+    sceneUploadSkips: 3,
     overlayUploadSkips: 4,
     worldOverlayUploadSkips: 5,
   };
@@ -45,6 +46,7 @@ test('benchmark requires and reports finite GPU resource metrics for an applicab
     worldOverlayUploadedMegabytes: 0.3,
     textureReallocations: 3,
     gpuCropResizes: 2,
+    sceneUploadSkips: 3,
     overlayUploadSkips: 4,
     worldOverlayUploadSkips: 5,
   });

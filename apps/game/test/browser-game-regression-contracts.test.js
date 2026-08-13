@@ -25,7 +25,8 @@ function healthyRenderer() {
     requestedBackend: 'webgl2', backend: 'webgl2', contextLost: false, fallbackReason: null,
     resourceMetrics: { applicability: 'applicable' },
     frameCount: 12, uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
-    worldOverlayUploadedBytes: 6, textureReallocations: 0, gpuCropResizes: 0, staticWorldRevision: 2,
+    worldOverlayUploadedBytes: 6, textureReallocations: 0, gpuCropResizes: 0,
+    sceneUploadSkips: 0, overlayUploadSkips: 1, worldOverlayUploadSkips: 2, staticWorldRevision: 2,
     scheduler: { renderCount: 12 },
   };
 }
@@ -39,7 +40,7 @@ test('renderer counters fail closed when required diagnostics are missing or non
     resources: { applicability: 'applicable', kind: 'gpu-textures', value: 0 },
   });
   const canvas = { ...healthyRenderer(), requestedBackend: 'canvas2d', backend: 'canvas2d', resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' }, backingStoreResizes: 2 };
-  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes']) delete canvas[key];
+  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes', 'sceneUploadSkips', 'overlayUploadSkips', 'worldOverlayUploadSkips']) delete canvas[key];
   assert.equal(readRendererCounters(canvas, 'canvas').resources.value, 2);
 });
 

@@ -32,7 +32,7 @@ function backend(kind) {
       frameCount: 0, gpuAccelerated: true, contextLost: false,
       resourceMetrics: { applicability: 'applicable' },
       uploadedBytes: 0, sceneUploadedBytes: 0, overlayUploadedBytes: 0, worldOverlayUploadedBytes: 0,
-      textureReallocations: 0, overlayUploadSkips: 0, worldOverlayUploadSkips: 0,
+      textureReallocations: 0, sceneUploadSkips: 0, overlayUploadSkips: 0, worldOverlayUploadSkips: 0,
     },
   };
 }
