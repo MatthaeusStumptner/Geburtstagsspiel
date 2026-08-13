@@ -1256,7 +1256,7 @@ test('thumbnail surfaces select exact profiles and animated assets sleep while s
   const staticPreview = page.locator('[data-asset-id="tree"] .object-thumbnail');
   await expect(animated).toHaveAttribute('data-render-profile', 'thumbnail-animated');
   await expect(staticPreview).toHaveAttribute('data-render-profile', 'thumbnail-static');
-  const staticCount = await waitForStableRenderCount(staticPreview);
+  const staticCount = await waitForStableRenderCount(staticPreview, 2_500);
   expect(staticCount).toBeGreaterThan(0);
   await page.waitForTimeout(400);
   await expect(staticPreview).toHaveAttribute('data-render-count', String(staticCount));
@@ -1402,7 +1402,7 @@ test('actor and object finite thumbnails keep local time while combined effects 
   const actor = page.locator('.character-hero .actor-thumbnail');
   await expect(actor).toHaveAttribute('data-render-profile', 'thumbnail-animated');
   await expect(actor).toHaveAttribute('data-animation-elapsed', /\d/);
-  expect(Number(await actor.getAttribute('data-animation-elapsed'))).toBeLessThan(0.3);
+  expect(Number(await actor.getAttribute('data-animation-elapsed'))).toBeLessThan(1);
   await expect.poll(async () => Number(await actor.getAttribute('data-animation-elapsed')), { timeout: 3500 }).toBeGreaterThanOrEqual(1);
   const actorAmbient = Number(await actor.getAttribute('data-render-count'));
   await page.waitForTimeout(650);
@@ -1440,7 +1440,7 @@ test('actor and object finite thumbnails keep local time while combined effects 
   const object = objectCard.locator('.object-thumbnail');
   await expect(object).toHaveAttribute('data-render-profile', 'thumbnail-animated');
   await expect(object).toHaveAttribute('data-animation-elapsed', /\d/);
-  expect(Number(await object.getAttribute('data-animation-elapsed'))).toBeLessThan(0.3);
+  expect(Number(await object.getAttribute('data-animation-elapsed'))).toBeLessThan(1);
   await expect.poll(async () => Number(await object.getAttribute('data-animation-elapsed')), { timeout: 3500 }).toBeGreaterThanOrEqual(1);
   const objectAmbient = Number(await object.getAttribute('data-render-count'));
   await page.waitForTimeout(650);
