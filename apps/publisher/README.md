@@ -1,16 +1,16 @@
 # Sicherer Ein-Klick-Publisher
 
-Der Workspace `@franz-lola/publisher` verbindet die statische Levelwerkstatt mit dem kanonischen Monorepo `Geburtstagsspiel`. Cloudflare D1 hält gemeinsame Entwürfe und Bibliotheksrevisionen; GitHub hält die veröffentlichte statische Projektion. Der Worker akzeptiert validierte `franz-lola-level`-Dokumente sowie `franz-lola-content`-Dokumente für Figuren, Tilesets, Blöcke, Animationen, Cutscenes, Objekte und Events.
+Der Workspace `@franz-lola/publisher` verbindet Levelwerkstatt und Spiel über Cloudflare D1. D1 ist die kanonische Quelle für Entwürfe, getrennt gespeicherte Bibliotheksinhalte und unveränderliche Live-Releases. Der Worker akzeptiert validierte `franz-lola-level`-Dokumente sowie `franz-lola-content`-Dokumente für Figuren, Tilesets, Blöcke, Animationen, Cutscenes, Objekte und Events.
 
 ## Datenfluss
 
-1. Nach der GitHub-Anmeldung gleicht der Worker veröffentlichte Inhalte aus den kanonischen Verzeichnissen unter `content/*` mit D1 ab.
+1. Nach der GitHub-Anmeldung gleicht der Worker den bisherigen statischen Katalog einmalig mit D1 ab.
 2. Änderungen werden lokal im Browser und verzögert als neue D1-Revision gespeichert.
 3. Stimmt die erwartete Revision nicht, liefert der Worker einen Konflikt statt fremde Änderungen zu überschreiben.
-4. Eine Veröffentlichung referenziert exakte D1-Revisionen und schreibt einen Pull Request gegen `Geburtstagsspiel/main`.
-5. Erst geprüfter Merge und erfolgreicher Pages-Deploy markieren diese Revisionen als veröffentlicht.
+4. Eine Veröffentlichung referenziert exakte D1-Revisionen und erzeugt atomar ein unveränderliches Live-Manifest.
+5. Der öffentliche Pointer `/api/live/current` wechselt im selben D1-Batch auf dieses Release. Das Spiel lädt es beim nächsten Start; ein neuer Game-Build ist dafür nicht nötig.
 
-D1 behält pro Level oder Bibliothekseintrag höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs-Snapshots bleiben nachvollziehbar. Abhängigkeiten werden in `content_dependencies` separat indexiert. Ungültige v2-Abhängigkeiten scheitern vor jeder Ersetzung dieses Indexes.
+D1 behält pro Level oder Bibliothekseintrag höchstens 20 normale Arbeitsrevisionen; Veröffentlichungs-Snapshots bleiben nachvollziehbar. Aktuelle Figuren, Tilesets, Blöcke, Animationen, Cutscenes, Assets und Events liegen in eigenen Tabellen; Revisionen und Abhängigkeiten liegen in `entity_revisions` und `entity_dependencies`. Ungültige v2-Abhängigkeiten scheitern vor jeder Ersetzung dieses Indexes.
 
 ## Sicherheitsmodell
 
@@ -20,7 +20,7 @@ D1 behält pro Level oder Bibliothekseintrag höchstens 20 normale Arbeitsrevisi
 - Private App-Schlüssel, Client Secret und Sitzungsschlüssel liegen nur als Cloudflare-Secrets vor.
 - Die signierte Browsersitzung gilt 30 Minuten, wird aus dem URL-Fragment sofort entfernt und nie in `localStorage` oder `sessionStorage` geschrieben.
 - Der Worker akzeptiert höchstens 1 MB pro Inhalt, nur bekannte Typen, kanonische Slug-IDs und die Pfade `content/levels`, `content/characters`, `content/tilesets`, `content/blocks`, `content/animations`, `content/cutscenes`, `content/objects` und `content/events`.
-- Veröffentlicht werden nur Pull Requests des konfigurierten App-Bots; Pfadguard, Tests und Build laufen vor dem Merge.
+- Live-Releases sind unveränderlich; nur der Pointer auf das aktuelle Release wird atomar ersetzt.
 
 ## Einmalige Einrichtung durch den Besitzer
 
@@ -29,7 +29,7 @@ D1 behält pro Level oder Bibliothekseintrag höchstens 20 normale Arbeitsrevisi
 Unter **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App**:
 
 1. Einen eindeutigen Namen vergeben, zum Beispiel `Franz Lola Publisher`.
-2. Bis zum kombinierten Pages-Cutover bleibt die live verwendete Homepage `https://matthaeusstumptner.github.io/Pacman_clone_level_editor/` unverändert.
+2. Als Homepage `https://matthaeusstumptner.github.io/Geburtstagsspiel/studio/` verwenden.
 3. Webhooks deaktivieren.
 4. Repository permissions setzen: Actions Read-only, Contents Read and write, Pull requests Read and write.
 5. App nur für den eigenen Account und nur auf `Geburtstagsspiel` installieren.
@@ -38,7 +38,7 @@ Unter **GitHub → Settings → Developer settings → GitHub Apps → New GitHu
 Die Callback URL bleibt die vorhandene Worker-Adresse:
 
 ```text
-https://franz-lola-publisher.<deine-workers-subdomain>.workers.dev/auth/callback
+https://franz-lola-publisher.matti-stumptner.workers.dev/auth/callback
 ```
 
 ### 2. Cloudflare Worker
@@ -48,10 +48,11 @@ Alle Befehle laufen vom Root des Monorepos und verwenden das Root-Lockfile:
 ```bash
 npm ci --ignore-scripts
 npm test --workspace @franz-lola/publisher
-npm run deploy --workspace @franz-lola/publisher -- --dry-run --outdir .wrangler-dry-run
+npm run db:migrate:remote --workspace @franz-lola/publisher
+npm run deploy --workspace @franz-lola/publisher
 ```
 
-Die bestehende D1-Ressource `franz-lola-publisher-level-db` ist in `apps/publisher/wrangler.jsonc` gebunden und darf nicht neu erstellt oder zurückgesetzt werden. Remote-Migrationen und ein echter Deploy werden nur in einem ausdrücklich freigegebenen Betriebsfenster ausgeführt; der Foundation-Review führt ausschließlich den Dry-Run aus.
+Die bestehende D1-Ressource `franz-lola-publisher-level-db` ist in `apps/publisher/wrangler.jsonc` gebunden und darf nicht neu erstellt oder zurückgesetzt werden. Migrationen sind additiv; die alten Registry-Tabellen bleiben als Rückfallkopie erhalten.
 
 Im Cloudflare-Dashboard beim Worker unter **Settings → Variables and Secrets** werden diese verschlüsselten Secrets gepflegt:
 
@@ -71,10 +72,10 @@ Beispiel für einen Sitzungsschlüssel: `openssl rand -hex 32`.
 
 Im Repository `Geburtstagsspiel` unter **Settings → Secrets and variables → Actions → Variables**:
 
-- `VITE_PUBLISHER_URL` = vorhandene Worker-Adresse ohne abschließenden Slash für Studio-Builds.
+- `VITE_PUBLISHER_URL` = `https://franz-lola-publisher.matti-stumptner.workers.dev` für Game- und Studio-Builds.
 - `PUBLISHER_BOT_LOGIN` = Bot-Login der GitHub App, normalerweise App-Slug plus `[bot]`.
 
-Der Foundation-Schritt ändert weder die live Editor-URL noch `EDITOR_PATH_PREFIX`; der kombinierte Game-/Studio-Pages-Cutover ist ein separates Vorhaben. Die Setup-Verlinkung im Studio zeigt deshalb auf die Variablen des kanonischen Monorepos, ohne eine neue Route vorzutäuschen.
+Codeänderungen brauchen weiterhin einen normalen Pages-Build. Neue oder geänderte Inhalte werden dagegen über D1 sofort live geschaltet.
 
 ## Lokale Entwicklung
 

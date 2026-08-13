@@ -13,7 +13,7 @@
   let selectionInitialized = false;
   let polling = null;
   let clock = null;
-  let publicationId = $state(0);
+  let publicationId = $state('');
   let pollFailures = 0;
   let startedAt = 0;
   let elapsed = $state(0);
@@ -84,13 +84,13 @@
       setPublication({ phase: 'uploading', phaseLabel: 'Inhalte verschlüsselt übertragen', progress: 12, detail: `${selectedCandidates.length === 1 ? 'Der Inhalt wird' : `${selectedCandidates.length} Inhalte werden`} an den sicheren Cloudflare Publisher übertragen.` });
       const references = await studio.prepareCloudPublication(selectedCandidates);
       const result = await publisher.publishContent(references);
-      setPublication(result); publicationId = Number(result.publicationId); await poll(publicationId);
+      setPublication(result); publicationId = String(result.publicationId ?? ''); state = result.state === 'published' ? 'published' : 'progress'; if (state === 'progress') await poll(publicationId);
     } catch (reason) { error = reason.message; state = 'failed'; }
   }
   function toggleCandidate(key, checked) { selectedKeys = checked ? [...new Set([...selectedKeys, key])] : selectedKeys.filter((entry) => entry !== key); }
   function selectAllValid() { selectedKeys = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.key); }
   function clearSelection() { selectedKeys = []; }
-  function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = 0; state = 'login'; }
+  function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = ''; state = 'login'; }
   async function resolveConflict(strategy) {
     resolvingConflict = strategy; error = '';
     try { await studio.resolveCloudConflict(strategy); }
@@ -119,7 +119,7 @@
 
 <section class="workspace publish-workspace" aria-labelledby="publish-workspace-title">
   <header class="workspace-header">
-    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier wählst du Level, Figuren, Objekte und weitere Inhalte getrennt aus. Sie werden gemeinsam geprüft und als statische Spieldaten auf GitHub Pages veröffentlicht.</p></div>
+    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier wählst du Level, Figuren, Objekte und weitere Inhalte getrennt aus. Sie werden als unveränderlicher Cloud-Stand veröffentlicht und sind ohne neuen Spiel-Build sofort live.</p></div>
     {#if user}<div class="publisher-user"><span>{user.avatarUrl ? '●' : 'GH'}</span><div><strong>{user.name || user.login}</strong><small>GitHub verbunden</small></div><button onclick={logout}>Abmelden</button></div>{/if}
   </header>
 
