@@ -178,6 +178,20 @@ test('CI contract rejects a nested install hidden in a shell command', async () 
   const mutated = withAdditionalJob(source, '    steps:\n      - run: cd apps/game && npm ci --ignore-scripts');
   assert.throws(() => assertCriticalCiTopology(mutated));
 });
+
+test('Pages deploy installs Chromium after dependencies and before browser-backed unit tests', async () => {
+  const source = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  const commands = workflowSteps(source).map(({ run }) => String(run ?? '').trim());
+  const dependencyInstall = commands.indexOf('npm ci');
+  const chromiumInstall = commands.indexOf('npx playwright install --with-deps chromium');
+  const unitTests = commands.indexOf('npm test');
+
+  assert.notEqual(dependencyInstall, -1, 'deploy must install locked dependencies');
+  assert.notEqual(chromiumInstall, -1, 'deploy must install the Chromium executable required by npm test');
+  assert.notEqual(unitTests, -1, 'deploy must run the unit tests');
+  assert.ok(dependencyInstall < chromiumInstall, 'Chromium installation requires the locked Playwright package');
+  assert.ok(chromiumInstall < unitTests, 'Chromium must exist before browser-backed unit tests run');
+});
 test('Pages deploy uploads the game workspace build and content publishing still dispatches it', async () => {
   const [deploySource, publishSource, rootPackage, gamePackage, studioReadme, publisherReadme] = await Promise.all([
     readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8'),
