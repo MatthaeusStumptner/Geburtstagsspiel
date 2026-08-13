@@ -1,4 +1,4 @@
-import { createContentDocument, createLevelDocument, tileKey, validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
+import { createContentDocument, createLevelDocument, extractEmbeddedContentDocuments, tileKey, validateContentDocument, validateLevelDocument } from '@franz-lola/content-model';
 import { catalogLevel, passauCatalog } from '../catalog.js';
 import { DraftRepository } from '../draft-repository.js';
 import { createStarterLevel, EditorState } from '../editor-state.js';
@@ -261,8 +261,9 @@ export class StudioState {
     this.cloudStatus = 'connecting';
     this.cloudError = '';
     try {
-      const [result, contentResult] = await Promise.all([publisher.bootstrapDrafts(), publisher.bootstrapContent()]);
+      const result = await publisher.bootstrapDrafts();
       this.applyCloudDraftList(result.drafts ?? []);
+      const contentResult = await publisher.bootstrapContent();
       this.applyCloudContentList(contentResult.items ?? []);
       const current = this.cloudDrafts.find((draft) => draft.id === this.level.id);
       if (current) {
@@ -1178,70 +1179,46 @@ export class StudioState {
   draftsList() { return this.drafts.list(); }
 
   publishCandidates() {
-    const levelEntries = this.drafts.list().map((entry) => ({ ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
+    const levelMap = new Map();
+    this.cloudDrafts.filter((entry) => entry.level).forEach((entry) => levelMap.set(entry.id, { ...entry, savedAt: entry.updatedAt, current: entry.id === this.level.id }));
+    this.drafts.list().forEach((entry) => levelMap.set(entry.id, { ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
     const current = { id: this.level.id, name: this.level.name.standard, savedAt: '', level: clone(this.level), current: true };
-    const levels = [current, ...levelEntries.filter((entry) => entry.id !== current.id)].map((entry) => ({
-      ...entry,
-      key: `level:${entry.id}`,
-      type: 'level',
-      typeLabel: 'Level',
-      icon: entry.level.icon,
-      detail: `${entry.level.board.columns}×${entry.level.board.rows} Felder`,
-      validation: validateLevelDocument(entry.level),
-    }));
-    const contentCandidate = (type, input, metadata = {}) => {
-      const content = createContentDocument(type, input, metadata);
+    levelMap.set(current.id, current);
+    const levels = [...levelMap.values()]
+      .sort((left, right) => Number(right.current) - Number(left.current) || String(left.name).localeCompare(String(right.name), 'de'))
+      .map((entry) => ({
+        ...entry,
+        key: `level:${entry.id}`,
+        type: 'level',
+        typeLabel: 'Level',
+        icon: entry.level.icon,
+        detail: `${entry.level.board.columns}×${entry.level.board.rows} Felder`,
+        validation: validateLevelDocument(entry.level),
+      }));
+    const labels = { character: 'Figur', tileset: 'Tileset', block: 'Block', animation: 'Animation', cutscene: 'Cutscene', object: 'Objekt', event: 'Ereignis' };
+    const icons = { character: 'FIG', tileset: 'SET', block: 'BLK', animation: 'ANI', cutscene: 'CUT', object: 'OBJ', event: 'EVT' };
+    const contentCandidate = (input) => {
+      const content = input?.kind === 'franz-lola-content' ? clone(input) : createContentDocument(input.type, input.document, input);
       return {
-        key: `${type}:${content.id}`,
-        type,
+        key: `${content.type}:${content.id}`,
+        type: content.type,
         id: content.id,
         name: content.name,
         content,
-        typeLabel: { character: 'Figur', tileset: 'Tileset', block: 'Block', animation: 'Animation', cutscene: 'Cutscene', object: 'Objekt' }[type],
-        icon: { character: 'FIG', tileset: 'SET', block: 'BLK', animation: 'ANI', cutscene: 'CUT', object: 'OBJ' }[type],
+        typeLabel: labels[content.type],
+        icon: icons[content.type],
         detail: content.description || 'Wiederverwendbarer Inhalt',
         validation: validateContentDocument(content),
       };
     };
-    const objects = this.library.readCustom().map((asset) => contentCandidate('object', asset));
-    const characters = this.characterAssets.map((asset) => contentCandidate('character', asset));
-    const cutscenes = this.level.cutscenes.map((cutscene) => contentCandidate('cutscene', cutscene, {
-      id: `${this.level.id}-${cutscene.id}`,
-      name: cutscene.name?.standard || cutscene.id,
-      description: `Cutscene aus ${this.level.name.standard}`,
-    }));
-    const animations = [];
-    [...this.characterAssets, ...this.library.readCustom()].forEach((asset) => {
-      (asset.appearance?.animations ?? []).forEach((animation) => animations.push(contentCandidate('animation', {
-        id: `${asset.id}-${animation.id}`,
-        name: `${asset.name} · ${animation.id}`,
-        width: asset.appearance.width,
-        height: asset.appearance.height,
-        palette: asset.appearance.palette,
-        pixels: asset.appearance.pixels,
-        animation,
-      })));
-      if (asset.animation && asset.animation.type !== 'none') animations.push(contentCandidate('animation', {
-        id: `${asset.id}-bewegung`,
-        name: `${asset.name} · Bewegung`,
-        target: 'motion',
-        motion: asset.animation,
-      }));
-    });
-    const tileset = contentCandidate('tileset', this.level.theme, {
-      id: `${this.level.id}-${this.level.theme.id}`,
-      name: `${this.level.name.standard} · Theme`,
-      description: `Tileset aus ${this.level.name.standard}`,
-    });
-    const selectedWall = this.selection?.kind === 'wall' ? this.level.board.walls[this.selection.index] : null;
-    const blocks = selectedWall ? [contentCandidate('block', selectedWall, {
-      id: `${this.level.id}-${selectedWall.id || `wall-${this.selection.index + 1}`}`,
-      name: selectedWall.name || `Block aus ${this.level.name.standard}`,
-      description: `Ausgewählter Block aus ${this.level.name.standard}`,
-    })] : [];
-    return [...levels, ...characters, ...objects, tileset, ...blocks, ...animations, ...cutscenes];
+    const content = new Map();
+    const addContent = (document) => content.set(`${document.type}:${document.id}`, contentCandidate(document));
+    this.cloudItems.forEach((item) => { if (item.content) addContent(item.content); });
+    levels.forEach((entry) => { if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach(addContent); });
+    this.characterAssets.forEach((asset) => addContent(createContentDocument('character', asset)));
+    this.library.readCustom().forEach((asset) => addContent(createContentDocument('object', asset)));
+    return [...levels, ...content.values()];
   }
-
   deleteDraft(id) {
     if (id === this.level.id) clearTimeout(this.saveTimer);
     if (!this.drafts.remove(id)) return false;

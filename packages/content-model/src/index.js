@@ -29,3 +29,5 @@ export {
 } from './migrations.js';
 
 export { resolveProjectDependencies } from './project-dependencies.js';
+
+export { extractEmbeddedContentDocuments } from './embedded-content.js';

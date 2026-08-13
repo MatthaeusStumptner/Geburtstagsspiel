@@ -21,7 +21,7 @@
   let resolvingConflict = $state('');
   let candidates = $derived.by(() => { studio.revision; return studio.publishCandidates(); });
   let selectedCandidates = $derived(candidates.filter((entry) => selectedKeys.includes(entry.key)));
-  let candidateGroups = $derived(['level', 'character', 'object', 'tileset', 'block', 'animation', 'cutscene']
+  let candidateGroups = $derived(['level', 'character', 'object', 'tileset', 'block', 'animation', 'cutscene', 'event']
     .map((type) => ({ type, label: candidates.find((entry) => entry.type === type)?.typeLabel, items: candidates.filter((entry) => entry.type === type) }))
     .filter((group) => group.items.length));
   let levelConflict = $derived(studio.cloudStatus === 'conflict' && studio.hasCloudConflict());
@@ -83,7 +83,17 @@
       await new Promise((resolve) => requestAnimationFrame(resolve));
       setPublication({ phase: 'uploading', phaseLabel: 'Inhalte verschlüsselt übertragen', progress: 12, detail: `${selectedCandidates.length === 1 ? 'Der Inhalt wird' : `${selectedCandidates.length} Inhalte werden`} an den sicheren Cloudflare Publisher übertragen.` });
       const references = await studio.prepareCloudPublication(selectedCandidates);
-      const result = await publisher.publishContent(references);
+      const queue = [
+        ...references.drafts.map((value) => ({ kind: 'draft', value })),
+        ...references.items.map((value) => ({ kind: 'item', value })),
+      ];
+      let result = null;
+      for (let offset = 0; offset < queue.length; offset += 20) {
+        const batch = queue.slice(offset, offset + 20);
+        const completed = Math.min(queue.length, offset + batch.length);
+        setPublication({ phase: 'uploading', phaseLabel: 'Inhalte live schalten', progress: 12 + Math.round(completed / queue.length * 78), detail: `${completed} von ${queue.length} Inhalten werden als unveränderlicher Cloud-Stand übernommen.` });
+        result = await publisher.publishContent({ drafts: batch.filter((entry) => entry.kind === 'draft').map((entry) => entry.value), items: batch.filter((entry) => entry.kind === 'item').map((entry) => entry.value) });
+      }
       setPublication(result); publicationId = String(result.publicationId ?? ''); state = result.state === 'published' ? 'published' : 'progress'; if (state === 'progress') await poll(publicationId);
     } catch (reason) { error = reason.message; state = 'failed'; }
   }
@@ -165,7 +175,7 @@
         </div>
         {#if selectedCandidates.some((entry) => !entry.validation.ok)}<p class="error-copy">Mindestens ein ausgewählter Inhalt enthält Fehler. Entferne ihn aus der Auswahl oder korrigiere ihn zuerst.</p>{/if}
         {#if levelConflict}<p class="error-copy">Löse zuerst den Cloud-Konflikt. Danach kann die Veröffentlichung ohne Datenverlust fortgesetzt werden.</p>{/if}
-        <div class="review-facts"><span><b>{selectedCandidates.filter((entry) => entry.type === 'level').length}</b>Level</span><span><b>{selectedCandidates.filter((entry) => ['character', 'object', 'tileset', 'block'].includes(entry.type)).length}</b>Bausteine</span><span><b>{selectedCandidates.filter((entry) => ['animation', 'cutscene'].includes(entry.type)).length}</b>Abläufe</span></div>
+        <div class="review-facts"><span><b>{selectedCandidates.filter((entry) => entry.type === 'level').length}</b>Level</span><span><b>{selectedCandidates.filter((entry) => ['character', 'object', 'tileset', 'block'].includes(entry.type)).length}</b>Bausteine</span><span><b>{selectedCandidates.filter((entry) => ['animation', 'cutscene', 'event'].includes(entry.type)).length}</b>Abläufe</span></div>
         <button class="primary large-action" id="publisher-confirm" disabled={!selectionValid} onclick={publish}>{selectedCandidates.length === 1 ? `1 ${selectedCandidates[0]?.typeLabel ?? 'Inhalt'} veröffentlichen` : `${selectedCandidates.length} Inhalte gemeinsam veröffentlichen`}</button>
       </article>
     {:else}

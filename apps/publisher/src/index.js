@@ -20,6 +20,7 @@ import {
   syncPublishedDraft,
 } from './draft-store.js';
 import { createLiveRelease, readCurrentLiveRelease, readLiveRelease } from './live-release-store.js';
+import { backfillEmbeddedContent } from './embedded-content-store.js';
 import {
   bearerToken,
   corsHeaders,
@@ -140,7 +141,8 @@ async function bootstrapDrafts(env) {
   for (const file of levels) {
     if (file?.value) await syncPublishedDraft(env.LEVEL_DB, file.value, { sha: file.sha });
   }
-  return listDrafts(env.LEVEL_DB);
+  const drafts = await listDrafts(env.LEVEL_DB);
+  return Promise.all(drafts.map((draft) => readDraft(env.LEVEL_DB, draft.id)));
 }
 
 async function publicationDrafts(body, env, session) {
@@ -204,7 +206,10 @@ async function api(request, env, path) {
   }
   if (path === '/api/drafts' && request.method === 'GET') return json({ drafts: await listDrafts(env.LEVEL_DB) }, { request, env });
   if (path === '/api/content/bootstrap' && request.method === 'POST') {
-    return json({ items: await listContentItems(env.LEVEL_DB, { includeContent: true }) }, { request, env });
+    const drafts = await listDrafts(env.LEVEL_DB);
+    const fullDrafts = await Promise.all(drafts.map((draft) => readDraft(env.LEVEL_DB, draft.id)));
+    const backfill = await backfillEmbeddedContent(env.LEVEL_DB, fullDrafts, { login: session.login });
+    return json(backfill, { request, env });
   }
   if (path === '/api/content' && request.method === 'GET') {
     const type = new URL(request.url).searchParams.get('type') ?? '';
