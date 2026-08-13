@@ -50,8 +50,8 @@ test('OAuth login accepts only the exact editor return path', async () => {
 });
 
 test('content API routes every reusable type including events', () => {
-  assert.deepEqual(contentRouteMatch('/api/content/event/eisvogel'), ['event', 'eisvogel']);
-  assert.deepEqual(contentRouteMatch('/api/content/character/postler'), ['character', 'postler']);
+  assert.deepEqual(contentRouteMatch('/api/content/event/eisvogel'), { type: 'event', id: 'eisvogel' });
+  assert.deepEqual(contentRouteMatch('/api/content/character/postler'), { type: 'character', id: 'postler' });
   assert.equal(contentRouteMatch('/api/content/level/hals'), null);
   assert.equal(contentRouteMatch('/api/content/unknown/nope'), null);
 });
