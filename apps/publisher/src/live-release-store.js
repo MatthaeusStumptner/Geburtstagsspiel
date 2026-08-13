@@ -23,8 +23,10 @@ export async function createLiveRelease(db, { login, drafts = [], items = [], fa
   const manifestJson = JSON.stringify(manifest);
   const statements = [
     db.prepare(`/* insert-live-release */ INSERT INTO live_releases (id, created_at, created_by, manifest_json) VALUES (?, ?, ?, ?)`).bind(id, manifest.createdAt, editor, manifestJson),
-    ...manifest.levels.map((entry) => db.prepare(`/* insert-live-level */ INSERT INTO live_release_levels (release_id, level_id, revision, document_json) VALUES (?, ?, ?, ?)`).bind(id, entry.id, entry.revision, JSON.stringify(entry.document))),
-    ...manifest.items.map((entry) => db.prepare(`/* insert-live-item */ INSERT INTO live_release_items (release_id, content_type, content_id, revision, document_json) VALUES (?, ?, ?, ?, ?)`).bind(id, entry.type, entry.id, entry.revision, JSON.stringify(entry.content))),
+    db.prepare(`/* insert-live-levels */ INSERT INTO live_release_levels (release_id, level_id, revision, document_json)
+      SELECT ?, json_extract(value, '$.id'), CAST(json_extract(value, '$.revision') AS INTEGER), json_extract(value, '$.document') FROM json_each(?)`).bind(id, JSON.stringify(manifest.levels)),
+    db.prepare(`/* insert-live-items */ INSERT INTO live_release_items (release_id, content_type, content_id, revision, document_json)
+      SELECT ?, json_extract(value, '$.type'), json_extract(value, '$.id'), CAST(json_extract(value, '$.revision') AS INTEGER), json_extract(value, '$.content') FROM json_each(?)`).bind(id, JSON.stringify(manifest.items)),
     ...selectedLevels.values().map((entry) => db.prepare(`/* mark-live-level */ UPDATE level_drafts SET published_revision = ?, published_document_json = ?, status = CASE WHEN revision = ? THEN 'published' ELSE 'draft' END, published_commit_sha = ?, publication_id = NULL WHERE id = ?`).bind(entry.revision, JSON.stringify(entry.document), entry.revision, `live:${id}`, entry.id)),
     ...selectedItems.values().map((entry) => db.prepare(`/* mark-live-item */ UPDATE ${contentTable(entry.type)} SET published_revision = ?, published_document_json = ?, status = CASE WHEN revision = ? THEN 'published' ELSE 'draft' END, published_commit_sha = ?, publication_id = NULL WHERE id = ?`).bind(entry.revision, JSON.stringify(entry.content), entry.revision, `live:${id}`, entry.id)),
     db.prepare(`/* upsert-live-pointer */ INSERT INTO live_release_pointer (slot, release_id, updated_at) VALUES (1, ?, ?) ON CONFLICT(slot) DO UPDATE SET release_id = excluded.release_id, updated_at = excluded.updated_at`).bind(id, manifest.createdAt),
