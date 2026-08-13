@@ -13,6 +13,7 @@
     "test:presentation-parity": "node --test packages/testkit/test/presentation-parity.test.js",
     "test": "npm run test:structure && npm run test:packages",
     "build": "npm run build --workspace @franz-lola/pixel-renderer && npm run build --workspace @franz-lola/game && npm run build --workspace @franz-lola/studio",
+    "pages:assemble": "node scripts/assemble-pages.mjs",
     "test:browser": "npm run test:browser --workspace @franz-lola/pixel-renderer && npm run test:browser --workspace @franz-lola/game && npm run test:e2e --workspace @franz-lola/studio && npm run test:visual --workspace @franz-lola/studio && npm run test:rendering --workspace @franz-lola/studio",
     "verify:foundation": "npm test && npm run build && npm run benchmark:assert --workspace @franz-lola/pixel-renderer && npm run test:browser",
     "verify": "npm run verify:foundation"

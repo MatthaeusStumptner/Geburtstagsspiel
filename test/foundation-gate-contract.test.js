@@ -204,8 +204,12 @@ test('Pages deploy uploads the game workspace build and content publishing still
   const { workflow: deployWorkflow, steps: deploySteps } = workflowTopology(deploySource);
   const buildEnvironment = deployWorkflow.jobs.build.env;
   const build = deploySteps.filter(({ run }) => run === 'npm run build');
+  const assemble = deploySteps.filter(({ run }) => run === 'npm run pages:assemble');
   const upload = deploySteps.filter(({ uses }) => uses?.startsWith('actions/upload-pages-artifact@'));
   assert.equal(build.length, 1, 'deploy must run the root build once');
+  assert.equal(assemble.length, 1, 'deploy must assemble the Game and Studio Pages artifact once');
+  assert.ok(deploySteps.indexOf(build[0]) < deploySteps.indexOf(assemble[0]), 'Pages assembly requires both builds');
+  assert.ok(deploySteps.indexOf(assemble[0]) < deploySteps.indexOf(upload[0]), 'Pages assembly must finish before upload');
   assert.equal(upload.length, 1, 'deploy must upload one Pages artifact');
   assert.match(rootPackage.scripts.build, /npm run build --workspace @franz-lola\/game(?:\s|$)/);
   assert.match(rootPackage.scripts.build, /npm run build --workspace @franz-lola\/studio(?:\s|$)/);
@@ -219,6 +223,7 @@ test('Pages deploy uploads the game workspace build and content publishing still
   assert.match(publisherReadme, /VITE_PUBLISHER_URL/);
   assert.equal(upload[0].with.path, 'apps/game/dist');
 
+  assert.equal(rootPackage.scripts['pages:assemble'], 'node scripts/assemble-pages.mjs');
   const dispatch = workflowSteps(publishSource).filter(({ run }) => String(run ?? '').includes('gh workflow run'));
   assert.equal(dispatch.length, 1, 'content publishing must dispatch one deployment');
   assert.equal(dispatch[0].run, 'gh workflow run deploy.yml --ref main');
