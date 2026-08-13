@@ -192,7 +192,7 @@ async function publish(request, env, session) {
 }
 export function contentRouteMatch(path) {
   const match = /^\/api\/content\/(character|tileset|block|animation|cutscene|object|event)\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
-  return match ? [match[1], match[2]] : null;
+  return match ? { type: match[1], id: match[2] } : null;
 }
 
 async function api(request, env, path) {
@@ -233,10 +233,10 @@ async function api(request, env, path) {
     }), { request, env });
   }
   const contentMatch = contentRouteMatch(path);
-  if (contentMatch && request.method === 'GET') return json(await readContentItem(env.LEVEL_DB, contentMatch[1], contentMatch[2]), { request, env });
+  if (contentMatch && request.method === 'GET') return json(await readContentItem(env.LEVEL_DB, contentMatch.type, contentMatch.id), { request, env });
   if (contentMatch && request.method === 'PUT') {
     const body = await readPublishBody(request);
-    if (body?.content?.type !== contentMatch[1] || body?.content?.id !== contentMatch[2]) {
+    if (body?.content?.type !== contentMatch.type || body?.content?.id !== contentMatch.id) {
       throw new Error('Content-Typ, ID und Adresse des Bibliotheksinhalts stimmen nicht überein.');
     }
     return json(await saveContentItem(env.LEVEL_DB, body.content, {
@@ -246,7 +246,7 @@ async function api(request, env, path) {
   }
   if (contentMatch && request.method === 'DELETE') {
     const body = await readPublishBody(request);
-    return json(await deleteContentItem(env.LEVEL_DB, contentMatch[1], contentMatch[2], {
+    return json(await deleteContentItem(env.LEVEL_DB, contentMatch.type, contentMatch.id, {
       expectedRevision: body.expectedRevision,
       login: session.login,
     }), { request, env });
@@ -295,7 +295,7 @@ export default {
     try {
       if (url.pathname === '/auth/login' && request.method === 'GET') return login(request, env);
       if (url.pathname === '/auth/callback' && request.method === 'GET') return callback(request, env);
-      if (url.pathname.startsWith('/api/')) return api(request, env, url.pathname);
+      if (url.pathname.startsWith('/api/')) return await api(request, env, url.pathname);
       return response('Nicht gefunden.', { status: 404 });
     } catch (error) {
       console.error(JSON.stringify({ message: 'publisher request failed', error: error instanceof Error ? error.message : 'Unbekannter Fehler', path: url.pathname }));
