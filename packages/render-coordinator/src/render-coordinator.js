@@ -57,6 +57,7 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
   }
 
   function isCadenceDue(surface, timestamp) {
+    if (surface.profile.maxFps === null) return true;
     if (surface.lastPresentedAt === null || timestamp < surface.lastPresentedAt) return true;
     const interval = 1000 / surface.profile.maxFps;
     return isCadenceBoundaryDue(timestamp, surface.nextEligibleAt, interval);
@@ -101,7 +102,9 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
     if (surfaces.get(surface.id) !== surface) return;
     surface.lastPresentedAt = timestamp;
     if (surface.profile.mode !== 'manual') {
-      surface.nextEligibleAt = timestamp + 1000 / surface.profile.maxFps;
+      surface.nextEligibleAt = surface.profile.maxFps === null
+        ? timestamp
+        : timestamp + 1000 / surface.profile.maxFps;
     }
     surface.counters.renders += 1;
   }

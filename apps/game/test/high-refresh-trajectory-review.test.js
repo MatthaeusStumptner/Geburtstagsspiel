@@ -28,6 +28,8 @@ test('five-second Home trajectory is nontrivial and identical at 60, 120, and 17
 test('high-refresh gate rejects the previous zero-distance drift fixture', () => {
   assert.throws(() => assertHighRefreshResult({
     presentationDelta: 300,
+    durationMs: 5_000,
+    refreshRate: 60,
     positionError: 0,
     tolerance: 0.1,
     baselinePlayer: { x: 7, y: 20 },

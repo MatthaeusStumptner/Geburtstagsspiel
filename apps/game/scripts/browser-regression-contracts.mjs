@@ -69,9 +69,13 @@ export function assertVideoEvidence({ video, path, bytes, durationSeconds }, sce
   assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 5, `[${scenario}] WebM must contain at least five seconds of media`);
 }
 
-export function assertHighRefreshResult({ presentationDelta, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer, trajectorySamples }, scenario) {
+export function assertHighRefreshResult({ presentationDelta, durationMs, refreshRate, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer, trajectorySamples }, scenario) {
   assert.ok(Number.isFinite(presentationDelta) && presentationDelta > 0, `[${scenario}] presentation delta must be a positive finite number`);
-  assert.ok(presentationDelta <= 301, `[${scenario}] presentation delta exceeds 301`);
+  assert.ok(Number.isFinite(durationMs) && durationMs >= 5_000, `[${scenario}] duration must cover five seconds`);
+  assert.ok(Number.isFinite(refreshRate) && refreshRate > 0, `[${scenario}] refresh rate must be positive`);
+  const expectedPresentations = durationMs * refreshRate / 1_000;
+  assert.ok(Math.abs(presentationDelta - expectedPresentations) <= 2,
+    `[${scenario}] presentation delta does not match the native display rate`);
   assert.ok(Number.isFinite(positionError), `[${scenario}] position error must be finite`);
   assert.ok(Number.isFinite(tolerance) && tolerance >= 0, `[${scenario}] position tolerance must be finite`);
   assert.ok(positionError <= tolerance, `[${scenario}] player drift exceeds one fixed step`);
@@ -265,13 +269,14 @@ export function assertFiveSecondBudgets(budgets, scenario) {
   return { ...values, resourceStability: budgets.resourceStability };
 }
 
-export function assertBrowserCoverage(results) {
+export function assertBrowserCoverage(results, { requirePixel120 = false } = {}) {
   assert.ok(Array.isArray(results), 'browser coverage results must be an array');
   const expected = [];
   for (const backend of ['webgl2', 'canvas2d']) {
     expected.push(
       [backend, 390, 844, 3, 60, false],
       [backend, 412, 915, 2.625, 60, false],
+      ...(requirePixel120 ? [[backend, 448, 998, 3, 120, false]] : []),
       [backend, 915, 412, 2.625, 60, false],
       [backend, 1366, 768, 1, 60, false],
       [backend, 1366, 768, 1, 120, false],

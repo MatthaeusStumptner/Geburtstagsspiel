@@ -47,6 +47,8 @@ test('high-refresh gate rejects a trajectory that stops after four seconds', () 
   const saturated = EXPECTED_SAMPLES.slice(0, 4);
   assert.throws(() => assertHighRefreshResult({
     presentationDelta: 300,
+    durationMs: 5_000,
+    refreshRate: 60,
     positionError: 0,
     tolerance: (5.8 / 120) + 0.006,
     baselinePlayer: START,
