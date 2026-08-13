@@ -101,6 +101,37 @@ test('reuses externally measured display metrics without reading layout during r
   });
 });
 
+test('omits an absent resize reason and returns one frame for every completed presentation', () => {
+  const presentations = [];
+  const backend = {
+    ...fakePresentationBackend(),
+    present(frame) { presentations.push(frame); },
+  };
+  const renderer = createTestRenderer(backend);
+  const resizeResult = renderer.resize({ width: 320, height: 240, devicePixelRatio: 1 });
+  assert.equal(Object.hasOwn(resizeResult, 'reason'), false);
+  assert.equal(Object.hasOwn(renderer.displayMetrics, 'reason'), false);
+  assert.equal(Object.hasOwn(renderer.rendererInfo().display, 'reason'), false);
+
+  let first;
+  let firstError;
+  try {
+    first = renderer.render(sampleSnapshot(), { presentationTime: 1 });
+  } catch (error) {
+    firstError = error;
+  }
+
+  assert.equal(presentations.length, 1, 'the backend presentation must complete before frame construction');
+  assert.equal(firstError, undefined);
+  const second = renderer.render(sampleSnapshot(), { presentationTime: 2 });
+
+  assert.deepEqual([first.frameId, second.frameId], [1, 2]);
+  assert.equal(presentations.length, 2);
+  for (const result of [first, second]) {
+    assert.equal(Object.hasOwn(result.display, 'reason'), false);
+    assert.equal(Object.hasOwn(result.renderer.display, 'reason'), false);
+  }
+});
 test('returns one immutable fixed-contract presentation frame per render', () => {
   const renderer = createTestRenderer();
   const level = sampleLevel();

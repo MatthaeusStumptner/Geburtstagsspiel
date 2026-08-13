@@ -98,6 +98,107 @@ test('keeps scheduler state sound when a render throws', () => {
   assert.equal(clock.pendingCount(), 1);
 });
 
+test('continues later due surfaces after a callback error across repeated frames', () => {
+  const clock = createFakeFrameClock();
+  const events = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  let failures = 0;
+  coordinator.registerSurface({
+    id: 'failing',
+    profile: 'game',
+    render: ({ timestamp }) => {
+      failures += 1;
+      events.push(['failing', timestamp]);
+      throw new Error(`boom-${failures}`);
+    },
+  });
+  coordinator.registerSurface({ id: 'healthy-a', profile: 'game', render: ({ timestamp }) => events.push(['healthy-a', timestamp]) });
+  coordinator.registerSurface({ id: 'healthy-b', profile: 'game', render: ({ timestamp }) => events.push(['healthy-b', timestamp]) });
+
+  assert.throws(() => clock.present(0), /boom-1/);
+  assert.deepEqual(events, [['failing', 0], ['healthy-a', 0], ['healthy-b', 0]]);
+  assert.equal(coordinator.snapshot().surfaces.failing.counters.renders, 0);
+  assert.equal(coordinator.snapshot().surfaces['healthy-a'].counters.renders, 1);
+  assert.equal(coordinator.snapshot().surfaces['healthy-b'].counters.renders, 1);
+  assert.equal(clock.pendingCount(), 1);
+
+  assert.throws(() => clock.present(1000 / 60), /boom-2/);
+  assert.deepEqual(events, [
+    ['failing', 0], ['healthy-a', 0], ['healthy-b', 0],
+    ['failing', 1000 / 60], ['healthy-a', 1000 / 60], ['healthy-b', 1000 / 60],
+  ]);
+  assert.equal(coordinator.snapshot().surfaces.failing.counters.renders, 0);
+  assert.equal(coordinator.snapshot().surfaces['healthy-a'].counters.renders, 2);
+  assert.equal(coordinator.snapshot().surfaces['healthy-b'].counters.renders, 2);
+  assert.equal(clock.pendingCount(), 1);
+});
+
+test('reconciles reentrant on-demand and hidden work before aggregating callback errors', () => {
+  const clock = createFakeFrameClock();
+  const events = [];
+  const coordinator = createRenderCoordinator(clock.adapter);
+  let retryAttempts = 0;
+  coordinator.registerSurface({
+    id: 'retry',
+    profile: 'editor',
+    render: ({ reason, timestamp }) => {
+      retryAttempts += 1;
+      events.push(['retry', reason, timestamp]);
+      if (retryAttempts === 1) {
+        coordinator.invalidate('retry', 'follow-up');
+        throw new Error('retry-boom');
+      }
+    },
+  });
+  coordinator.registerSurface({
+    id: 'hidden',
+    profile: 'editor',
+    render: ({ timestamp }) => {
+      events.push(['hidden', timestamp]);
+      coordinator.setSurfaceState('hidden', { visible: false });
+      throw new Error('hidden-boom');
+    },
+  });
+  coordinator.registerSurface({ id: 'healthy', profile: 'game', render: ({ timestamp }) => events.push(['healthy', timestamp]) });
+  coordinator.invalidate('retry', 'initial');
+  coordinator.invalidate('hidden', 'initial-hidden');
+  assert.equal(clock.pendingCount(), 1);
+
+  let error;
+  try {
+    clock.present(0);
+  } catch (caught) {
+    error = caught;
+  }
+  assert.equal(error instanceof AggregateError, true);
+  assert.deepEqual(error.errors.map((item) => item.message), ['retry-boom', 'hidden-boom']);
+  assert.deepEqual(events, [
+    ['retry', 'initial', 0],
+    ['hidden', 0],
+    ['healthy', 0],
+  ]);
+  const afterFailure = coordinator.snapshot().surfaces;
+  assert.equal(afterFailure.retry.dirty, true);
+  assert.equal(afterFailure.retry.lastReason, 'follow-up');
+  assert.equal(afterFailure.retry.counters.renders, 0);
+  assert.equal(afterFailure.hidden.visible, false);
+  assert.equal(afterFailure.hidden.dirty, false);
+  assert.equal(afterFailure.hidden.counters.renders, 0);
+  assert.equal(afterFailure.healthy.counters.renders, 1);
+  assert.equal(clock.pendingCount(), 1);
+
+  clock.present(1000 / 60);
+  assert.deepEqual(events.slice(-2), [
+    ['retry', 'follow-up', 1000 / 60],
+    ['healthy', 1000 / 60],
+  ]);
+  const afterRetry = coordinator.snapshot().surfaces;
+  assert.equal(afterRetry.retry.dirty, false);
+  assert.equal(afterRetry.retry.counters.renders, 1);
+  assert.equal(afterRetry.hidden.dirty, false);
+  assert.equal(afterRetry.healthy.counters.renders, 2);
+  assert.equal(clock.pendingCount(), 1);
+});
 test('permits a render callback to invalidate itself without losing the new work', () => {
   const clock = createFakeFrameClock();
   const reasons = [];

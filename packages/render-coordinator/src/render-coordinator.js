@@ -92,7 +92,7 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
     try {
       surface.render(frame);
     } catch (error) {
-      if (surfaces.get(surface.id) === surface && tracksDirtyWork && surface.invalidationVersion === invalidationVersion) {
+      if (surfaces.get(surface.id) === surface && surface.visible && tracksDirtyWork && surface.invalidationVersion === invalidationVersion) {
         surface.dirty = true;
       }
       throw error;
@@ -108,13 +108,21 @@ export function createRenderCoordinator({ requestFrame, cancelFrame, now }) {
 
   function presentFrame(timestamp) {
     queuedHandle = null;
+    const errors = [];
     try {
       for (const surface of [...surfaces.values()]) {
-        if (surfaces.get(surface.id) === surface && shouldPresent(surface, timestamp)) render(surface, timestamp);
+        if (surfaces.get(surface.id) !== surface || !shouldPresent(surface, timestamp)) continue;
+        try {
+          render(surface, timestamp);
+        } catch (error) {
+          errors.push(error);
+        }
       }
     } finally {
       updateQueue();
     }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, 'multiple render surfaces failed');
   }
 
   function registerSurface({ id, profile, render: renderCallback, visible = true, active = true }) {

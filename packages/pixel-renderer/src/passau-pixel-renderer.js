@@ -135,8 +135,9 @@ export class PassauPixelRenderer {
     if (changed) this.presentation.resize(bufferWidth, bufferHeight);
     if (this.overlay.width !== bufferWidth) this.overlay.width = bufferWidth; if (this.overlay.height !== bufferHeight) this.overlay.height = bufferHeight;
     this.pixelRatio = pixelRatio;
-    this.displayMetrics = { width, height, actualPixelRatio, pixelRatio, bufferWidth, bufferHeight, reason: metrics?.reason ?? (legacy ? 'legacy' : undefined) };
-    return { width, height, pixelRatio, bufferWidth, bufferHeight, changed, reason: this.displayMetrics.reason };
+    const reason = metrics?.reason ?? (legacy ? 'legacy' : undefined);
+    this.displayMetrics = { width, height, actualPixelRatio, pixelRatio, bufferWidth, bufferHeight, ...(reason === undefined ? {} : { reason }) };
+    return { width, height, pixelRatio, bufferWidth, bufferHeight, changed, ...(reason === undefined ? {} : { reason }) };
   }
 
   render(snapshot, options = {}) {
@@ -530,7 +531,7 @@ export class PassauPixelRenderer {
         pixelRatio: this.displayMetrics.pixelRatio,
         bufferWidth: this.displayMetrics.bufferWidth,
         bufferHeight: this.displayMetrics.bufferHeight,
-        reason: this.displayMetrics.reason,
+        ...(Object.hasOwn(this.displayMetrics, 'reason') ? { reason: this.displayMetrics.reason } : {}),
       } : null,
       ...(this.presentation.kind === 'canvas2d' ? {} : { gpuCropResizes: this.gpuCropResizes }),
       staticWorldBuilds: this.staticWorldBuilds,
