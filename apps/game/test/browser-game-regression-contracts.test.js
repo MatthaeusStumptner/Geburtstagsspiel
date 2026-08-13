@@ -75,6 +75,7 @@ test('completion coverage requires every backend viewport refresh and reduced-mo
     coverage.push(
       { backend, width: 390, height: 844, deviceScaleFactor: 3, refreshRate: 60, reducedMotion: false },
       { backend, width: 412, height: 915, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: false },
+      { backend, width: 448, height: 998, deviceScaleFactor: 3, refreshRate: 120, reducedMotion: false },
       { backend, width: 915, height: 412, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: false },
       { backend, width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 60, reducedMotion: false },
       { backend, width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 120, reducedMotion: false },
@@ -84,6 +85,8 @@ test('completion coverage requires every backend viewport refresh and reduced-mo
   }
   assert.doesNotThrow(() => assertBrowserCoverage(coverage));
   assert.throws(() => assertBrowserCoverage(coverage.slice(1)), /390x844/);
+  const withoutPixel120 = coverage.filter((result) => result.width !== 448 || result.refreshRate !== 120);
+  assert.throws(() => assertBrowserCoverage(withoutPixel120), /448x998/);
 });
 
 test('required artifact manifest fails closed and WebGPU skip records the real probe reason', () => {
@@ -120,9 +123,11 @@ test('high-refresh and reduced-motion diagnostics are required and finite', () =
     baselinePlayer: { x: 1, y: 1 }, finalPlayer: positions.at(-1), expectedPlayer: positions.at(-1),
     trajectorySamples: positions.map((player, index) => ({ elapsedMs: (index + 1) * 1_000, player, expectedPlayer: player })),
   };
-  assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1, ...trajectory }, 'zero'), /positive/);
-  assert.throws(() => assertHighRefreshResult({ presentationDelta: 302, positionError: 0, tolerance: 0.1, ...trajectory }, 'fast'), /301/);
-  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 300, positionError: 0, tolerance: 0.1, ...trajectory }, 'valid'));
+  const display = { durationMs: 5_000, refreshRate: 60 };
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1, ...display, ...trajectory }, 'zero'), /positive/);
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 303, positionError: 0, tolerance: 0.1, ...display, ...trajectory }, 'fast'), /native display rate/);
+  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 600, durationMs: 5_000, refreshRate: 120, positionError: 0, tolerance: 0.1, ...trajectory }, 'pixel-120hz'));
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 300, durationMs: 5_000, refreshRate: 120, positionError: 0, tolerance: 0.1, ...trajectory }, 'capped-120hz'), /native display rate/);
   assert.throws(() => assertReducedPostProcess(null, 'missing'), /postProcess/);
   assert.throws(() => assertReducedPostProcess({ scanlines: Number.NaN, rgbSplitTexels: 0 }, 'nan'), /scanlines/);
   assert.doesNotThrow(() => assertReducedPostProcess({ scanlines: 0, rgbSplitTexels: 0 }, 'valid'));

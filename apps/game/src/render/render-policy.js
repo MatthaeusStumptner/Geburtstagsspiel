@@ -1,7 +1,7 @@
 const CONTINUOUS = new Set(['playing', 'hit', 'cutscene']);
 const ONCE = new Set(['ready', 'paused', 'won', 'over', 'menu']);
 const POLICIES = Object.freeze({
-  continuous: Object.freeze({ mode: 'continuous', maxFps: 60 }),
+  continuous: Object.freeze({ mode: 'continuous', maxFps: null }),
   hidden: Object.freeze({ mode: 'hidden' }),
   once: Object.freeze({ mode: 'once' }),
 });

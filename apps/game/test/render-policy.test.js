@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderPolicyForState } from '../src/render/render-policy.js';
 
 test('assigns every game state an explicit render policy', () => {
-  const continuous = { mode: 'continuous', maxFps: 60 };
+  const continuous = { mode: 'continuous', maxFps: null };
   assert.deepEqual(renderPolicyForState('playing'), continuous);
   assert.deepEqual(renderPolicyForState('hit'), continuous);
   assert.deepEqual(renderPolicyForState('cutscene'), continuous);

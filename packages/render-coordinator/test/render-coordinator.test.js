@@ -26,6 +26,23 @@ test('coalesces visible animated surfaces in one RAF and respects maxFps', () =>
   assert.deepEqual(renders.map(([id]) => id), ['a', 'b', 'a', 'b', 'a', 'b', 'a', 'b']);
 });
 
+test('presents the game on every frame delivered by the display', () => {
+  for (const displayRate of [60, 90, 120, 175]) {
+    const clock = createFakeFrameClock();
+    const timestamps = [];
+    const coordinator = createRenderCoordinator(clock.adapter);
+    coordinator.registerSurface({
+      id: 'game',
+      profile: 'game',
+      render: ({ timestamp }) => timestamps.push(timestamp),
+    });
+    for (let frame = 0; frame <= displayRate * 2; frame += 1) {
+      clock.present(frame * 1000 / displayRate);
+    }
+    assert.equal(timestamps.length, displayRate * 2 + 1, String(displayRate));
+  }
+});
+
 test('keeps exactly one pending callback while coalescing many invalidations', () => {
   const clock = createFakeFrameClock();
   const coordinator = createRenderCoordinator(clock.adapter);
@@ -304,16 +321,16 @@ for (const baseTimestamp of [10_000_000_000, 1_000_000_000_000]) {
     assert.deepEqual(timestamps, expectedTimestamps);
   });
 
-  test(`rejects materially early cadence at the ${baseTimestamp}-ms timestamp scale`, () => {
+  test(`keeps native game cadence and rejects early animated cadence at the ${baseTimestamp}-ms timestamp scale`, () => {
     const continuousClock = createFakeFrameClock();
     const continuousTimestamps = [];
     const continuous = createRenderCoordinator(continuousClock.adapter);
     continuous.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => continuousTimestamps.push(timestamp) });
     continuousClock.present(baseTimestamp);
     continuousClock.present(baseTimestamp + 1000 / 60 - 1);
-    assert.deepEqual(continuousTimestamps, [baseTimestamp]);
+    assert.deepEqual(continuousTimestamps, [baseTimestamp, baseTimestamp + 1000 / 60 - 1]);
     continuousClock.present(baseTimestamp + 1000 / 60);
-    assert.deepEqual(continuousTimestamps, [baseTimestamp, baseTimestamp + 1000 / 60]);
+    assert.deepEqual(continuousTimestamps, [baseTimestamp, baseTimestamp + 1000 / 60 - 1, baseTimestamp + 1000 / 60]);
 
     const animatedClock = createFakeFrameClock();
     const animatedTimestamps = [];
@@ -469,7 +486,7 @@ test('keeps continuous surfaces presenting for backward and forward timestamps',
   const coordinator = createRenderCoordinator(clock.adapter);
   coordinator.registerSurface({ id: 'game', profile: 'game', render: ({ timestamp }) => timestamps.push(timestamp) });
   for (const timestamp of [0, 1000, 132, 133.33333333333334, 148.66666666666666]) clock.present(timestamp);
-  assert.deepEqual(timestamps, [0, 1000, 132, 148.66666666666666]);
+  assert.deepEqual(timestamps, [0, 1000, 132, 133.33333333333334, 148.66666666666666]);
 });
 test('uses a full actual animated interval after a non-slot forward gap', () => {
   const clock = createFakeFrameClock();
@@ -483,7 +500,7 @@ test('uses a full actual animated interval after a non-slot forward gap', () => 
   assert.deepEqual(timestamps, [0, 1016, 1049.3333333333333]);
 });
 
-test('uses 60-FPS continuous deadlines without missing exact display boundaries', () => {
+test('presents every display callback without imposing a continuous deadline', () => {
   const clock = createFakeFrameClock();
   const timestamps = [];
   const coordinator = createRenderCoordinator(clock.adapter);
@@ -491,5 +508,5 @@ test('uses 60-FPS continuous deadlines without missing exact display boundaries'
   clock.present(0);
   clock.present(1);
   clock.present(1000 / 60);
-  assert.deepEqual(timestamps, [0, 1000 / 60]);
+  assert.deepEqual(timestamps, [0, 1, 1000 / 60]);
 });

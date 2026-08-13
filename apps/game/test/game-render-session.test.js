@@ -201,41 +201,40 @@ test('renderer exceptions reactivate a retry after a reentrant once transition',
   assert.equal(harness.clock.pendingCount(), 0);
 });
 
-test('continuous presentation stays within the 60 FPS cap across display rates', () => {
-  for (const displayRate of [60, 120, 175]) {
+test('continuous presentation follows the native display rate', () => {
+  for (const displayRate of [60, 90, 120, 175]) {
     const harness = createGameRenderHarness();
-    harness.session.frame(0, { mode: 'continuous', maxFps: 60 });
+    harness.session.frame(0, { mode: 'continuous', maxFps: null });
     for (let frame = 0; frame <= displayRate * 2; frame += 1) {
       harness.clock.present(frame * 1000 / displayRate);
     }
-    assert.ok(harness.reasons.length > 0, `${displayRate} Hz must present`);
-    assert.ok(harness.reasons.length <= 121, `${displayRate} Hz exceeded the 60 FPS cap`);
+    assert.equal(harness.reasons.length, displayRate * 2 + 1, `${displayRate} Hz must present every display frame`);
   }
 });
 
 test('continuous cadence recovers from suspended and backwards timestamps without bursts', () => {
   const harness = createGameRenderHarness();
-  harness.session.frame(0, { mode: 'continuous', maxFps: 60 });
+  harness.session.frame(0, { mode: 'continuous', maxFps: null });
   for (const timestamp of [0, 1000, 1008, -10, -2, -10 + 1000 / 60]) harness.clock.present(timestamp);
-  assert.deepEqual(harness.timestamps, [0, 1000, -10, -10 + 1000 / 60]);
+  assert.deepEqual(harness.timestamps, [0, 1000, 1008, -10, -2, -10 + 1000 / 60]);
 });
 
 test('reset starts a fresh coordinator cadence without losing legacy diagnostics', () => {
   const harness = createGameRenderHarness();
-  harness.session.frame(0, { mode: 'continuous', maxFps: 60 });
+  harness.session.frame(0, { mode: 'continuous', maxFps: null });
   harness.session.invalidate('state:playing');
   harness.clock.present(0);
   harness.clock.present(1);
-  assert.deepEqual(harness.timestamps, [0]);
+  assert.deepEqual(harness.timestamps, [0, 1]);
 
   harness.session.reset();
   assert.equal(harness.clock.pendingCount(), 1);
   harness.clock.present(1);
 
-  assert.deepEqual(harness.timestamps, [0, 1]);
+  assert.deepEqual(harness.timestamps, [0, 1, 1]);
   assert.deepEqual(harness.session.snapshot(), {
     pendingReason: 'idle',
-    renderCount: 2,
+    renderCount: 3,
     hiddenSkips: 0,
     lastReason: 'continuous',
   });

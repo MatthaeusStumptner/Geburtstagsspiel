@@ -39,6 +39,7 @@ const HIGH_REFRESH_TURN_DELAY_MS = 3_400;
 const MATRIX_PROFILES = [
   { name: 'mobile-390-dpr3-60hz', width: 390, height: 844, deviceScaleFactor: 3, mobile: true, refreshRate: 60 },
   { name: 'mobile-412-dpr2625-60hz', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
+  { name: 'mobile-448-dpr3-120hz', width: 448, height: 998, deviceScaleFactor: 3, mobile: true, refreshRate: 120 },
   { name: 'landscape-915-dpr2625-60hz', width: 915, height: 412, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
   { name: 'desktop-60hz', width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 60 },
   { name: 'desktop-120hz', width: 1366, height: 768, deviceScaleFactor: 1, refreshRate: 120 },
@@ -333,7 +334,7 @@ async function highRefreshWindow(page, scenario) {
   const presentationDelta = measuredCounters.rendererFrames - baselineCounters.rendererFrames;
   const resourceStability = assertStableResourceWindow(baselineCounters, measuredCounters, scenario.name);
   const positionError = Math.hypot(measured.game.player.x - expectedPlayer.x, measured.game.player.y - expectedPlayer.y);
-  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer, trajectorySamples }, scenario.name);
+  assertHighRefreshResult({ presentationDelta, durationMs: measured.raf.elapsed, refreshRate: scenario.refreshRate, positionError, tolerance: FIXED_STEP_TOLERANCE, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer, trajectorySamples }, scenario.name);
   const radar = assertRadarPresentationContract({ presentationDelta, baselineRadar: baseline.radar, measuredRadar: measured.game.radar, samples: measured.radarSamples }, scenario.name);
   return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer, trajectorySamples, positionError, presentationDelta, resourceStability, radar, raf: measured.raf };
 }
