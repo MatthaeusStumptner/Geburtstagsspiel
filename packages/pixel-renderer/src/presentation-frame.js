@@ -1,6 +1,5 @@
 const FRAME_KIND = 'franz-lola-presentation-frame';
 const FRAME_KEYS = Object.freeze(['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer']);
-const RENDER_RESULT_ALIAS_KEYS = Object.freeze(['playerScreen', 'entities', 'characterEntities']);
 
 const isRecord = (value) => value !== null
   && typeof value === 'object'
@@ -143,41 +142,9 @@ function isDeepFrozen(value, seen = new WeakSet()) {
   });
 }
 
-function canonicalPresentationSource(value) {
-  assertRecord(value, 'frame');
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actualKeys = Reflect.ownKeys(descriptors);
-  const canonical = actualKeys.length === FRAME_KEYS.length && actualKeys.every((key) => FRAME_KEYS.includes(key));
-  const migrationResult = actualKeys.length === FRAME_KEYS.length + RENDER_RESULT_ALIAS_KEYS.length
-    && actualKeys.every((key) => FRAME_KEYS.includes(key) || RENDER_RESULT_ALIAS_KEYS.includes(key));
-  if (!canonical && !migrationResult) throw new TypeError('PresentationFrame root enthält unbekannte oder fehlende Eigenschaften.');
-  for (const key of FRAME_KEYS) {
-    const descriptor = descriptors[key];
-    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
-      throw new TypeError(`PresentationFrame ${key} muss eine Daten-Eigenschaft sein.`);
-    }
-  }
-  if (migrationResult) {
-    for (const key of RENDER_RESULT_ALIAS_KEYS) {
-      const descriptor = descriptors[key];
-      if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
-        throw new TypeError(`PresentationFrame ${key} muss eine Daten-Eigenschaft sein.`);
-      }
-    }
-    const playerScreen = Object.getOwnPropertyDescriptor(descriptors.player.value, 'screen');
-    if (!playerScreen || !Object.hasOwn(playerScreen, 'value')
-      || descriptors.playerScreen.value !== playerScreen.value
-      || descriptors.entities.value !== descriptors.cats.value
-      || descriptors.characterEntities.value !== descriptors.characters.value) {
-      throw new TypeError('PresentationFrame migration aliases müssen auf kanonische Werte verweisen.');
-    }
-  }
-  return Object.fromEntries(FRAME_KEYS.map((key) => [key, descriptors[key].value]));
-}
-
 function validPresentationFrameClone(value) {
   try {
-    const cloned = cloneSerializable(canonicalPresentationSource(value), 'frame');
+    const cloned = cloneSerializable(value, 'frame');
     assertInput(cloned, { requireKind: true });
     return isDeepFrozen(value) ? cloned : null;
   } catch {

@@ -8,6 +8,7 @@ import { resolvePostProcessProfile, resolveRendererQuality, rendererPixelRatioLi
 import { resolveStableCropSize } from './gpu/crop-buffer.js';
 import { createPresentationBackend, createSyncPresentationBackend } from './gpu/presentation-backend.js';
 import { createPresentationFrame } from './presentation-frame.js';
+import { createPresentationRenderResult } from './presentation-render-result.js';
 
 const clampRatio = (value, maximum = 2) => Math.min(maximum, Math.max(1, Number(value) || 1));
 const normalizeDisplayDimension = (value) => {
@@ -266,12 +267,8 @@ export class PassauPixelRenderer {
         contextLost: rendererInfo.contextLost ?? false,
       },
     });
-    return Object.freeze({
-      ...frame,
-      playerScreen: frame.player.screen,
-      entities: frame.cats,
-      characterEntities: frame.characters,
-    });
+    return createPresentationRenderResult(frame);
+
   }
 
   setLevelIfChanged(levelInput) {

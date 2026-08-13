@@ -22,15 +22,10 @@ export function readRendererCounters(debug, scenario) {
     staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
   };
   const resources = validateRendererResourceMetrics(debug);
-  if (resources.applicability === 'applicable') return {
-    ...common,
-    uploadedBytes: requiredFinite(debug.uploadedBytes, 'uploadedBytes', scenario),
-    sceneUploadedBytes: requiredFinite(debug.sceneUploadedBytes, 'sceneUploadedBytes', scenario),
-    overlayUploadedBytes: requiredFinite(debug.overlayUploadedBytes, 'overlayUploadedBytes', scenario),
-    worldOverlayUploadedBytes: requiredFinite(debug.worldOverlayUploadedBytes, 'worldOverlayUploadedBytes', scenario),
-    gpuCropResizes: requiredFinite(debug.gpuCropResizes, 'gpuCropResizes', scenario),
-    resources,
-  };
+  if (resources.applicability === 'applicable') {
+    const { applicability, kind, value, ...resourceCounters } = resources;
+    return { ...common, ...resourceCounters, resources: { applicability, kind, value, ...resourceCounters } };
+  }
   return { ...common, resources };
 }
 

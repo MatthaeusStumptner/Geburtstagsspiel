@@ -56,14 +56,17 @@ test('shared schema rejects every GPU-only field on Canvas and requires every fi
 
   assert.deepEqual(module.validateRendererResourceMetrics(canvasDiagnostics()), {
     applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor',
-    kind: 'canvas-backing-store', value: 1,
+    kind: 'canvas-backing-store', value: 1, backingStoreResizes: 1,
   });
   assert.deepEqual(module.validateRendererResourceMetrics(gpuDiagnostics()), {
     applicability: 'applicable', kind: 'gpu-textures', value: 5,
+    uploadedBytes: 1, sceneUploadedBytes: 2, overlayUploadedBytes: 3,
+    worldOverlayUploadedBytes: 4, textureReallocations: 5, gpuCropResizes: 6,
+    sceneUploadSkips: 7, overlayUploadSkips: 8, worldOverlayUploadSkips: 9,
   });
   assert.throws(
     () => module.validateRendererResourceMetrics({ resourceMetrics: { applicability: 'unknown' } }),
-    /applicability/,
+    /backend|applicability/,
   );
 });
 

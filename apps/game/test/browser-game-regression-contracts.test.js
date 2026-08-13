@@ -36,8 +36,14 @@ test('renderer counters fail closed when required diagnostics are missing or non
   assert.throws(() => readRendererCounters({ ...healthyRenderer(), uploadedBytes: Number.NaN }, 'nan'), /uploadedBytes/);
   assert.deepEqual(readRendererCounters(healthyRenderer(), 'healthy'), {
     rendererFrames: 12, schedulerFrames: 12, uploadedBytes: 20, sceneUploadedBytes: 10,
-    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, gpuCropResizes: 0, staticWorldRevision: 2,
-    resources: { applicability: 'applicable', kind: 'gpu-textures', value: 0 },
+    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, textureReallocations: 0, gpuCropResizes: 0,
+    sceneUploadSkips: 0, overlayUploadSkips: 1, worldOverlayUploadSkips: 2, staticWorldRevision: 2,
+    resources: {
+      applicability: 'applicable', kind: 'gpu-textures', value: 0,
+      uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
+      worldOverlayUploadedBytes: 6, textureReallocations: 0, gpuCropResizes: 0,
+      sceneUploadSkips: 0, overlayUploadSkips: 1, worldOverlayUploadSkips: 2,
+    },
   });
   const canvas = { ...healthyRenderer(), requestedBackend: 'canvas2d', backend: 'canvas2d', resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' }, backingStoreResizes: 2 };
   for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes', 'sceneUploadSkips', 'overlayUploadSkips', 'worldOverlayUploadSkips']) delete canvas[key];

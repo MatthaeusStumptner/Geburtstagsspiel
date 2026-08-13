@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   PassauPixelRenderer,
   isPresentationFrame,
+  presentationFrameFromRenderResult,
   serializePresentationFrame,
 } from '../src/index.js';
 
@@ -46,7 +47,7 @@ function snapshot(catX) {
   };
 }
 
-test('real renderer return keeps migration aliases referentially current while serialization stays canonical', () => {
+test('real renderer return keeps migration aliases current behind an explicit strict-frame boundary', () => {
   const renderer = new PassauPixelRenderer(fakeCanvas(), { presentationBackend: backend() });
   renderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'test' });
   const first = renderer.render(snapshot(5), { presentationTime: 1 });
@@ -57,8 +58,10 @@ test('real renderer return keeps migration aliases referentially current while s
     assert.strictEqual(result.entities, result.cats);
     assert.strictEqual(result.characterEntities, result.characters);
     assert.equal(Object.isFrozen(result), true);
-    assert.equal(isPresentationFrame(result), true);
-    const serialized = serializePresentationFrame(result);
+    assert.equal(isPresentationFrame(result), false);
+    assert.throws(() => serializePresentationFrame(result), /valid PresentationFrame/);
+    const frame = presentationFrameFromRenderResult(result);
+    const serialized = serializePresentationFrame(frame);
     assert.deepEqual(Object.keys(serialized), [
       'kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer',
     ]);
@@ -71,6 +74,6 @@ test('real renderer return keeps migration aliases referentially current while s
 
   const stale = Object.freeze({ ...second, entities: first.cats });
   assert.equal(isPresentationFrame(stale), false);
-  assert.throws(() => serializePresentationFrame(stale), /valid PresentationFrame/);
+  assert.throws(() => presentationFrameFromRenderResult(stale), /render result/i);
   assert.equal(isPresentationFrame(Object.freeze({ ...second, unexpected: true })), false);
 });

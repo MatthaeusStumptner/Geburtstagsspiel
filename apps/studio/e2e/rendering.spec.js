@@ -152,11 +152,6 @@ function assertPresentationCapture(debug, surfaceId, backend, scenario) {
   assert.equal(frame.renderer?.contextLost, false, `[${scenario}] renderer reports context loss`);
   finite(frame.renderer?.frameCount, 'renderer.frameCount', scenario);
   const resources = validateRendererResourceMetrics(frame.renderer);
-  if (backend === 'canvas2d') {
-    assert.equal(resources.applicability, 'not-applicable', `[${scenario}] Canvas2D GPU resources must be not-applicable`);
-  } else {
-    assert.equal(resources.applicability, 'applicable', `[${scenario}] GPU resource applicability is invalid`);
-  }
   return { ...capture, resources };
 }
 

@@ -22,6 +22,9 @@ test('browser gate reads GPU and Canvas2D resource counters with explicit applic
   }, 'gpu');
   assert.deepEqual(gpu.resources, {
     applicability: 'applicable', kind: 'gpu-textures', value: 3,
+    uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
+    worldOverlayUploadedBytes: 6, textureReallocations: 3, gpuCropResizes: 2,
+    sceneUploadSkips: 0, overlayUploadSkips: 1, worldOverlayUploadSkips: 2,
   });
 
   const canvas = readRendererCounters({
@@ -31,7 +34,7 @@ test('browser gate reads GPU and Canvas2D resource counters with explicit applic
   }, 'canvas');
   assert.deepEqual(canvas.resources, {
     applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor',
-    kind: 'canvas-backing-store', value: 2,
+    kind: 'canvas-backing-store', value: 2, backingStoreResizes: 2,
   });
 });
 

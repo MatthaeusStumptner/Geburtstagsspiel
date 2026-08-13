@@ -14,6 +14,7 @@ import {
 import {
   DirectionalSwipeInput,
   PassauPixelRenderer,
+  presentationFrameFromRenderResult,
   serializePresentationFrame,
 } from '@franz-lola/pixel-renderer';
 import { createRenderCoordinator } from '@franz-lola/render-coordinator';
@@ -1795,7 +1796,7 @@ function presentGame(_reason, timestamp) {
   });
   updateCatRadarView(ui.catRadar, catRadarState);
   catRadarUpdateCount += 1;
-  lastCatRadarFrame = renderState;
+  lastCatRadarFrame = presentationFrameFromRenderResult(renderState);
   lastCatRadarState = catRadarState;
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
