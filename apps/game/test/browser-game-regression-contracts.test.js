@@ -25,7 +25,7 @@ function healthyRenderer() {
     requestedBackend: 'webgl2', backend: 'webgl2', contextLost: false, fallbackReason: null,
     resourceMetrics: { applicability: 'applicable' },
     frameCount: 12, uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
-    worldOverlayUploadedBytes: 6, textureReallocations: 0, staticWorldRevision: 2,
+    worldOverlayUploadedBytes: 6, textureReallocations: 0, gpuCropResizes: 0, staticWorldRevision: 2,
     scheduler: { renderCount: 12 },
   };
 }
@@ -35,11 +35,11 @@ test('renderer counters fail closed when required diagnostics are missing or non
   assert.throws(() => readRendererCounters({ ...healthyRenderer(), uploadedBytes: Number.NaN }, 'nan'), /uploadedBytes/);
   assert.deepEqual(readRendererCounters(healthyRenderer(), 'healthy'), {
     rendererFrames: 12, schedulerFrames: 12, uploadedBytes: 20, sceneUploadedBytes: 10,
-    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, staticWorldRevision: 2,
+    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, gpuCropResizes: 0, staticWorldRevision: 2,
     resources: { applicability: 'applicable', kind: 'gpu-textures', value: 0 },
   });
   const canvas = { ...healthyRenderer(), requestedBackend: 'canvas2d', backend: 'canvas2d', resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' }, backingStoreResizes: 2 };
-  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations']) delete canvas[key];
+  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes']) delete canvas[key];
   assert.equal(readRendererCounters(canvas, 'canvas').resources.value, 2);
 });
 
@@ -106,7 +106,13 @@ test('video evidence requires the Playwright video, readable path, bytes, and ac
 });
 
 test('high-refresh and reduced-motion diagnostics are required and finite', () => {
-  const trajectory = { baselinePlayer: { x: 24, y: 5 }, finalPlayer: { x: 1, y: 5 }, expectedPlayer: { x: 1, y: 5 } };
+  const positions = [
+    { x: 6.8, y: 1 }, { x: 12.6, y: 1 }, { x: 18.4, y: 1 }, { x: 23, y: 2.2 }, { x: 23, y: 8 },
+  ];
+  const trajectory = {
+    baselinePlayer: { x: 1, y: 1 }, finalPlayer: positions.at(-1), expectedPlayer: positions.at(-1),
+    trajectorySamples: positions.map((player, index) => ({ elapsedMs: (index + 1) * 1_000, player, expectedPlayer: player })),
+  };
   assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1, ...trajectory }, 'zero'), /positive/);
   assert.throws(() => assertHighRefreshResult({ presentationDelta: 302, positionError: 0, tolerance: 0.1, ...trajectory }, 'fast'), /301/);
   assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 300, positionError: 0, tolerance: 0.1, ...trajectory }, 'valid'));
@@ -125,7 +131,8 @@ test('high-refresh capture waits for the real-browser frame supply at every requ
   const diagnostic = source.slice(start, source.indexOf('async function reducedRadarMotion', start));
   assert.ok(diagnostic.includes('__GASSI_DEBUG_SET_PLAYER__'));
   assert.ok(diagnostic.includes('HIGH_REFRESH_START'));
-  assert.ok(diagnostic.includes('EXPECTED_HOME_POSITION'));
+  assert.ok(diagnostic.includes('HIGH_REFRESH_TURN_X'));
+  assert.ok(diagnostic.includes('trajectorySamples'));
   assert.ok(diagnostic.includes('highRefreshCaptureTimeout(scenario.refreshRate)'));
 });
 test('reduced motion removes radar pulsing without suppressing direct position updates', () => {

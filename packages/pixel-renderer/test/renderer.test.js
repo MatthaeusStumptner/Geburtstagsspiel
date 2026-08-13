@@ -101,7 +101,7 @@ test('reuses externally measured display metrics without reading layout during r
   });
 });
 
-test('returns one immutable presentation frame per render with legacy aliases', () => {
+test('returns one immutable fixed-contract presentation frame per render', () => {
   const renderer = createTestRenderer();
   const level = sampleLevel();
   renderer.resize({ width: 320, height: 240, devicePixelRatio: 1, reason: 'observer' });
@@ -127,9 +127,7 @@ test('returns one immutable presentation frame per render with legacy aliases', 
   assert.equal(first.cats[0].distance, 3);
   assert.equal(first.cats[0].color, '#ff00ff');
   assert.equal(first.cats[0].respawnTimer, 4);
-  assert.strictEqual(first.playerScreen, first.player.screen);
-  assert.strictEqual(first.entities, first.cats);
-  assert.strictEqual(first.characterEntities, first.characters);
+  assert.deepEqual(Object.keys(first), ['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer']);
   assert.throws(() => { first.cats[0].world.x = 1; }, TypeError);
 });
 
@@ -192,7 +190,6 @@ test('reports the requested backend, selected backend, and fallback reason', asy
     quality: 'quality',
     pixelRatio: 1,
     display: null,
-    gpuCropResizes: 0,
     staticWorldBuilds: 0,
     postProcess: null,
   });

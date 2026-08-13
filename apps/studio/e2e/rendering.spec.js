@@ -155,9 +155,11 @@ function assertPresentationCapture(debug, surfaceId, backend, scenario) {
     assert.equal(frame.renderer?.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] Canvas2D GPU resources must be not-applicable`);
     assert.equal(frame.renderer.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource reason is invalid`);
     assert.equal(Object.hasOwn(frame.renderer, 'textureReallocations'), false, `[${scenario}] Canvas2D must not expose fake texture reallocations`);
+    assert.equal(Object.hasOwn(frame.renderer, 'gpuCropResizes'), false, `[${scenario}] Canvas2D must not expose fake GPU crop resizes`);
     resources = { applicability: 'not-applicable', reason: frame.renderer.resourceMetrics.reason, kind: 'canvas-backing-store', value: finite(frame.renderer.backingStoreResizes, 'renderer.backingStoreResizes', scenario) };
   } else {
     assert.equal(frame.renderer?.resourceMetrics?.applicability, 'applicable', `[${scenario}] GPU resource applicability is invalid`);
+    finite(frame.renderer.gpuCropResizes, 'renderer.gpuCropResizes', scenario);
     resources = { applicability: 'applicable', kind: 'gpu-textures', value: finite(frame.renderer.textureReallocations, 'renderer.textureReallocations', scenario) };
   }
   return { ...capture, resources };

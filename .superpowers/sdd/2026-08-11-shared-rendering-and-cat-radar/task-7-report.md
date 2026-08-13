@@ -219,3 +219,73 @@ The Task 5 adversarial hover -> down -> up burst disposition remains: first pend
 `apply_patch` was attempted first for each existing file/report edit and failed with `helper_unknown_error: apply deny-read ACLs`. Exact path/SHA/unique-anchor guarded PowerShell fallbacks were followed immediately by diff checks; new files used `apply_patch`. One canary had an accidental 5-second tool timeout; an exact zero-process/port audit preceded the successful full rerun. Two disposable visual-copy commands failed safely before mutation/deletion and were retried with explicit guards. No approval was denied.
 
 The only environmental concern is honest capability variance: Game/Renderer Chromium had no WebGPU adapter, while Studio Chromium exposed and passed WebGPU. Known Chrome `ReadPixels` warnings remain diagnostic. No known product, parity, finite-health, artifact, budget, process, or port failure remains after fix round 1.
+## Fix round 2/5 — PresentationFrame shape, Canvas applicability, and honest 5-second trajectories
+
+### Review verification and architecture
+
+Base/starting HEAD was exactly `65d6f4306c26186f99d19e337c8d40799a425282` on `codex/franz-lola-shared-rendering`. I read and applied `superpowers:receiving-code-review`, `superpowers:systematic-debugging`, `superpowers:test-driven-development` (including its writing-good-tests reference), and `superpowers:verification-before-completion`. The three review findings reproduced technically; no finding was accepted only on assertion.
+
+The fixed PresentationFrame contract now has one exact root shape (`kind`, `frameId`, `presentationTime`, `camera`, `player`, `cats`, `characters`, `display`, `renderer`). Array traversal is descriptor-driven: only canonical own indices `0..length-1` and `length` are accepted, holes/noncanonical keys/symbols/accessors are rejected without executing a getter, and the validated clone is reused instead of reading the source twice. `createPresentationFrame`, `isPresentationFrame`, and `serializePresentationFrame` consistently reject root extras; serialization returns a detached mutable serializable copy. Renderer compatibility aliases were removed from the frame rather than weakening this fixed contract, and the Game consumer now reads `player.screen`.
+
+Canvas2D renderer diagnostics no longer expose `gpuCropResizes` or any other fake GPU counter. The renderer, Game capture contract, Studio capture contract, and benchmark summary all enforce the same backend-specific schema: Canvas uses `not-applicable/canvas2d-cpu-compositor` plus finite backing-store resize data; WebGL2/WebGPU require finite GPU crop/texture data. Missing values are never coerced to zero.
+
+The High-Hz route now remains unsaturated for the complete five-second measurement. It starts at the independently checked open tile `(1,1)`, moves right, queues the turn down at 3.4 s, and follows the hand-derived reference `(6.8,1)`, `(12.6,1)`, `(18.4,1)`, `(23,2.2)`, `(23,8)` at seconds 1–5. Resume is confirmed before the mark and input dispatch. Five atomic browser samples must each fall in `[target,target+17ms]`, stay within the existing one-fixed-step tolerance `(5.8/120)+0.006`, and the terminal segment must move at least five tiles. The presentation cap remains exactly `<=301/5s`; no tolerance or budget was relaxed.
+
+During the final independent verify, the existing Renderer harness exposed a genuine load-sensitive early-timer race: one `webgl2-fractional-dpr` run reached the assertion approximately 1 ms before five real seconds. A separate RED introduced `waitForMinimumDuration`; its condition-based loop rechecks the real clock until the exact minimum is reached. This changes no duration budget or app behavior.
+
+### RED to GREEN evidence
+
+Initial focused RED command:
+
+`node --test packages/pixel-renderer/test/presentation-frame-contract-round2-review.test.js packages/pixel-renderer/test/renderer-info-applicability-round2-review.test.js apps/game/test/high-refresh-five-second-round2-review.test.js`
+
+Exit 1, seven tests: one pass and six intentional failures. The failures proved acceptance of noncanonical array keys, acceptance/execution of array accessors, silent dropping of root extras, Canvas fake `gpuCropResizes` in the renderer, acceptance of fake GPU data by benchmark/Game contracts, and acceptance of a terminally saturated four-second route. The independent hand-derived five-second trajectory test already passed.
+
+Minimal GREEN checkpoints:
+
+- PresentationFrame plus applicability contracts: 5/5 passed.
+- Independent High-Hz pure contract/trajectory: 2/2 passed.
+- All directly affected package/app suites: 56/56 passed.
+- Minimum-duration RED: Exit 1 because `browser-minimum-duration.mjs` did not exist; after the minimal condition-based helper, the helper plus all Renderer browser subprocess contracts passed 5/5.
+- Fresh full unit gate after the last harness fix: 579/579 passed (structure 40, Game 157, Publisher 21, Studio 141, content 49, core 36, pixel-renderer 98, coordinator 30, testkit 7).
+
+Two browser canaries also served as honest behavior REDs before the final route was green. `run-2026-08-13T06-34-46-198Z`/port 55235 failed because a paused fixture incorrectly waited for visible radar; `run-2026-08-13T06-36-10-888Z`/port 58598 failed because a wait followed by a separate evaluate sampled late. Both saved mandatory videos (914,720 bytes/19.36 s and 1,392,979 bytes/13.28 s) and cleaned their ports/processes. The fix uses paused-state/position readiness and returns each sample atomically from `waitForFunction`.
+
+Passing focused real-browser High-Hz evidence:
+
+| Refresh | Run / port | Virtual duration / presentations | Maximum observed position error | Artifacts / diagnostics |
+|---|---|---:|---:|---|
+| 60 Hz | `run-2026-08-13T06-37-23-106Z` / 55908 | 5000.000 ms / 299 | 0.048333 (limit 0.054333) | 7 PNG; WebM 2,180,155 bytes/24.88 s; error arrays 0 |
+| 120 Hz | `run-2026-08-13T06-38-31-726Z` / 52650 | 5008.333 ms / 300 | 0.048333 | 7 PNG; WebM 2,520,135 bytes/27.80 s; error arrays 0 |
+| 175 Hz | `run-2026-08-13T06-39-04-415Z` / 50362 | 5005.714 ms / 292 | 0.033143 | 7 PNG; WebM 3,021,537 bytes/32.72 s; error arrays 0 |
+
+The exact 60 Hz samples were `1016.667:(6.848333,1)/(6.896667,1)`, `2000:(12.6,1)`, `3000:(18.4,1)`, `4000:(23,2.2)`, and `5000:(23,8)`; final error was `5.755e-13`. Ports and owned processes were zero after every canary.
+
+### Complete post-fix browser matrices and artifacts
+
+The two required root `npm run test:browser` executions both passed on distinct OS-assigned ephemeral ports after the minimum-duration fix:
+
+| Gate | Renderer | Game | Studio E2E / Visual / Rendering |
+|---|---|---|---|
+| Pass 1, Exit 0, 908.4 s | `2026-08-13T07-23-21-204Z-29216` port 64548; 3/3; 3 PNG + 3 WebM; pacer 121/121/121; WebGPU structured skip | `run-2026-08-13T07-23-40-075Z` port 65215; 14/14; 90 PNG + 14 WebM | E2E `run-2026-08-13T07-29-31-322Z-11956` port 64945, 40/40; Visual `run-2026-08-13T07-31-29-467Z-32244` port 57448, 9/9; Rendering `run-2026-08-13T07-32-28-405Z-33304` port 50610, 15/15 PNG/WebM |
+| Pass 2, Exit 0, 911.9 s | `2026-08-13T07-38-45-561Z-26636` port 58384; same complete counts | `run-2026-08-13T07-39-04-468Z` port 54663; 14/14; 90 PNG + 14 WebM | E2E `run-2026-08-13T07-44-56-388Z-25724` port 63685, 40/40; Visual `run-2026-08-13T07-46-53-478Z-18836` port 59723, 9/9; Rendering `run-2026-08-13T07-47-54-953Z-32792` port 52060, 15/15 PNG/WebM |
+
+Both Game runs covered the required mobile 390/mobile 412/landscape/desktop 60/120/175/reduced-motion matrix on WebGL2 and Canvas2D. Both Studio Rendering runs covered the same profiles and states (static, animated, hidden, active playtest, paused); WebGPU was available and mandatory, so its mobile-412 scenario passed. Game/Renderer recorded the real structured skip `requestAdapter() returned null`. Every static/hidden/paused resource delta was 0, active/animated five-second cadence stayed inside the exact caps, and every Console/Page/Promise/context-loss array was empty apart from the already-classified Chrome `ReadPixels` driver warning. Every Studio owned child cleanup reported `forced=false` and `portClosed=true`.
+
+Final `npm ci --ignore-scripts` installed 87 packages, audited 96, found 0 vulnerabilities, and exited 0. The subsequent final `npm run verify` exited 0 after 1,086.2 s and reran 579/579 tests, all builds, benchmark assert, and the complete browser gate:
+
+- Renderer `2026-08-13T07-57-14-242Z-29964`, port 55577: 3/3, three compositor PNGs and three mandatory WebMs; captures 5223–5227 ms; video 671,594–728,870 bytes and 6.28–6.92 s; pacer 121 at 60/120/175; WebGPU structured skip `requestAdapter() returned null`.
+- Game `run-2026-08-13T07-57-33-161Z`, port 50837: 14/14, 90 compositor/screenshots and 14 mandatory WebMs totaling 29,583,084 bytes, minimum 21.08 s; WebGPU structured skip; all browser/app/renderer error arrays 0.
+- Studio E2E port 58861: 40/40. Studio Visual port 63444: 9/9 with all Playwright videos. Studio Rendering `run-2026-08-13T08-06-22-557Z-35112`, port 50672: 15/15 PNG and 15/15 WebM totaling 17,065,295 bytes, minimum 20.68 s; native WebGPU resolved and passed; diagnostic failure count 0. All three owned server wrappers reported `code=0 forced=false portClosed=true`.
+
+The post-fix benchmark assert passed without changed budgets. Representative Weak-Mobile results remained below the 36 ms render-p95, 52 ms frame-p95, and 50% long-frame limits (gameplay approximately 15.2/33.4/16.2; cutscene approximately 17.4/33.4/21.23). Canvas nested summaries now contain no `gpuCropResizes`; GPU summaries retain finite `gpuCropResizes:1`. The benchmark remains the performance source of truth; no DevTools metric was invented.
+
+### Visual audit, cleanup, ACL, and deferred minor
+
+The real saved Playwright-/locator-PNG compositor health assertions passed for Renderer, Game, and Studio across representative static/animated/playtest/mobile/landscape/reduced states; blank/gray captures cannot satisfy those decoded pixel assertions. A manual `view_image` attempt on five exact representative post-fix artifacts failed at the environment's Windows ACL boundary both in place and after exact temporary copies. The copies were content-verified, then the single guarded temporary directory was deleted; no manual visual finding is claimed and original mandatory artifacts remain untouched. This is the sole remaining environmental concern, not a test pass substituted by assumption.
+
+`apply_patch` was attempted first on every existing Round-2 file/report and failed with the same concrete `helper_unknown_error: apply deny-read ACLs`; new files were created through `apply_patch`. Existing-file fallbacks used exact SHA-256 plus unique anchors and immediate diff checks. One guarded test-file edit encountered a PowerShell parser error after its intended first replacements; the immediate full diff proved only those expected changes, and the remaining alias edit was completed under a fresh SHA guard. One High-Hz replacement stopped on an anchor mismatch before writing. No approval was denied and no private Vite/dependency internal was touched.
+
+The generated one-file `apps/studio/test-results/.last-run.json` directory was resolved to its exact worktree path, contents checked, and removed before commit; artifacts under ignored output directories remain uncommitted. Final process/listener audits found no Node/Chrome/Vite/Playwright gate process and no owned listening port. The Task 5 coalesced pointer-reason minor remains unchanged and sound: first pending reason is provenance while latest pointer-up state is presented; none of these fixed frame/resource/timing contracts implicates it.
+
+Round 2 contains no publisher/content/service-worker/UX expansion, no deployment, push, or PR, no CI/root composition change, and no budget/tolerance relaxation. No known product, frame-shape, backend-applicability, duration, artifact, process, or port failure remains. The only concern is the explicitly reported ACL inability to perform a fresh manual image-view pass; the mandatory decoded compositor-pixel gates passed in every final matrix.

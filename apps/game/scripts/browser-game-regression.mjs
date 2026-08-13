@@ -32,8 +32,10 @@ const RUN_DIR = join(gameRoot, 'output', 'playwright', 'game', RUN_ID);
 const SAVE_KEY = 'gassi-runde-hals-save';
 const APP_WARNING = /(?:renderer|webgl|webgpu|svelte|unhandled|context\s*lost|gassi)/i;
 const FIXED_STEP_TOLERANCE = (5.8 / 120) + 0.006;
-const HIGH_REFRESH_START = Object.freeze({ x: 24, y: 5 });
-const EXPECTED_HOME_POSITION = Object.freeze({ x: 1, y: 5 });
+const HIGH_REFRESH_START = Object.freeze({ x: 1, y: 1 });
+const HIGH_REFRESH_SPEED = 5.8;
+const HIGH_REFRESH_TURN_X = 23;
+const HIGH_REFRESH_TURN_DELAY_MS = 3_400;
 const MATRIX_PROFILES = [
   { name: 'mobile-390-dpr3-60hz', width: 390, height: 844, deviceScaleFactor: 3, mobile: true, refreshRate: 60 },
   { name: 'mobile-412-dpr2625-60hz', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
@@ -283,32 +285,58 @@ async function enterLevel(page, scenario) {
 }
 
 async function highRefreshWindow(page, scenario) {
+  await page.keyboard.press('KeyP');
+  await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz baseline pause');
   await page.evaluate(({ player, cat }) => {
     const game = window.__GASSI_DEBUG__();
     window.__GASSI_DEBUG_SET_PLAYER__(player.x, player.y);
     window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: game.radar.frame.cats.length }, (_, index) => ({ x: cat.x + index, y: cat.y })));
   }, { player: HIGH_REFRESH_START, cat: { x: 40, y: 4 } });
-  await waitFor(page, scenario.name, ({ game }) => game?.player?.x === HIGH_REFRESH_START.x && game?.player?.y === HIGH_REFRESH_START.y && game.radar?.state?.visible, 'deterministic high-Hz fixture');
-  await page.keyboard.press('KeyP');
-  await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz baseline pause');
-  await page.keyboard.press('ArrowLeft');
-  const baseline = await page.evaluate(() => ({ player: window.__GASSI_DEBUG__().player, radar: window.__GASSI_DEBUG__().radar, renderer: window.__GASSI_RENDERER_DEBUG__(), mark: window.__PW_RAF__.mark() }));
+  await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused' && game.player?.x === HIGH_REFRESH_START.x && game.player?.y === HIGH_REFRESH_START.y, 'deterministic paused high-Hz fixture');
   await page.locator('#overlay-button').click();
-  await waitFor(page, scenario.name, ({ game }) => game?.state === 'playing', 'high-Hz resume');
+  const baseline = await page.evaluate((player) => {
+    if (window.__GASSI_DEBUG__().state !== 'playing') throw new Error('high-Hz resume was not confirmed before mark');
+    window.__GASSI_DEBUG_SET_PLAYER__(player.x, player.y);
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true }));
+    const game = window.__GASSI_DEBUG__();
+    return { player: game.player, radar: game.radar, renderer: window.__GASSI_RENDERER_DEBUG__(), mark: window.__PW_RAF__.mark() };
+  }, HIGH_REFRESH_START);
+  const sampleAt = async (targetMs) => {
+    const sampleHandle = await page.waitForFunction((target) => window.__PW_RAF__.elapsed() >= target
+      ? { elapsedMs: window.__PW_RAF__.elapsed(), player: window.__GASSI_DEBUG__().player }
+      : false, targetMs);
+    const sample = await sampleHandle.jsonValue();
+    await sampleHandle.dispose();
+    const seconds = sample.elapsedMs / 1_000;
+    const horizontalSeconds = (HIGH_REFRESH_TURN_X - HIGH_REFRESH_START.x) / HIGH_REFRESH_SPEED;
+    return {
+      ...sample,
+      expectedPlayer: seconds <= horizontalSeconds
+        ? { x: HIGH_REFRESH_START.x + HIGH_REFRESH_SPEED * seconds, y: HIGH_REFRESH_START.y }
+        : { x: HIGH_REFRESH_TURN_X, y: HIGH_REFRESH_START.y + HIGH_REFRESH_SPEED * (seconds - horizontalSeconds) },
+    };
+  };
+  const trajectorySamples = [await sampleAt(1_000), await sampleAt(2_000), await sampleAt(3_000)];
+  await page.waitForFunction((target) => window.__PW_RAF__.elapsed() >= target, HIGH_REFRESH_TURN_DELAY_MS);
+  await page.keyboard.press('ArrowDown');
+  trajectorySamples.push(await sampleAt(4_000));
   await page.waitForFunction(() => window.__PW_RAF__.captured(), null, { timeout: highRefreshCaptureTimeout(scenario.refreshRate) });
   const measured = await page.evaluate(() => window.__PW_RAF__.captured());
+  const finalSeconds = measured.raf.elapsed / 1_000;
+  const horizontalSeconds = (HIGH_REFRESH_TURN_X - HIGH_REFRESH_START.x) / HIGH_REFRESH_SPEED;
+  const expectedPlayer = { x: HIGH_REFRESH_TURN_X, y: HIGH_REFRESH_START.y + HIGH_REFRESH_SPEED * (finalSeconds - horizontalSeconds) };
+  trajectorySamples.push({ elapsedMs: measured.raf.elapsed, player: measured.game.player, expectedPlayer });
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz final pause');
   const baselineCounters = readRendererCounters(baseline.renderer, scenario.name);
   const measuredCounters = readRendererCounters(measured.renderer, scenario.name);
   const presentationDelta = measuredCounters.rendererFrames - baselineCounters.rendererFrames;
   const resourceStability = assertStableResourceWindow(baselineCounters, measuredCounters, scenario.name);
-  const positionError = Math.hypot(measured.game.player.x - EXPECTED_HOME_POSITION.x, measured.game.player.y - EXPECTED_HOME_POSITION.y);
-  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION }, scenario.name);
+  const positionError = Math.hypot(measured.game.player.x - expectedPlayer.x, measured.game.player.y - expectedPlayer.y);
+  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer, trajectorySamples }, scenario.name);
   const radar = assertRadarPresentationContract({ presentationDelta, baselineRadar: baseline.radar, measuredRadar: measured.game.radar, samples: measured.radarSamples }, scenario.name);
-  return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, resourceStability, radar, raf: measured.raf };
+  return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer, trajectorySamples, positionError, presentationDelta, resourceStability, radar, raf: measured.raf };
 }
-
 async function reducedRadarMotion(page, scenario) {
   const player = await page.evaluate(() => window.__GASSI_DEBUG__().player);
   const candidates = [

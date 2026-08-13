@@ -26,11 +26,12 @@ export function readRendererCounters(debug, scenario) {
     sceneUploadedBytes: requiredFinite(debug.sceneUploadedBytes, 'sceneUploadedBytes', scenario),
     overlayUploadedBytes: requiredFinite(debug.overlayUploadedBytes, 'overlayUploadedBytes', scenario),
     worldOverlayUploadedBytes: requiredFinite(debug.worldOverlayUploadedBytes, 'worldOverlayUploadedBytes', scenario),
+    gpuCropResizes: requiredFinite(debug.gpuCropResizes, 'gpuCropResizes', scenario),
     resources: { applicability: 'applicable', kind: 'gpu-textures', value: requiredFinite(debug.textureReallocations, 'textureReallocations', scenario) },
   };
   assert.equal(debug.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] resource metric applicability is missing`);
   assert.equal(debug.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource metric reason is invalid`);
-  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations']) {
+  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations', 'gpuCropResizes']) {
     assert.equal(Object.hasOwn(debug, key), false, `[${scenario}] Canvas2D must not expose ${key} as a fake GPU metric`);
   }
   return {
@@ -79,7 +80,7 @@ export function assertVideoEvidence({ video, path, bytes, durationSeconds }, sce
   assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 5, `[${scenario}] WebM must contain at least five seconds of media`);
 }
 
-export function assertHighRefreshResult({ presentationDelta, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer }, scenario) {
+export function assertHighRefreshResult({ presentationDelta, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer, trajectorySamples }, scenario) {
   assert.ok(Number.isFinite(presentationDelta) && presentationDelta > 0, `[${scenario}] presentation delta must be a positive finite number`);
   assert.ok(presentationDelta <= 301, `[${scenario}] presentation delta exceeds 301`);
   assert.ok(Number.isFinite(positionError), `[${scenario}] position error must be finite`);
@@ -92,8 +93,23 @@ export function assertHighRefreshResult({ presentationDelta, positionError, tole
     `[${scenario}] reference trajectory must contain nontrivial movement`);
   assert.ok(Math.hypot(finalPlayer.x - baselinePlayer.x, finalPlayer.y - baselinePlayer.y) >= 20,
     `[${scenario}] measured trajectory must contain nontrivial movement`);
+  assert.ok(Array.isArray(trajectorySamples) && trajectorySamples.length === 5,
+    `[${scenario}] trajectory must contain all five one-second samples`);
+  trajectorySamples.forEach((sample, index) => {
+    const targetMs = (index + 1) * 1_000;
+    assert.ok(Number.isFinite(sample?.elapsedMs) && sample.elapsedMs >= targetMs && sample.elapsedMs <= targetMs + 17,
+      `[${scenario}] trajectory sample ${index + 1} must represent second ${index + 1}`);
+    for (const [label, point] of Object.entries({ player: sample?.player, expectedPlayer: sample?.expectedPlayer })) {
+      assert.ok(Number.isFinite(point?.x) && Number.isFinite(point?.y), `[${scenario}] trajectory sample ${index + 1} ${label} must be finite`);
+    }
+    assert.ok(Math.hypot(sample.player.x - sample.expectedPlayer.x, sample.player.y - sample.expectedPlayer.y) <= tolerance,
+      `[${scenario}] trajectory sample ${index + 1} drifts beyond one fixed step`);
+  });
+  assert.ok(Math.hypot(
+    trajectorySamples[4].player.x - trajectorySamples[3].player.x,
+    trajectorySamples[4].player.y - trajectorySamples[3].player.y,
+  ) >= 5, `[${scenario}] terminal trajectory segment must keep moving through the fifth second`);
 }
-
 export function highRefreshCaptureTimeout(refreshRate) {
   assert.ok(Number.isFinite(refreshRate) && refreshRate > 0, 'refresh rate must be a positive finite number');
   return Math.ceil(5_000 * Math.max(1, refreshRate / 60) + 5_000);

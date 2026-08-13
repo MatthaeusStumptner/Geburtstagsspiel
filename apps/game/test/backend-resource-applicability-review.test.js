@@ -17,7 +17,7 @@ test('browser gate reads GPU and Canvas2D resource counters with explicit applic
     ...common('webgl2'),
     resourceMetrics: { applicability: 'applicable' },
     uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
-    worldOverlayUploadedBytes: 6, textureReallocations: 3,
+    worldOverlayUploadedBytes: 6, textureReallocations: 3, gpuCropResizes: 2,
   }, 'gpu');
   assert.deepEqual(gpu.resources, {
     applicability: 'applicable', kind: 'gpu-textures', value: 3,

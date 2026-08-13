@@ -51,7 +51,7 @@ test('copies and freezes every reachable presentation value', () => {
 test('rejects malformed inputs and forged frame lookalikes', () => {
   const input = sampleInput();
   assert.throws(() => createPresentationFrame({ ...input, frameId: 0 }), /frameId muss positiv und ganzzahlig sein/);
-  assert.throws(() => createPresentationFrame({ ...input, presentationTime: Infinity }), /presentationTime muss endlich sein/);
+  assert.throws(() => createPresentationFrame({ ...input, presentationTime: Infinity }), /presentationTime.*(?:endlich|nicht-endliche)/);
   assert.throws(() => createPresentationFrame({ ...input, cats: {} }), TypeError);
   assert.throws(() => createPresentationFrame({ ...input, camera: { ...input.camera, source: {} } }), /camera.source.x muss endlich sein/);
   assert.equal(isPresentationFrame({ kind: 'franz-lola-presentation-frame', frameId: 1, presentationTime: 1 }), false);

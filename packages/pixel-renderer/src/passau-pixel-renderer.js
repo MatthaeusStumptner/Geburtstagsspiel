@@ -266,12 +266,7 @@ export class PassauPixelRenderer {
         contextLost: rendererInfo.contextLost ?? false,
       },
     });
-    return Object.freeze({
-      ...frame,
-      playerScreen: frame.player.screen,
-      entities: frame.cats,
-      characterEntities: frame.characters,
-    });
+    return frame;
   }
 
   setLevelIfChanged(levelInput) {
@@ -535,7 +530,7 @@ export class PassauPixelRenderer {
         bufferHeight: this.displayMetrics.bufferHeight,
         reason: this.displayMetrics.reason,
       } : null,
-      gpuCropResizes: this.gpuCropResizes,
+      ...(this.presentation.kind === 'canvas2d' ? {} : { gpuCropResizes: this.gpuCropResizes }),
       staticWorldBuilds: this.staticWorldBuilds,
       postProcess: this.lastPostProcessProfile ? {
         scanlines: this.lastPostProcessProfile.scanlines,

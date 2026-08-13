@@ -17,6 +17,12 @@ export function summarizeBenchmarkResources(info) {
     if (typeof reason !== 'string' || reason.length === 0) {
       throw new TypeError('not-applicable resource metrics require a reason');
     }
+    for (const key of [
+      'uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes',
+      'textureReallocations', 'gpuCropResizes', 'overlayUploadSkips', 'worldOverlayUploadSkips',
+    ]) {
+      if (Object.hasOwn(info, key)) throw new TypeError(`Canvas2D must not expose ${key} as a fake GPU metric`);
+    }
     return {
       resourceMetrics: {
         applicability,

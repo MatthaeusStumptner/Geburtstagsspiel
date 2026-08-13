@@ -1,4 +1,5 @@
 const FRAME_KIND = 'franz-lola-presentation-frame';
+const FRAME_KEYS = Object.freeze(['kind', 'frameId', 'presentationTime', 'camera', 'player', 'cats', 'characters', 'display', 'renderer']);
 
 const isRecord = (value) => value !== null
   && typeof value === 'object'
@@ -78,14 +79,20 @@ function cloneSerializable(value, path, { freeze = false, ancestors = new WeakSe
   ancestors.add(value);
   let cloned;
   if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      if (!Object.hasOwn(value, index)) throw new TypeError(`${path} darf keine Lücken enthalten.`);
-    }
-    if (Reflect.ownKeys(value).some((key) => key !== 'length'
-      && (typeof key !== 'string' || !/^\d+$/.test(key) || Number(key) >= value.length))) {
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const expectedKeys = new Set(['length', ...Array.from({ length: value.length }, (_, index) => String(index))]);
+    const actualKeys = Reflect.ownKeys(descriptors);
+    if (actualKeys.length !== expectedKeys.size || actualKeys.some((key) => !expectedKeys.has(key))) {
       throw new TypeError(`${path} enthält nicht serialisierbare Array-Eigenschaften.`);
     }
-    cloned = value.map((item, index) => cloneSerializable(item, `${path}[${index}]`, { freeze, ancestors }));
+    cloned = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
+        throw new TypeError(`${path} enthält nicht serialisierbare Array-Eigenschaften.`);
+      }
+      cloned.push(cloneSerializable(descriptor.value, `${path}[${index}]`, { freeze, ancestors }));
+    }
   } else {
     assertRecord(value, path);
     const descriptors = Object.getOwnPropertyDescriptors(value);
@@ -104,12 +111,13 @@ function cloneSerializable(value, path, { freeze = false, ancestors = new WeakSe
   return freeze ? Object.freeze(cloned) : cloned;
 }
 
-function cloneFrozen(value, path) {
-  return cloneSerializable(value, path, { freeze: true });
-}
-
-function assertInput(input) {
+function assertInput(input, { requireKind = false } = {}) {
   assertRecord(input, 'input');
+  const keys = Object.keys(input);
+  if (keys.some((key) => !FRAME_KEYS.includes(key)) || (requireKind && !keys.includes('kind'))) {
+    throw new TypeError('PresentationFrame root enthält unbekannte oder fehlende Eigenschaften.');
+  }
+  if (Object.hasOwn(input, 'kind') && input.kind !== FRAME_KIND) throw new TypeError('PresentationFrame kind ist ungültig.');
   if (!Number.isInteger(input.frameId) || input.frameId < 1) throw new TypeError('frameId muss positiv und ganzzahlig sein.');
   if (!Number.isFinite(input.presentationTime)) throw new TypeError('presentationTime muss endlich sein.');
   assertRecord(input.camera, 'camera');
@@ -128,37 +136,44 @@ function isDeepFrozen(value, seen = new WeakSet()) {
   if (seen.has(value)) return true;
   if (!Object.isFrozen(value)) return false;
   seen.add(value);
-  return Object.values(value).every((item) => isDeepFrozen(item, seen));
+  return Reflect.ownKeys(value).every((key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, 'value') && isDeepFrozen(descriptor.value, seen);
+  });
+}
+
+function validPresentationFrameClone(value) {
+  try {
+    const cloned = cloneSerializable(value, 'frame');
+    assertInput(cloned, { requireKind: true });
+    return isDeepFrozen(value) ? cloned : null;
+  } catch {
+    return null;
+  }
 }
 
 export function createPresentationFrame(input) {
-  assertInput(input);
+  const cloned = cloneSerializable(input, 'input', { freeze: true });
+  assertInput(cloned);
   return Object.freeze({
     kind: FRAME_KIND,
-    frameId: input.frameId,
-    presentationTime: input.presentationTime,
-    camera: cloneFrozen(input.camera, 'camera'),
-    player: cloneFrozen(input.player, 'player'),
-    cats: cloneFrozen(input.cats, 'cats'),
-    characters: cloneFrozen(input.characters, 'characters'),
-    display: cloneFrozen(input.display, 'display'),
-    renderer: cloneFrozen(input.renderer, 'renderer'),
+    frameId: cloned.frameId,
+    presentationTime: cloned.presentationTime,
+    camera: cloned.camera,
+    player: cloned.player,
+    cats: cloned.cats,
+    characters: cloned.characters,
+    display: cloned.display,
+    renderer: cloned.renderer,
   });
 }
 
 export function serializePresentationFrame(frame) {
-  if (!isPresentationFrame(frame)) throw new TypeError('Diagnostic capture requires a valid PresentationFrame.');
-  const { kind, frameId, presentationTime, camera, player, cats, characters, display, renderer } = frame;
-  return cloneSerializable({ kind, frameId, presentationTime, camera, player, cats, characters, display, renderer }, 'frame');
+  const cloned = validPresentationFrameClone(frame);
+  if (!cloned) throw new TypeError('Diagnostic capture requires a valid PresentationFrame.');
+  return cloned;
 }
 
 export function isPresentationFrame(value) {
-  try {
-    if (!isRecord(value) || value.kind !== FRAME_KIND) return false;
-    assertInput(value);
-    cloneSerializable(value, 'frame');
-    return isDeepFrozen(value);
-  } catch {
-    return false;
-  }
+  return validPresentationFrameClone(value) !== null;
 }

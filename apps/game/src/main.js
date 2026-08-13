@@ -1799,8 +1799,8 @@ function presentGame(_reason, timestamp) {
   lastCatRadarState = catRadarState;
   canvas.dataset.rendererBackend = renderState.renderer.backend;
   canvas.dataset.rendererQuality = renderState.renderer.quality;
-  canvas.dataset.playerScreenX = renderState.playerScreen.x.toFixed(1);
-  canvas.dataset.playerScreenY = renderState.playerScreen.y.toFixed(1);
+  canvas.dataset.playerScreenX = renderState.player.screen.x.toFixed(1);
+  canvas.dataset.playerScreenY = renderState.player.screen.y.toFixed(1);
   canvas.dataset.playerX = (cutsceneSnapshot?.player.x ?? player.x).toFixed(3);
   canvas.dataset.playerY = (cutsceneSnapshot?.player.y ?? player.y).toFixed(3);
   canvas.dataset.playerDirection = cutsceneSnapshot?.player.direction?.name ?? player.dir.name;

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { captureLocatorPngVisualHealth } from '../../../tools/browser-visual-health.mjs';
+import { waitForMinimumDuration } from './browser-minimum-duration.mjs';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const artifactDirectory = join(projectRoot, 'output', 'playwright', 'renderer');
@@ -152,8 +153,7 @@ async function runBenchmarkScenario({
     assert.equal(runtime.result.renderer.backend, runtime.result.resolvedBackend, `${name} diagnostics must report the resolved backend`);
 
     if (capture) {
-      const remaining = 5_000 - (Date.now() - startedAt);
-      if (remaining > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, remaining));
+      await waitForMinimumDuration({ startedAt, minimumMs: 5_000 });
       assert.ok(Date.now() - startedAt >= 5_000, `${name} must record at least five seconds of camera movement`);
       const visualEvidence = await captureLocatorPngVisualHealth(page.locator('#benchmark'), screenshotPath, name);
       assert.ok(visualEvidence.artifact.bytes > 8_000, `${name} screenshot must contain rendered pixels`);
