@@ -694,7 +694,7 @@ async function main() {
       : { status: 'skipped', reason: webGpu.reason };
     assertWebGpuDisposition(webGpu, summary.webGpu);
     if (!only) {
-      assertBrowserCoverage(summary.scenarios.map((item) => ({ ...item, reducedMotion: item.reducedMotionEnabled })));
+      assertBrowserCoverage(summary.scenarios.map((item) => ({ ...item, reducedMotion: item.reducedMotionEnabled })), { requirePixel120: true });
       assertRequiredArtifacts(summary.scenarios.map((item) => ({
         screenshot: item.screenshots?.find((artifact) => artifact.path.endsWith('active-level.png')),
         video: item.video,

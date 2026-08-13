@@ -269,14 +269,14 @@ export function assertFiveSecondBudgets(budgets, scenario) {
   return { ...values, resourceStability: budgets.resourceStability };
 }
 
-export function assertBrowserCoverage(results) {
+export function assertBrowserCoverage(results, { requirePixel120 = false } = {}) {
   assert.ok(Array.isArray(results), 'browser coverage results must be an array');
   const expected = [];
   for (const backend of ['webgl2', 'canvas2d']) {
     expected.push(
       [backend, 390, 844, 3, 60, false],
       [backend, 412, 915, 2.625, 60, false],
-      [backend, 448, 998, 3, 120, false],
+      ...(requirePixel120 ? [[backend, 448, 998, 3, 120, false]] : []),
       [backend, 915, 412, 2.625, 60, false],
       [backend, 1366, 768, 1, 60, false],
       [backend, 1366, 768, 1, 120, false],

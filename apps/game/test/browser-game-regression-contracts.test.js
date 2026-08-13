@@ -83,10 +83,11 @@ test('completion coverage requires every backend viewport refresh and reduced-mo
       { backend, width: 412, height: 915, deviceScaleFactor: 2.625, refreshRate: 60, reducedMotion: true },
     );
   }
-  assert.doesNotThrow(() => assertBrowserCoverage(coverage));
-  assert.throws(() => assertBrowserCoverage(coverage.slice(1)), /390x844/);
+  assert.doesNotThrow(() => assertBrowserCoverage(coverage, { requirePixel120: true }));
+  assert.throws(() => assertBrowserCoverage(coverage.slice(1), { requirePixel120: true }), /390x844/);
   const withoutPixel120 = coverage.filter((result) => result.width !== 448 || result.refreshRate !== 120);
-  assert.throws(() => assertBrowserCoverage(withoutPixel120), /448x998/);
+  assert.throws(() => assertBrowserCoverage(withoutPixel120, { requirePixel120: true }), /448x998/);
+  assert.doesNotThrow(() => assertBrowserCoverage(withoutPixel120));
 });
 
 test('required artifact manifest fails closed and WebGPU skip records the real probe reason', () => {
