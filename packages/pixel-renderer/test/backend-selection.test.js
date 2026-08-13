@@ -5,12 +5,12 @@ import { createWebGL2Backend } from '../src/gpu/webgl2-backend.js';
 import { createWebGPUBackend, webGPUAdapterOptions } from '../src/gpu/webgpu-backend.js';
 import { Canvas2DPresentationBackend } from '../src/gpu/canvas2d-backend.js';
 
-test('Canvas2D reports explicit zero upload and texture counters', () => {
+test('Canvas2D reports GPU counters as not applicable', () => {
   const backend = new Canvas2DPresentationBackend({ getContext: () => ({}) });
   assert.deepEqual(backend.snapshot(), {
     backend: 'canvas2d', frameCount: 0, gpuAccelerated: false, contextLost: false,
-    uploadedBytes: 0, sceneUploadedBytes: 0, overlayUploadedBytes: 0,
-    worldOverlayUploadedBytes: 0, textureReallocations: 0,
+    resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' },
+    backingStoreResizes: 0,
   });
 });
 

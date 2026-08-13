@@ -1,10 +1,10 @@
 import { createGameSession } from '@franz-lola/game-core';
 
-export function createBrowserGameSession({ level, difficulty, unlockedEvents = [] }) {
+export function createBrowserGameSession({ level, difficulty, seed = level.gameplay.pelletSeed, unlockedEvents = [] }) {
   return createGameSession({
     level,
     difficulty,
-    seed: level.gameplay.pelletSeed,
+    seed,
     unlockedEvents,
   });
 }

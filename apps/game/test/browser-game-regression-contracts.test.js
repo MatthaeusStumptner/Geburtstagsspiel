@@ -23,6 +23,7 @@ import {
 function healthyRenderer() {
   return {
     requestedBackend: 'webgl2', backend: 'webgl2', contextLost: false, fallbackReason: null,
+    resourceMetrics: { applicability: 'applicable' },
     frameCount: 12, uploadedBytes: 20, sceneUploadedBytes: 10, overlayUploadedBytes: 4,
     worldOverlayUploadedBytes: 6, textureReallocations: 0, staticWorldRevision: 2,
     scheduler: { renderCount: 12 },
@@ -34,11 +35,12 @@ test('renderer counters fail closed when required diagnostics are missing or non
   assert.throws(() => readRendererCounters({ ...healthyRenderer(), uploadedBytes: Number.NaN }, 'nan'), /uploadedBytes/);
   assert.deepEqual(readRendererCounters(healthyRenderer(), 'healthy'), {
     rendererFrames: 12, schedulerFrames: 12, uploadedBytes: 20, sceneUploadedBytes: 10,
-    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, textureReallocations: 0, staticWorldRevision: 2,
+    overlayUploadedBytes: 4, worldOverlayUploadedBytes: 6, staticWorldRevision: 2,
+    resources: { applicability: 'applicable', kind: 'gpu-textures', value: 0 },
   });
-  const canvas = { ...healthyRenderer(), backend: 'canvas2d' };
-  delete canvas.uploadedBytes;
-  assert.throws(() => readRendererCounters(canvas, 'canvas'), /uploadedBytes/);
+  const canvas = { ...healthyRenderer(), requestedBackend: 'canvas2d', backend: 'canvas2d', resourceMetrics: { applicability: 'not-applicable', reason: 'canvas2d-cpu-compositor' }, backingStoreResizes: 2 };
+  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations']) delete canvas[key];
+  assert.equal(readRendererCounters(canvas, 'canvas').resources.value, 2);
 });
 
 test('five-second rendering budgets reject missing, non-finite, slow, or desynchronized counters', () => {
@@ -50,7 +52,7 @@ test('five-second rendering budgets reject missing, non-finite, slow, or desynch
     activePresentations: 300,
     pausedPresentations: 0,
     mapPresentations: 0,
-    textureReallocations: 0,
+    resourceStability: { applicability: 'applicable', kind: 'gpu-textures', delta: 0 },
     radarUpdates: 300,
   };
   assert.doesNotThrow(() => assertFiveSecondBudgets(valid, 'valid'));
@@ -104,9 +106,10 @@ test('video evidence requires the Playwright video, readable path, bytes, and ac
 });
 
 test('high-refresh and reduced-motion diagnostics are required and finite', () => {
-  assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1 }, 'zero'), /positive/);
-  assert.throws(() => assertHighRefreshResult({ presentationDelta: 302, positionError: 0, tolerance: 0.1 }, 'fast'), /301/);
-  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 300, positionError: 0, tolerance: 0.1 }, 'valid'));
+  const trajectory = { baselinePlayer: { x: 24, y: 5 }, finalPlayer: { x: 1, y: 5 }, expectedPlayer: { x: 1, y: 5 } };
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 0, positionError: 0, tolerance: 0.1, ...trajectory }, 'zero'), /positive/);
+  assert.throws(() => assertHighRefreshResult({ presentationDelta: 302, positionError: 0, tolerance: 0.1, ...trajectory }, 'fast'), /301/);
+  assert.doesNotThrow(() => assertHighRefreshResult({ presentationDelta: 300, positionError: 0, tolerance: 0.1, ...trajectory }, 'valid'));
   assert.throws(() => assertReducedPostProcess(null, 'missing'), /postProcess/);
   assert.throws(() => assertReducedPostProcess({ scanlines: Number.NaN, rgbSplitTexels: 0 }, 'nan'), /scanlines/);
   assert.doesNotThrow(() => assertReducedPostProcess({ scanlines: 0, rgbSplitTexels: 0 }, 'valid'));
@@ -121,6 +124,7 @@ test('high-refresh capture waits for the real-browser frame supply at every requ
   const start = source.indexOf('async function highRefreshWindow');
   const diagnostic = source.slice(start, source.indexOf('async function reducedRadarMotion', start));
   assert.ok(diagnostic.includes('__GASSI_DEBUG_SET_PLAYER__'));
+  assert.ok(diagnostic.includes('HIGH_REFRESH_START'));
   assert.ok(diagnostic.includes('EXPECTED_HOME_POSITION'));
   assert.ok(diagnostic.includes('highRefreshCaptureTimeout(scenario.refreshRate)'));
 });

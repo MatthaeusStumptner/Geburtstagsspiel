@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import { captureLocatorPngVisualHealth } from '../../../tools/browser-visual-health.mjs';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const artifactDirectory = join(projectRoot, 'output', 'playwright', 'renderer');
@@ -114,6 +115,7 @@ async function runBenchmarkScenario({
   let videoPath;
   let scenario;
   let finalHealthError;
+  let visualHealth;
   const startedAt = Date.now();
   const screenshotPath = capture ? artifactPath(name, 'png') : null;
   let messages = [];
@@ -153,8 +155,9 @@ async function runBenchmarkScenario({
       const remaining = 5_000 - (Date.now() - startedAt);
       if (remaining > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, remaining));
       assert.ok(Date.now() - startedAt >= 5_000, `${name} must record at least five seconds of camera movement`);
-      const screenshot = await page.locator('#benchmark').screenshot({ path: screenshotPath });
-      assert.ok(screenshot.byteLength > 8_000, `${name} screenshot must contain rendered pixels`);
+      const visualEvidence = await captureLocatorPngVisualHealth(page.locator('#benchmark'), screenshotPath, name);
+      assert.ok(visualEvidence.artifact.bytes > 8_000, `${name} screenshot must contain rendered pixels`);
+      visualHealth = visualEvidence.sample;
     }
     const extra = evaluate ? await evaluate(page, runtime) : null;
     if (name === 'webgl2-fractional-dpr' && injectLateConsoleError) {
@@ -177,6 +180,7 @@ async function runBenchmarkScenario({
       console: messages,
       captureDurationMs: Date.now() - startedAt,
       screenshot: screenshotPath,
+      visualHealth,
       extra,
     };
     report.scenarios.push(scenario);

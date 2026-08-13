@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+export { assertVisualHealth } from '../../../tools/browser-visual-health.mjs';
 
 function requiredFinite(value, label, scenario) {
   assert.ok(Number.isFinite(value), `[${scenario}] ${label} must be a finite number`);
@@ -14,17 +15,39 @@ export function readRendererCounters(debug, scenario) {
   assert.ok(debug && typeof debug === 'object', `[${scenario}] renderer diagnostics are missing`);
   const rendererFrames = requiredFinite(debug.frameCount, 'frameCount', scenario);
   assert.ok(debug.scheduler && typeof debug.scheduler === 'object', `[${scenario}] scheduler diagnostics are missing`);
-
-  return {
+  const common = {
     rendererFrames,
     schedulerFrames: requiredFinite(debug.scheduler.renderCount, 'scheduler.renderCount', scenario),
+    staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
+  };
+  if (debug.resourceMetrics?.applicability === 'applicable') return {
+    ...common,
     uploadedBytes: requiredFinite(debug.uploadedBytes, 'uploadedBytes', scenario),
     sceneUploadedBytes: requiredFinite(debug.sceneUploadedBytes, 'sceneUploadedBytes', scenario),
     overlayUploadedBytes: requiredFinite(debug.overlayUploadedBytes, 'overlayUploadedBytes', scenario),
     worldOverlayUploadedBytes: requiredFinite(debug.worldOverlayUploadedBytes, 'worldOverlayUploadedBytes', scenario),
-    textureReallocations: requiredFinite(debug.textureReallocations, 'textureReallocations', scenario),
-    staticWorldRevision: requiredFinite(debug.staticWorldRevision, 'staticWorldRevision', scenario),
+    resources: { applicability: 'applicable', kind: 'gpu-textures', value: requiredFinite(debug.textureReallocations, 'textureReallocations', scenario) },
   };
+  assert.equal(debug.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] resource metric applicability is missing`);
+  assert.equal(debug.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource metric reason is invalid`);
+  for (const key of ['uploadedBytes', 'sceneUploadedBytes', 'overlayUploadedBytes', 'worldOverlayUploadedBytes', 'textureReallocations']) {
+    assert.equal(Object.hasOwn(debug, key), false, `[${scenario}] Canvas2D must not expose ${key} as a fake GPU metric`);
+  }
+  return {
+    ...common,
+    resources: { applicability: 'not-applicable', reason: debug.resourceMetrics.reason, kind: 'canvas-backing-store', value: requiredFinite(debug.backingStoreResizes, 'backingStoreResizes', scenario) },
+  };
+}
+
+export function assertStableResourceWindow(before, after, scenario) {
+  assert.ok(before?.resources && after?.resources, `[${scenario}] resource counters are missing`);
+  assert.equal(after.resources.applicability, before.resources.applicability, `[${scenario}] resource applicability changed`);
+  assert.equal(after.resources.kind, before.resources.kind, `[${scenario}] resource counter kind changed`);
+  const delta = requiredFinite(after.resources.value, 'resource counter', scenario)
+    - requiredFinite(before.resources.value, 'baseline resource counter', scenario);
+  const label = after.resources.kind === 'gpu-textures' ? 'texture reallocations' : 'backing-store resizes';
+  assert.equal(delta, 0, `[${scenario}] ${label} occurred during stable-size activity`);
+  return { applicability: after.resources.applicability, ...(after.resources.reason ? { reason: after.resources.reason } : {}), kind: after.resources.kind, delta };
 }
 
 export function assertFinalHealth({ scenario, expectedBackend, health, consoleErrors, warnings, pageErrors, crashes }) {
@@ -56,12 +79,19 @@ export function assertVideoEvidence({ video, path, bytes, durationSeconds }, sce
   assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 5, `[${scenario}] WebM must contain at least five seconds of media`);
 }
 
-export function assertHighRefreshResult({ presentationDelta, positionError, tolerance }, scenario) {
+export function assertHighRefreshResult({ presentationDelta, positionError, tolerance, baselinePlayer, finalPlayer, expectedPlayer }, scenario) {
   assert.ok(Number.isFinite(presentationDelta) && presentationDelta > 0, `[${scenario}] presentation delta must be a positive finite number`);
   assert.ok(presentationDelta <= 301, `[${scenario}] presentation delta exceeds 301`);
   assert.ok(Number.isFinite(positionError), `[${scenario}] position error must be finite`);
   assert.ok(Number.isFinite(tolerance) && tolerance >= 0, `[${scenario}] position tolerance must be finite`);
   assert.ok(positionError <= tolerance, `[${scenario}] player drift exceeds one fixed step`);
+  for (const [label, point] of Object.entries({ baselinePlayer, finalPlayer, expectedPlayer })) {
+    assert.ok(Number.isFinite(point?.x) && Number.isFinite(point?.y), `[${scenario}] ${label} must be finite`);
+  }
+  assert.ok(Math.hypot(expectedPlayer.x - baselinePlayer.x, expectedPlayer.y - baselinePlayer.y) >= 20,
+    `[${scenario}] reference trajectory must contain nontrivial movement`);
+  assert.ok(Math.hypot(finalPlayer.x - baselinePlayer.x, finalPlayer.y - baselinePlayer.y) >= 20,
+    `[${scenario}] measured trajectory must contain nontrivial movement`);
 }
 
 export function highRefreshCaptureTimeout(refreshRate) {
@@ -212,7 +242,7 @@ export function assertFiveSecondBudgets(budgets, scenario) {
   const required = [
     'durationMs', 'staticEditorPresentations', 'hiddenThumbnailPresentations',
     'animatedThumbnailPresentations', 'activePresentations', 'pausedPresentations',
-    'mapPresentations', 'textureReallocations', 'radarUpdates',
+    'mapPresentations', 'radarUpdates',
   ];
   const values = Object.fromEntries(required.map((name) => [name, requiredFinite(budgets[name], name, scenario)]));
   assert.ok(values.durationMs >= 5_000, `[${scenario}] budget window must cover five seconds`);
@@ -223,9 +253,11 @@ export function assertFiveSecondBudgets(budgets, scenario) {
   assert.ok(values.activePresentations <= 301, `[${scenario}] active game/playtest exceeded 301 presentations`);
   assert.equal(values.pausedPresentations, 0, `[${scenario}] paused scene presented after settle`);
   assert.equal(values.mapPresentations, 0, `[${scenario}] map presented after settle`);
-  assert.equal(values.textureReallocations, 0, `[${scenario}] texture reallocations occurred during stable-size activity`);
+  assert.ok(budgets.resourceStability && typeof budgets.resourceStability === 'object', `[${scenario}] resource stability is missing`);
+  assert.equal(requiredFinite(budgets.resourceStability.delta, 'resourceStability.delta', scenario), 0,
+    `[${scenario}] stable-size resource counter advanced`);
   assert.equal(values.radarUpdates, values.activePresentations, `[${scenario}] radar updates differ from active presentations`);
-  return values;
+  return { ...values, resourceStability: budgets.resourceStability };
 }
 
 export function assertBrowserCoverage(results) {
@@ -262,18 +294,6 @@ export function assertRequiredArtifacts(entries, expectedCount) {
   });
 }
 
-export function assertVisualHealth(sample, scenario) {
-  assert.ok(sample && typeof sample === 'object', `[${scenario}] visual health sample is missing`);
-  const opaquePixels = requiredFinite(sample.opaquePixels, 'visual.opaquePixels', scenario);
-  const uniqueColors = requiredFinite(sample.uniqueColors, 'visual.uniqueColors', scenario);
-  const chromaPixels = requiredFinite(sample.chromaPixels, 'visual.chromaPixels', scenario);
-  const luminanceRange = requiredFinite(sample.luminanceRange, 'visual.luminanceRange', scenario);
-  assert.ok(opaquePixels >= 512, `[${scenario}] rendered canvas has insufficient opaque pixels`);
-  assert.ok(uniqueColors >= 8, `[${scenario}] rendered canvas has insufficient color variation`);
-  assert.ok(chromaPixels >= 32, `[${scenario}] rendered canvas is blank or gray (insufficient chroma)`);
-  assert.ok(luminanceRange >= 32, `[${scenario}] rendered canvas has insufficient luminance range`);
-  return { opaquePixels, uniqueColors, chromaPixels, luminanceRange };
-}
 
 export function assertWebGpuDisposition(probe, disposition) {
   assert.ok(probe && typeof probe.available === 'boolean', 'WebGPU availability probe is malformed');

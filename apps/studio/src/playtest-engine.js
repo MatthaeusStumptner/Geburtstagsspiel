@@ -14,15 +14,17 @@ export function createPlaytestPresentation(snapshot, {
   cameraEnabled = true,
   zoom = 1.12,
   reducedMotion = false,
+  presentationTime = snapshot?.elapsed,
 } = {}) {
   if (!snapshot || typeof snapshot !== 'object') throw new TypeError('playtest snapshot is required');
+  if (!Number.isFinite(presentationTime)) throw new TypeError('playtest presentationTime must be finite');
   return Object.freeze({
     snapshot,
     options: Object.freeze({
       cameraEnabled: Boolean(cameraEnabled),
       zoom,
       alpha: snapshot.interpolationAlpha,
-      presentationTime: snapshot.elapsed,
+      presentationTime,
       reducedMotion: Boolean(reducedMotion),
     }),
   });

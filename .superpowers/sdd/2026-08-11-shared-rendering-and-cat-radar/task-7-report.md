@@ -139,3 +139,83 @@ An adversarial same-frame hover -> pointerdown -> pointerup burst was added. The
 `apply_patch` was always attempted first. Updating/deleting an existing worktree file consistently failed with `windows sandbox failed: helper_unknown_error: apply deny-read ACLs`. Only after each concrete failure, the exact file SHA-256, unique marker/single anchor, and intended path were checked before a scoped PowerShell fallback; syntax/diff checks followed immediately. New files were added with `apply_patch`. A few fallback drafts failed on quoting/anchor validation before mutation; immediate SHA/syntax checks prevented silent damage. There was no approval denial.
 
 One machine-specific concern remains documented rather than hidden: Chrome emits benign WebGL `ReadPixels` performance warnings during screenshot health sampling, and WebGPU adapter availability differs between Chrome contexts (Studio actual adapter available; Game/Renderer probe returned null). The structured results reflect the real contexts. No tolerance was loosened, no missing finite value became zero, and no artifact/video became optional.
+
+---
+
+## Review fix round 1/5 — 2026-08-13
+
+### Start, method, skills, and Target Flow
+
+The fix round started clean on `codex/franz-lola-shared-rendering` at exact HEAD `556b0c6751bb3c191e4631245383bfb759bd8c51`. The Task 7 brief, this report, and the final review findings were read in full. `superpowers:receiving-code-review`, `superpowers:systematic-debugging`, `superpowers:test-driven-development` (including writing-good-tests), and `superpowers:verification-before-completion` governed the work. Every finding was reproduced before implementation.
+
+The Target Flow remains: Game active level -> map/radar/pause/resize -> free five-second 60/120/175 trajectory -> final health, compositor PNG, mandatory WebM; Studio static/animated/hidden/playtest/paused exact five-second windows -> final health, screenshot, mandatory WebM. Renderer remains WebGL2 fractional DPR, WebGL2 reduced motion, Canvas2D desktop, 60/120/175 pacer, mandatory video, and a real WebGPU probe. Existing Golden Scene/testkit, Game-core script, PresentationFrame, Task 4 Game matrix, Task 6 Studio E2E/visual, and Renderer harness were composed rather than duplicated.
+
+### Independent RED -> GREEN findings
+
+1. **Non-tautological app parity.** RED `node --test packages/testkit/test/presentation-parity-review.test.js`: 0/3; `renderGoldenCapture` and app-owned adapters were absent. The old shared implementation gave both apps the same wrong checksum `d29f98aa8867949c0807a9cfdf544eb566afeefb9c96eb742966f93f47f0f7a3`. GREEN adds Game `createGamePresentation` (also used by production `presentGame`), Studio `createPlaytestPresentation`, and test-only app-owned adapters. Testkit still owns the one fixture, input script, and capture renderer, but no longer implements both projections. Each app first matches an independent literal frame/checksum, then the apps match each other.
+2. **Recursive serializer.** RED `presentation-frame-serialization-review.test.js`: 1/2; nested `NaN` was accepted and JSON changed it to `null`, while a function disappeared. GREEN recursively rejects non-finite numbers, undefined/functions/symbols/bigint, Date/Map and exotic prototypes, cycles, sparse/extended arrays, accessors, symbols, and non-enumerable properties. Valid serialization returns a detached mutable copy without JSON coercion.
+3. **Resource applicability.** RED Canvas snapshot 0/1 and Game resource contract missing its applicability export. GREEN: WebGL2/WebGPU report `applicable`; Canvas reports `not-applicable`, reason `canvas2d-cpu-compositor`, and real `backingStoreResizes`, with no fake GPU fields. Game/Studio assert GPU texture stability only where applicable and Canvas backing-store stability otherwise. An additional benchmark RED was 0/1 (`ERR_MODULE_NOT_FOUND`); the resulting 2/2 GREEN summarizer removes all Canvas `?? 0` GPU summaries and fails closed on invalid applicable metrics.
+4. **Nontrivial high-Hz drift.** The reviewed `(7,20)` ArrowLeft route was blocked by Home walls. GREEN fixes the independent literal path to `(24,5) -> (1,5)`, requires at least 20 units of expected and measured travel, and rejects the old zero-distance fixture. Pure 60/120/175 sessions and every browser row end exactly at `(1,5)`, error `0`.
+5. **Real compositor pixel health.** RED `test/browser-visual-health-review.test.js`: 0/1. Its adversarial canvas is red/green at source but CSS grayscale in the compositor. GREEN saves locator PNG bytes, decodes the saved image in Chrome, and applies the unchanged thresholds `opaque >=512`, `colors >=8`, `chroma >=32`, `luminance range >=32`. Game adds `active-level-compositor.png`; Renderer no longer accepts PNG size alone.
+6. **Studio failure evidence.** RED `rendering-failure-evidence-review.test.js`: 0/1. GREEN closes in `finally`, finalizes/renames the Playwright WebM to the standard scenario name, preserves structured capture/cleanup/video errors, always writes `summary.json`, then throws one aggregate failure. The behavior test proves a real 24,000-byte renamed artifact, failed summary, cleanup, and AggregateError.
+
+Focused final integration was 91/91. During broad integration one old Canvas fallback fixture still encoded synthetic GPU zeros; after correcting that adjacent contract, the full suite passed. No tolerance, five-second window, matrix row, WebGPU rule, or video requirement was relaxed.
+
+### App-owned Golden capture
+
+Both adapters independently produce seed `2308` checksum `b3c8457ba89a848a4245bb76156a471f632e31cd879f2c473118d87544e00572`, `frameId: 1`, presentation time `2`:
+
+- camera viewport `(0,0,400,300)`, source `(23,0,192.85714285714283,144.6428571428571)`, scale `2.0740740740740744`;
+- player world `(169.19999999999965,36)`, screen `(303.22962962962896,74.66666666666669)`;
+- `cat-1` world `(132,132)`, screen `(226.0740740740741,273.7777777777778)`, on-screen, distance `4.289813515760324`, color `#ff6b5f`, respawn `0`;
+- display `400x300`, actual/effective DPR `1`, buffer `400x300`, reason `golden-capture`.
+
+### Exact independent browser pass 2
+
+Game `run-2026-08-13T05-10-59-691Z`, port `56831`: 14/14 scenarios, 90 screenshots including 14 compositor PNGs, 14 videos totaling 27,849,479 bytes, minimum 21.28 s. Every row ended `(1,5)` with error 0; pause/map delta 0; radar exactly equaled presentation count; stable resource delta 0.
+
+| Game row | Active ms / presentations | Resource | Pause ms/delta; map ms/delta | Video s/bytes |
+|---|---:|---|---|---:|
+| mobile390 GL | 5000/297 | GPU/0 | 5014/0;5009/0 | 26.08/2,221,860 |
+| mobile412 GL | 5000/297 | GPU/0 | 5011/0;5005/0 | 26.80/2,193,226 |
+| landscape GL | 5000/297 | GPU/0 | 5014/0;5011/0 | 25.32/1,816,021 |
+| desktop60 GL | 5000/297 | GPU/0 | 5003/0;5004/0 | 26.08/2,123,269 |
+| desktop120 GL | 5008.333/299 | GPU/0 | 5008/0;5010/0 | 28.48/2,169,067 |
+| desktop175 GL | 5005.714/291 | GPU/0 | 5003/0;5007/0 | 33.56/2,575,974 |
+| reduced GL | 5000/297 | GPU/0 | 5007/0;5008/0 | 26.68/1,753,229 |
+| mobile390 Canvas | 5000/297 | N/A backing-store/0 | 5015/0;5005/0 | 22.76/1,813,008 |
+| mobile412 Canvas | 5000/297 | N/A backing-store/0 | 5012/0;5011/0 | 22.04/1,776,042 |
+| landscape Canvas | 5000/297 | N/A backing-store/0 | 5014/0;5001/0 | 21.88/1,501,533 |
+| desktop60 Canvas | 5000/297 | N/A backing-store/0 | 5012/0;5015/0 | 22.16/1,827,584 |
+| desktop120 Canvas | 5008.333/300 | N/A backing-store/0 | 5015/0;5011/0 | 27.72/2,274,816 |
+| desktop175 Canvas | 5005.714/291 | N/A backing-store/0 | 5009/0;5004/0 | 32.72/2,524,997 |
+| reduced Canvas | 5000/296 | N/A backing-store/0 | 5004/0;5006/0 | 21.28/1,278,853 |
+
+Studio `run-2026-08-13T05-20-01-526Z-10108`, port `51131`: 15/15 screenshots and videos, 17,140,032 video bytes, minimum 20.92 s. WebGL2 + Canvas2D cover mobile390/mobile412/landscape/desktop60/120/175/reduced; available WebGPU is mandatory. Static/hidden/paused deltas were 0; normal animated 146–150; normal playtest 291–300; reduced animated/playtest 0; every resource delta 0. Canvas rows use `not-applicable/canvas-backing-store`; GPU rows use `applicable/gpu-textures`. WebGPU mobile412 passed natively: static `5007/0`, animated `5000/149`, hidden `5010/0`, active `5000/299`, paused `5017/0`, texture delta 0, video 24.40 s / 834,731 bytes. Game/Renderer real probes recorded `requestAdapter() returned null` as a structured skip.
+
+### Performance, artifacts, and visual inspection
+
+Post-fix benchmark assertion exited 0 in 112.2 s. Auto gameplay/cutscene render-p95 values: Notebook `4.9/5.7` vs 14 ms; Tablet `5.9/6.9` vs 20; Mobile `7.2/10.3` vs 24; Weak-Mobile `16.3/20.6` vs 36. Frame/long budgets remained respectively `34ms/15%`, `34/25`, `34/30`, `52/50`. Canvas benchmark rows now contain only explicit N/A/backing-store metrics; GPU rows retain finite upload/reallocation values. The benchmark remains the performance source of truth; no DevTools number was invented.
+
+Seven exact pass-2 PNGs were manually inspected: Renderer Canvas/WebGL, Game mobile WebGL and landscape Canvas compositor, Studio reduced Canvas, Studio mobile WebGPU, and Studio character visual proof. All showed colored coherent stage/playfield/HUD/editor content; none was gray, blank, cropped away, or a placeholder. `view_image` hit the Windows ACL error even via the visualization root, so disposable JPEG copies were inspected in memory and both exact temporary directories were parent/leaf-guarded and deleted. Original mandatory artifacts were untouched.
+
+### Completion gates after the final fix
+
+- Focused: 91/91.
+- `npm test`: exit 0, 48 s, 571 total (root40, Game155, Publisher21, Studio141, content49, core36, renderer92, coordinator30, testkit7).
+- `npm run build`: exit 0, 10.1 s; Renderer 37 modules/210.73 kB (56.97 gzip), Game 203/422.29 (121.24), Studio 204/454.10 (126.02).
+- Benchmark assert: exit 0, 112.2 s, unchanged budgets, no invalid/asserted failures.
+- Browser pass 1: exit 0, 917.3 s. Renderer port61649; Game `run-2026-08-13T04-55-11-461Z` port57837, 14 scenarios/90 screenshots/14 videos 27,367,944 bytes min21.44s; Studio E2E port57106 40/40, Visual58715 9/9, Rendering `run-2026-08-13T05-04-07-222Z-21776` port63683, 15 screenshots/videos 17,412,263 bytes min20.84s.
+- Browser pass 2: exit 0, 924.0 s. Renderer port53704; Game run/port as above; Studio E2E61710 40/40, Visual59231 9/9, Rendering run/port as above. Same complete counts.
+- `npm ci --ignore-scripts`: exit 0, 4.8 s; 87 installed, 96 audited, 0 vulnerabilities.
+- Final `npm run verify`: exit 0, 1097.1 s. Renderer port58162/3 scenarios/6 artifacts; Game `run-2026-08-13T05-34-31-463Z` port65533, 14/90/14, 27,768,636 video bytes min21.40s; Studio E2E63795 40/40, Visual52696 9/9, Rendering `run-2026-08-13T05-43-34-471Z-28816` port60910, 15/15, 17,184,957 video bytes min20.60s.
+
+All Studio wrappers in all runs reported `code=0 forced=false portClosed=true`; exact port queries returned no listeners and no owned gate/browser/server process remained. Root `test:browser`, `verify`, and CI composition required no code change: existing Task 7 contracts still obligatorily include all five surfaces and retained artifact uploads; structure tests passed.
+
+### Deferred minor, ACL, and concerns
+
+The Task 5 adversarial hover -> down -> up burst disposition remains: first pending reason is diagnostic provenance, while the one presented state is latest pointer-up. None of these parity/diagnostic fixes changes that sound contract, so no unrelated product change was made.
+
+`apply_patch` was attempted first for each existing file/report edit and failed with `helper_unknown_error: apply deny-read ACLs`. Exact path/SHA/unique-anchor guarded PowerShell fallbacks were followed immediately by diff checks; new files used `apply_patch`. One canary had an accidental 5-second tool timeout; an exact zero-process/port audit preceded the successful full rerun. Two disposable visual-copy commands failed safely before mutation/deletion and were retried with explicit guards. No approval was denied.
+
+The only environmental concern is honest capability variance: Game/Renderer Chromium had no WebGPU adapter, while Studio Chromium exposed and passed WebGPU. Known Chrome `ReadPixels` warnings remain diagnostic. No known product, parity, finite-health, artifact, budget, process, or port failure remains after fix round 1.

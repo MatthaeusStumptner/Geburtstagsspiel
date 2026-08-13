@@ -6,12 +6,14 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import { captureLocatorPngVisualHealth } from '../../../tools/browser-visual-health.mjs';
 import {
   assertActionableBoundingBox,
   assertBrowserCoverage,
   assertDprContract,
   assertFinalHealth,
   assertHighRefreshResult,
+  assertStableResourceWindow,
   highRefreshCaptureTimeout,
   assertRadarPresentationContract,
   assertRequiredArtifacts,
@@ -19,7 +21,6 @@ import {
   assertReducedPostProcess,
   assertReducedRadarMotion,
   assertVideoEvidence,
-  assertVisualHealth,
   assertWebGpuDisposition,
   readRendererCounters,
   settleCleanup,
@@ -31,7 +32,8 @@ const RUN_DIR = join(gameRoot, 'output', 'playwright', 'game', RUN_ID);
 const SAVE_KEY = 'gassi-runde-hals-save';
 const APP_WARNING = /(?:renderer|webgl|webgpu|svelte|unhandled|context\s*lost|gassi)/i;
 const FIXED_STEP_TOLERANCE = (5.8 / 120) + 0.006;
-const EXPECTED_HOME_POSITION = Object.freeze({ x: 7, y: 20 });
+const HIGH_REFRESH_START = Object.freeze({ x: 24, y: 5 });
+const EXPECTED_HOME_POSITION = Object.freeze({ x: 1, y: 5 });
 const MATRIX_PROFILES = [
   { name: 'mobile-390-dpr3-60hz', width: 390, height: 844, deviceScaleFactor: 3, mobile: true, refreshRate: 60 },
   { name: 'mobile-412-dpr2625-60hz', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, refreshRate: 60 },
@@ -162,7 +164,7 @@ async function settleStatic(page, scenario, policy) {
     const debug = await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null);
     if (debug?.renderPolicy === policy && debug.scheduler?.pendingReason === 'idle') {
       const current = readRendererCounters(debug, scenario);
-      if (previous && Object.keys(current).every((key) => current[key] === previous[key])) return current;
+      if (previous && JSON.stringify(current) === JSON.stringify(previous)) return current;
       previous = current;
     }
     await delay(80);
@@ -176,7 +178,7 @@ async function assertStaticSleep(page, scenario, policy, label, durationMs = 5_0
   await delay(durationMs);
   const after = readRendererCounters(await page.evaluate(() => window.__GASSI_RENDERER_DEBUG__?.() ?? null), scenario);
   assert.deepEqual(after, before, `[${scenario}] ${label} advanced while static`);
-  return { durationMs: Date.now() - startedAt, before, after, deltas: Object.fromEntries(Object.keys(after).map((key) => [key, after[key] - before[key]])) };
+  return { durationMs: Date.now() - startedAt, before, after };
 }
 
 async function geometry(page) {
@@ -248,27 +250,8 @@ async function shot(page, artifactDir, name) {
   return { path, bytes: info.size };
 }
 
-async function canvasVisualHealth(page, scenario) {
-  const sample = await page.evaluate(() => {
-    const source = document.querySelector('#game');
-    if (!(source instanceof HTMLCanvasElement)) throw new Error('Game canvas is missing');
-    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    context.drawImage(source, 0, 0, 32, 32);
-    const pixels = context.getImageData(0, 0, 32, 32).data;
-    let opaquePixels = 0; let chromaPixels = 0; let minLuminance = 255; let maxLuminance = 0;
-    const colors = new Set();
-    for (let index = 0; index < pixels.length; index += 4) {
-      const red = pixels[index]; const green = pixels[index + 1]; const blue = pixels[index + 2]; const alpha = pixels[index + 3];
-      if (alpha > 0) opaquePixels += 1;
-      if (Math.max(red, green, blue) - Math.min(red, green, blue) >= 12) chromaPixels += 1;
-      const luminance = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
-      minLuminance = Math.min(minLuminance, luminance); maxLuminance = Math.max(maxLuminance, luminance);
-      colors.add(`${red >> 3},${green >> 3},${blue >> 3},${alpha >> 5}`);
-    }
-    return { opaquePixels, uniqueColors: colors.size, chromaPixels, luminanceRange: maxLuminance - minLuminance };
-  });
-  return assertVisualHealth(sample, scenario);
+async function canvasVisualHealth(page, artifactDir, scenario) {
+  return captureLocatorPngVisualHealth(page.locator('#game'), join(artifactDir, 'active-level-compositor.png'), scenario);
 }
 
 async function enterLevel(page, scenario) {
@@ -304,8 +287,8 @@ async function highRefreshWindow(page, scenario) {
     const game = window.__GASSI_DEBUG__();
     window.__GASSI_DEBUG_SET_PLAYER__(player.x, player.y);
     window.__GASSI_DEBUG_SET_CATS__(Array.from({ length: game.radar.frame.cats.length }, (_, index) => ({ x: cat.x + index, y: cat.y })));
-  }, { player: EXPECTED_HOME_POSITION, cat: { x: 40, y: 4 } });
-  await waitFor(page, scenario.name, ({ game }) => game?.player?.x === EXPECTED_HOME_POSITION.x && game?.player?.y === EXPECTED_HOME_POSITION.y && game.radar?.state?.visible, 'deterministic high-Hz fixture');
+  }, { player: HIGH_REFRESH_START, cat: { x: 40, y: 4 } });
+  await waitFor(page, scenario.name, ({ game }) => game?.player?.x === HIGH_REFRESH_START.x && game?.player?.y === HIGH_REFRESH_START.y && game.radar?.state?.visible, 'deterministic high-Hz fixture');
   await page.keyboard.press('KeyP');
   await waitFor(page, scenario.name, ({ game }) => game?.state === 'paused', 'high-Hz baseline pause');
   await page.keyboard.press('ArrowLeft');
@@ -319,12 +302,11 @@ async function highRefreshWindow(page, scenario) {
   const baselineCounters = readRendererCounters(baseline.renderer, scenario.name);
   const measuredCounters = readRendererCounters(measured.renderer, scenario.name);
   const presentationDelta = measuredCounters.rendererFrames - baselineCounters.rendererFrames;
-  const textureReallocations = measuredCounters.textureReallocations - baselineCounters.textureReallocations;
-  assert.equal(textureReallocations, 0, `[${scenario.name}] texture reallocated during stable-size active rendering`);
+  const resourceStability = assertStableResourceWindow(baselineCounters, measuredCounters, scenario.name);
   const positionError = Math.hypot(measured.game.player.x - EXPECTED_HOME_POSITION.x, measured.game.player.y - EXPECTED_HOME_POSITION.y);
-  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE }, scenario.name);
+  assertHighRefreshResult({ presentationDelta, positionError, tolerance: FIXED_STEP_TOLERANCE, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION }, scenario.name);
   const radar = assertRadarPresentationContract({ presentationDelta, baselineRadar: baseline.radar, measuredRadar: measured.game.radar, samples: measured.radarSamples }, scenario.name);
-  return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, textureReallocations, radar, raf: measured.raf };
+  return { durationMs: measured.raf.elapsed, baselinePlayer: baseline.player, finalPlayer: measured.game.player, expectedPlayer: EXPECTED_HOME_POSITION, positionError, presentationDelta, resourceStability, radar, raf: measured.raf };
 }
 
 async function reducedRadarMotion(page, scenario) {
@@ -570,7 +552,8 @@ async function runScenario(browser, baseUrl, scenario) {
     }
     await enterLevel(page, scenario); await delay(320);
     screenshots.push(await shot(page, artifactDir, 'active-level'));
-    const visualHealth = await canvasVisualHealth(page, scenario.name);
+    const visualEvidence = await canvasVisualHealth(page, artifactDir, scenario.name);
+    const visualHealth = visualEvidence.sample; screenshots.push(visualEvidence.artifact);
     const active = await geometry(page); assertGeometryDpr(active, scenario); if (scenario.mobile) assertMobileGeometry(active, scenario);
     const reducedRadar = scenario.reducedMotion === 'reduce' ? await reducedRadarMotion(page, scenario) : null;
     const directMap = await directPlayingToMap(page, scenario, artifactDir);

@@ -43,38 +43,36 @@ function captureBackend() {
   };
 }
 
-async function createAdapterSession(adapter, fixture) {
-  if (adapter === 'game') {
-    const { createBrowserGameSession } = await import('../../../apps/game/src/game/game-session-adapter.js');
-    return createBrowserGameSession(fixture.session);
-  }
-  if (adapter === 'studio') {
-    const { PlaytestEngine } = await import('../../../apps/studio/src/playtest-engine.js');
-    return new PlaytestEngine(fixture.session.level, fixture.session.difficulty);
-  }
+async function captureAdapter(adapter) {
+  if (adapter === 'game') return import('../../../apps/game/test-support/golden-presentation-adapter.js');
+  if (adapter === 'studio') return import('../../../apps/studio/test-support/golden-presentation-adapter.js');
   throw new RangeError(`Unknown golden presentation adapter: ${adapter}`);
 }
 
-export async function renderGoldenFrame({ adapter, fixture, presentationTime }) {
-  if (!fixture || typeof fixture !== 'object') throw new TypeError('Golden presentation fixture is required.');
-  if (!Number.isFinite(presentationTime)) throw new TypeError('Golden presentation time must be finite.');
-  const session = await createAdapterSession(adapter, fixture);
-  const snapshot = runInputScript(session, fixture.inputs);
+function createCaptureRenderer() {
   const renderer = new PassauPixelRenderer(captureCanvas(), {
     pixelRatio: 1,
     quality: 'quality',
     presentationBackend: captureBackend(),
   });
-  try {
-    renderer.resize({ width: 400, height: 300, devicePixelRatio: 1, reason: 'golden-capture' });
-    return renderer.render(snapshot, {
-      alpha: snapshot.interpolationAlpha,
-      cameraEnabled: true,
-      presentationTime,
-    });
-  } finally {
-    renderer.destroy();
-  }
+  renderer.resize({ width: 400, height: 300, devicePixelRatio: 1, reason: 'golden-capture' });
+  return renderer;
+}
+
+export async function renderGoldenCapture({ adapter, fixture, presentationTime }) {
+  if (!fixture || typeof fixture !== 'object') throw new TypeError('Golden presentation fixture is required.');
+  if (!Number.isFinite(presentationTime)) throw new TypeError('Golden presentation time must be finite.');
+  const adapterModule = await captureAdapter(adapter);
+  return adapterModule.captureGoldenPresentation({
+    fixture,
+    presentationTime,
+    runInputScript,
+    createRenderer: createCaptureRenderer,
+  });
+}
+
+export async function renderGoldenFrame(options) {
+  return (await renderGoldenCapture(options)).frame;
 }
 
 function deepFreeze(value) {

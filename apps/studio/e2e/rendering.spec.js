@@ -1,15 +1,17 @@
 import { test, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   assertBrowserCoverage,
   assertRequiredArtifacts,
+  assertStableResourceWindow,
   assertVisualHealth,
   assertWebGpuDisposition,
 } from '../../game/scripts/browser-regression-contracts.mjs';
 import { loadStaticCanvasFixture, openCleanEditor, persistActiveDraft } from './studio-test-helpers.js';
+import { completeRenderingGate, renderingErrorRecord, runCapturedScenario } from './rendering-gate-runner.js';
 
 const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const runId = process.env.STUDIO_GATE_RUN_ID ?? `run-${Date.now()}-${process.pid}`;
@@ -148,8 +150,17 @@ function assertPresentationCapture(debug, surfaceId, backend, scenario) {
   assert.equal(frame.renderer?.fallbackReason, null, `[${scenario}] backend fallback is not allowed`);
   assert.equal(frame.renderer?.contextLost, false, `[${scenario}] renderer reports context loss`);
   finite(frame.renderer?.frameCount, 'renderer.frameCount', scenario);
-  finite(frame.renderer?.textureReallocations, 'renderer.textureReallocations', scenario);
-  return capture;
+  let resources;
+  if (backend === 'canvas2d') {
+    assert.equal(frame.renderer?.resourceMetrics?.applicability, 'not-applicable', `[${scenario}] Canvas2D GPU resources must be not-applicable`);
+    assert.equal(frame.renderer.resourceMetrics.reason, 'canvas2d-cpu-compositor', `[${scenario}] Canvas2D resource reason is invalid`);
+    assert.equal(Object.hasOwn(frame.renderer, 'textureReallocations'), false, `[${scenario}] Canvas2D must not expose fake texture reallocations`);
+    resources = { applicability: 'not-applicable', reason: frame.renderer.resourceMetrics.reason, kind: 'canvas-backing-store', value: finite(frame.renderer.backingStoreResizes, 'renderer.backingStoreResizes', scenario) };
+  } else {
+    assert.equal(frame.renderer?.resourceMetrics?.applicability, 'applicable', `[${scenario}] GPU resource applicability is invalid`);
+    resources = { applicability: 'applicable', kind: 'gpu-textures', value: finite(frame.renderer.textureReallocations, 'renderer.textureReallocations', scenario) };
+  }
+  return { ...capture, resources };
 }
 
 async function canvasVisualHealth(locator, scenario) {
@@ -234,8 +245,11 @@ async function runScenario(browser, scenario) {
     recordVideo: { dir: artifactDir, size: { width: scenario.width, height: scenario.height } },
   });
   const consoleErrors = []; const pageErrors = []; const crashes = [];
-  let page; let video; let result;
-  try {
+  let page; let video;
+  const result = await runCapturedScenario({
+    scenario,
+    artifactDir,
+    execute: async () => {
     page = await context.newPage(); video = page.video();
     page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
@@ -279,8 +293,7 @@ async function runScenario(browser, scenario) {
     assert.ok(activePlaytest.delta <= 301, `[${scenario.name}] active playtest exceeded 301 presentations`);
     const afterDebug = await page.evaluate(() => window.__FRANZ_LOLA_STUDIO_RENDER_DEBUG__?.());
     const afterCapture = assertPresentationCapture(afterDebug, 'studio-playtest-workspace', scenario.backend, `${scenario.name}:playtest-after`);
-    const textureReallocations = afterCapture.frame.renderer.textureReallocations - beforeCapture.frame.renderer.textureReallocations;
-    assert.equal(textureReallocations, 0, `[${scenario.name}] stable-size playtest reallocated textures`);
+    const resourceStability = assertStableResourceWindow(beforeCapture, afterCapture, scenario.name);
     const playtestVisual = await canvasVisualHealth(playtest, `${scenario.name}:playtest`);
     await page.locator('.playtest-hud').getByRole('button', { name: /Pause/ }).click();
     await expect(playtest).toHaveAttribute('data-render-profile', 'editor');
@@ -298,25 +311,41 @@ async function runScenario(browser, scenario) {
     assert.deepEqual(consoleErrors, [], `[${scenario.name}] console errors`);
     assert.deepEqual(pageErrors, [], `[${scenario.name}] page errors`);
     assert.deepEqual(crashes, [], `[${scenario.name}] crashes`);
-    result = {
+    return {
       name: scenario.name, status: 'passed', backend: scenario.backend, resolvedBackend: afterCapture.frame.renderer.backend,
       width: scenario.width, height: scenario.height, deviceScaleFactor: scenario.deviceScaleFactor,
       refreshRate: scenario.refreshRate, reducedMotion: scenario.reducedMotion === 'reduce',
-      budgets: { staticEditor, animatedThumbnail: animatedWindow, hiddenThumbnail, activePlaytest, pausedPlaytest, textureReallocations },
+      budgets: { staticEditor, animatedThumbnail: animatedWindow, hiddenThumbnail, activePlaytest, pausedPlaytest, resourceStability },
       visuals: { level: levelVisual, playtest: playtestVisual },
       screenshot: { path: screenshotPath, bytes: screenshotInfo.size },
       diagnostics: { browser: browserDiagnostics, consoleErrors, pageErrors, crashes },
     };
-  } finally {
-    if (page && !page.isClosed()) await page.close();
-    await context.close();
-  }
-  const originalVideo = await video.path();
-  const targetVideo = join(artifactDir, `${scenario.name}.webm`);
-  if (originalVideo !== targetVideo) await rename(originalVideo, targetVideo);
-  const videoInfo = await stat(targetVideo); const durationSeconds = await webmDurationSeconds(browser, targetVideo, scenario.name);
-  result.video = { path: targetVideo, bytes: videoInfo.size, durationSeconds };
-  assertRequiredArtifacts([{ screenshot: result.screenshot, video: result.video }], 1);
+    },
+    captureFailure: async () => {
+      const screenshotPath = join(artifactDir, `${scenario.name}.png`);
+      let screenshot = null;
+      if (page && !page.isClosed()) {
+        await page.screenshot({ path: screenshotPath, fullPage: false, animations: 'allow' });
+        const screenshotInfo = await stat(screenshotPath);
+        screenshot = { path: screenshotPath, bytes: screenshotInfo.size };
+      }
+      const browserDiagnostics = page && !page.isClosed()
+        ? await page.evaluate(() => window.__TASK7_DIAGNOSTICS__).catch(() => null)
+        : null;
+      return { screenshot, diagnostics: { browser: browserDiagnostics, consoleErrors, pageErrors, crashes } };
+    },
+    close: async () => {
+      if (page && !page.isClosed()) await page.close();
+      await context.close();
+    },
+    video: () => video,
+    measureVideo: async (targetVideo) => {
+      const videoInfo = await stat(targetVideo);
+      const durationSeconds = await webmDurationSeconds(browser, targetVideo, scenario.name);
+      return { path: targetVideo, bytes: videoInfo.size, durationSeconds };
+    },
+  });
+  if (result.status === 'passed') assertRequiredArtifacts([{ screenshot: result.screenshot, video: result.video }], 1);
   return result;
 }
 
@@ -324,21 +353,24 @@ test('shared rendering completion matrix @rendering-gate', async ({ browser }) =
   assert.ok(baseUrl, 'PLAYWRIGHT_BASE_URL is required; run through the ephemeral-port gate wrapper.');
   await mkdir(runDir, { recursive: true });
   const summary = { runId, port: Number(process.env.STUDIO_GATE_PORT), baseUrl, startedAt: new Date().toISOString(), scenarios: [] };
-  const webGpu = await probeWebGpu(browser);
-  const matrix = [...baseMatrix];
-  if (webGpu.available) matrix.push({ ...profiles[1], name: `${profiles[1].name}-webgpu`, backend: 'webgpu' });
-  const only = process.env.STUDIO_GATE_SCENARIO;
-  const selectedMatrix = only ? matrix.filter((scenario) => scenario.name === only) : matrix;
-  assert.ok(selectedMatrix.length > 0, 'Unknown Studio gate scenario: ' + only);
-  for (const scenario of selectedMatrix) summary.scenarios.push(await runScenario(browser, scenario));
-  summary.webGpu = webGpu.available
-    ? { status: 'passed', resolvedBackend: summary.scenarios.find((scenario) => scenario.backend === 'webgpu')?.resolvedBackend }
-    : { status: 'skipped', reason: webGpu.reason };
-  if (!only) {
-    assertWebGpuDisposition(webGpu, summary.webGpu);
-    assertBrowserCoverage(summary.scenarios);
-    assertRequiredArtifacts(summary.scenarios.map(({ screenshot, video }) => ({ screenshot, video })), matrix.length);
+  try {
+    const webGpu = await probeWebGpu(browser);
+    const matrix = [...baseMatrix];
+    if (webGpu.available) matrix.push({ ...profiles[1], name: `${profiles[1].name}-webgpu`, backend: 'webgpu' });
+    const only = process.env.STUDIO_GATE_SCENARIO;
+    const selectedMatrix = only ? matrix.filter((scenario) => scenario.name === only) : matrix;
+    assert.ok(selectedMatrix.length > 0, 'Unknown Studio gate scenario: ' + only);
+    for (const scenario of selectedMatrix) summary.scenarios.push(await runScenario(browser, scenario));
+    summary.webGpu = webGpu.available
+      ? { status: 'passed', resolvedBackend: summary.scenarios.find((scenario) => scenario.backend === 'webgpu')?.resolvedBackend }
+      : { status: 'skipped', reason: webGpu.reason };
+    if (!only) {
+      assertWebGpuDisposition(webGpu, summary.webGpu);
+      assertBrowserCoverage(summary.scenarios);
+      assertRequiredArtifacts(summary.scenarios.map(({ screenshot, video }) => ({ screenshot, video })), matrix.length);
+    }
+  } catch (error) {
+    summary.error = renderingErrorRecord(error);
   }
-  summary.finishedAt = new Date().toISOString(); summary.status = 'passed';
-  await writeFile(join(runDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+  await completeRenderingGate({ summaryPath: join(runDir, 'summary.json'), summary });
 });

@@ -27,6 +27,7 @@ import {
   setDebugCatPositions,
   setDebugPlayerPosition,
 } from './game/game-session-adapter.js';
+import { createGamePresentation } from './game/game-presentation.js';
 import { PASSAU_LEVELS, publishedEventStorageKeys, publishedLevel } from './game/level-catalog.js';
 import { BrowserSaveStore } from './platform/browser-save-store.js';
 import { migrateSave } from './platform/save-migrations.js';
@@ -1749,7 +1750,7 @@ function presentGame(_reason, timestamp) {
   if (!pixelRenderer || !activeLevelDocument || !player) return;
   const { viewport: playViewport } = gameplayLayout.snapshot();
   const cutsceneSnapshot = state === 'cutscene' ? levelCutscenePlayer.snapshot() : null;
-  const renderState = pixelRenderer.render(cutsceneSnapshot ? {
+  const presentation = createGamePresentation(cutsceneSnapshot ? {
     level: activeLevelDocument,
     player: cutsceneSnapshot.player,
     cats: cutsceneSnapshot.cats,
@@ -1788,6 +1789,7 @@ function presentGame(_reason, timestamp) {
     staticRevision: staticWorldRevision,
     sceneChanged: ['playing', 'hit', 'cutscene'].includes(state),
   });
+  const renderState = pixelRenderer.render(presentation.snapshot, presentation.options);
   const catRadarState = calculateCatRadar(renderState, {
     active: isCameraGameView() && ['playing', 'hit'].includes(state),
   });
