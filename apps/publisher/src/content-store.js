@@ -1,6 +1,15 @@
 import { CONTENT_TYPES, validateContentDocument } from '@franz-lola/content-model';
 
 const REGISTRY_TYPES = Object.freeze(CONTENT_TYPES.filter((type) => type !== 'level'));
+const CONTENT_TABLES = Object.freeze({
+  character: 'characters',
+  tileset: 'tilesets',
+  block: 'blocks',
+  animation: 'animations',
+  cutscene: 'cutscenes',
+  object: 'assets',
+  event: 'events',
+});
 const MAX_CONTENT_BYTES = 1_000_000;
 const MAX_REFERENCES = 20;
 const RETAINED_REVISIONS = 20;
@@ -31,6 +40,10 @@ export function assertContentType(value) {
   const type = String(value ?? '');
   if (!REGISTRY_TYPES.includes(type)) throw new Error('Dieser Inhaltstyp gehört nicht in die gemeinsame Bibliothek.');
   return type;
+}
+
+export function contentTable(value) {
+  return CONTENT_TABLES[assertContentType(value)];
 }
 
 export function assertContentId(value) {
@@ -74,25 +87,27 @@ function publicItem(row, { includeContent = true } = {}) {
 
 async function contentRow(db, type, id, { includeDeleted = false } = {}) {
   assertDatabase(db);
+  const normalizedType = assertContentType(type);
+  const table = contentTable(normalizedType);
   return db.prepare(`/* content-by-id */
-    SELECT content_type, id, display_name, description, document_json, revision, status,
+    SELECT '${normalizedType}' AS content_type, id, display_name, description, document_json, revision, status,
            updated_by, updated_at, published_revision, published_commit_sha,
            published_document_json, publication_id, deleted_at
-      FROM content_items
-     WHERE content_type = ? AND id = ? ${includeDeleted ? '' : 'AND deleted_at IS NULL'}`)
-    .bind(assertContentType(type), assertContentId(id)).first();
+      FROM ${table}
+     WHERE id = ? ${includeDeleted ? '' : 'AND deleted_at IS NULL'}`)
+    .bind(assertContentId(id)).first();
 }
 
 export async function listContentItems(db, { type = '', includeContent = false } = {}) {
   assertDatabase(db);
   const normalizedType = type ? assertContentType(type) : '';
-  const result = await db.prepare(`/* list-content */
-    SELECT content_type, id, display_name, description, ${includeContent ? 'document_json,' : ''}
+  const selectedTypes = normalizedType ? [normalizedType] : REGISTRY_TYPES;
+  const selects = selectedTypes.map((entryType) => `
+    SELECT '${entryType}' AS content_type, id, display_name, description, ${includeContent ? 'document_json,' : ''}
            revision, status, updated_by, updated_at, published_revision, published_commit_sha, publication_id
-      FROM content_items
-     WHERE deleted_at IS NULL ${normalizedType ? 'AND content_type = ?' : ''}
-     ORDER BY content_type ASC, updated_at DESC, id ASC`)
-    .bind(...(normalizedType ? [normalizedType] : [])).all();
+      FROM ${contentTable(entryType)} WHERE deleted_at IS NULL`).join(' UNION ALL ');
+  const result = await db.prepare(`/* list-content */
+    SELECT * FROM (${selects}) ORDER BY content_type ASC, updated_at DESC, id ASC`).all();
   return result.results.map((row) => publicItem(row, { includeContent }));
 }
 
@@ -109,11 +124,11 @@ async function conflict(db, type, id) {
 
 async function pruneRevisions(db, type, id) {
   await db.prepare(`/* prune-content-revisions */
-    DELETE FROM content_revisions
+    DELETE FROM entity_revisions
      WHERE content_type = ? AND content_id = ?
        AND action NOT IN ('published', 'published-sync')
        AND revision NOT IN (
-         SELECT revision FROM content_revisions
+         SELECT revision FROM entity_revisions
           WHERE content_type = ? AND content_id = ?
           ORDER BY revision DESC LIMIT ?
        )`).bind(type, id, type, id, RETAINED_REVISIONS).run();
@@ -134,28 +149,29 @@ export async function saveContentItem(db, input, { expectedRevision = 0, login, 
 
   const now = new Date().toISOString();
   const nextRevision = baseRevision + 1;
+  const table = contentTable(type);
   const statements = current ? [
     db.prepare(`/* update-content */
-      UPDATE content_items
+      UPDATE ${table}
          SET display_name = ?, description = ?, document_json = ?, revision = ?, status = 'draft',
              updated_by = ?, updated_at = ?, deleted_at = NULL, publication_id = NULL
-       WHERE content_type = ? AND id = ? AND revision = ?`)
-      .bind(content.name.slice(0, 160), content.description.slice(0, 500), documentJson, nextRevision, editor, now, type, id, baseRevision),
+       WHERE id = ? AND revision = ?`)
+      .bind(content.name.slice(0, 160), content.description.slice(0, 500), documentJson, nextRevision, editor, now, id, baseRevision),
   ] : [
     db.prepare(`/* insert-content */
-      INSERT INTO content_items
-        (content_type, id, display_name, description, document_json, revision, status, updated_by, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, 'draft', ?, ?)`)
-      .bind(type, id, content.name.slice(0, 160), content.description.slice(0, 500), documentJson, editor, now),
+      INSERT INTO ${table}
+        (id, display_name, description, document_json, revision, status, updated_by, updated_at)
+      VALUES (?, ?, ?, ?, 1, 'draft', ?, ?)`)
+      .bind(id, content.name.slice(0, 160), content.description.slice(0, 500), documentJson, editor, now),
   ];
   statements.push(
     db.prepare(`/* insert-content-revision */
-      INSERT INTO content_revisions (content_type, content_id, revision, document_json, created_by, created_at, action)
+      INSERT INTO entity_revisions (content_type, content_id, revision, document_json, created_by, created_at, action)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(type, id, nextRevision, documentJson, editor, now, action),
-    db.prepare('/* clear-content-dependencies */ DELETE FROM content_dependencies WHERE source_type = ? AND source_id = ?').bind(type, id),
+    db.prepare('/* clear-content-dependencies */ DELETE FROM entity_dependencies WHERE source_type = ? AND source_id = ?').bind(type, id),
     ...content.dependencies.map((dependency) => db.prepare(`/* insert-content-dependency */
-      INSERT INTO content_dependencies
+      INSERT INTO entity_dependencies
         (source_type, source_id, source_revision, target_type, target_id, target_revision, relation)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(type, id, nextRevision, dependency.type, dependency.id, dependency.revision ?? null, dependency.relation)),
@@ -181,13 +197,14 @@ export async function deleteContentItem(db, type, id, { expectedRevision, login 
   if (!Number.isInteger(expected) || Number(current.revision) !== expected) throw await conflict(db, type, id);
   const nextRevision = expected + 1;
   const now = new Date().toISOString();
+  const table = contentTable(current.content_type);
   const [write] = await db.batch([
     db.prepare(`/* delete-content */
-      UPDATE content_items SET revision = ?, status = 'deleted', updated_by = ?, updated_at = ?, deleted_at = ?, publication_id = NULL
-       WHERE content_type = ? AND id = ? AND revision = ? AND deleted_at IS NULL`)
-      .bind(nextRevision, String(login || '').slice(0, 160), now, now, current.content_type, current.id, expected),
+      UPDATE ${table} SET revision = ?, status = 'deleted', updated_by = ?, updated_at = ?, deleted_at = ?, publication_id = NULL
+       WHERE id = ? AND revision = ? AND deleted_at IS NULL`)
+      .bind(nextRevision, String(login || '').slice(0, 160), now, now, current.id, expected),
     db.prepare(`/* insert-content-revision */
-      INSERT INTO content_revisions (content_type, content_id, revision, document_json, created_by, created_at, action)
+      INSERT INTO entity_revisions (content_type, content_id, revision, document_json, created_by, created_at, action)
       VALUES (?, ?, ?, ?, ?, ?, 'delete')`)
       .bind(current.content_type, current.id, nextRevision, current.document_json, String(login || '').slice(0, 160), now),
   ]);
@@ -205,11 +222,11 @@ export async function resolveContentReferences(db, references) {
   if (new Set(normalized.map((entry) => `${entry.type}:${entry.id}`)).size !== normalized.length) throw new Error('Jeder Bibliotheksinhalt darf nur einmal vorkommen.');
   if (!normalized.length) return [];
   const rows = await db.batch(normalized.map((entry) => db.prepare(`/* content-reference */
-    SELECT content_type, id, display_name, description, document_json, revision, status, updated_by, updated_at,
+    SELECT '${entry.type}' AS content_type, id, display_name, description, document_json, revision, status, updated_by, updated_at,
            published_revision, published_commit_sha, publication_id
-      FROM content_items
-     WHERE content_type = ? AND id = ? AND revision = ? AND deleted_at IS NULL`)
-    .bind(entry.type, entry.id, entry.revision)));
+      FROM ${contentTable(entry.type)}
+     WHERE id = ? AND revision = ? AND deleted_at IS NULL`)
+    .bind(entry.id, entry.revision)));
   return normalized.map((entry, index) => {
     const row = rows[index]?.results?.[0];
     if (!row) throw new ContentConflictError(`Der Inhalt „${entry.type}:${entry.id}“ ist nicht mehr in Revision ${entry.revision} aktuell.`);
@@ -229,9 +246,9 @@ export async function recordContentPublication(db, { number, items }) {
         revision = excluded.revision, target_path = excluded.target_path, document_json = excluded.document_json`)
       .bind(publicationId, item.type, item.id, item.revision, item.path, JSON.stringify(item.content)));
     statements.push(db.prepare(`/* mark-content-publishing */
-      UPDATE content_items SET status = 'publishing', publication_id = ?
-       WHERE content_type = ? AND id = ? AND revision = ? AND deleted_at IS NULL`)
-      .bind(publicationId, item.type, item.id, item.revision));
+      UPDATE ${contentTable(item.type)} SET status = 'publishing', publication_id = ?
+       WHERE id = ? AND revision = ? AND deleted_at IS NULL`)
+      .bind(publicationId, item.id, item.revision));
   });
   await db.batch(statements);
 }
@@ -245,15 +262,15 @@ export async function finishContentPublication(db, publicationId, result) {
   if (!snapshots.results.length) return;
   const statements = snapshots.results.map((snapshot) => result.state === 'published'
     ? db.prepare(`/* publish-content-snapshot */
-        UPDATE content_items
+        UPDATE ${contentTable(snapshot.content_type)}
            SET published_revision = ?, published_commit_sha = ?, published_document_json = ?,
                status = CASE WHEN revision = ? THEN 'published' ELSE 'draft' END,
                publication_id = CASE WHEN publication_id = ? THEN NULL ELSE publication_id END
-         WHERE content_type = ? AND id = ?`)
-      .bind(snapshot.revision, result.commit || '', snapshot.document_json, snapshot.revision, id, snapshot.content_type, snapshot.content_id)
+         WHERE id = ?`)
+      .bind(snapshot.revision, result.commit || '', snapshot.document_json, snapshot.revision, id, snapshot.content_id)
     : db.prepare(`/* fail-content-publication */
-        UPDATE content_items SET status = 'draft', publication_id = NULL
-         WHERE content_type = ? AND id = ? AND publication_id = ?`)
-      .bind(snapshot.content_type, snapshot.content_id, id));
+        UPDATE ${contentTable(snapshot.content_type)} SET status = 'draft', publication_id = NULL
+         WHERE id = ? AND publication_id = ?`)
+      .bind(snapshot.content_id, id));
   await db.batch(statements);
 }

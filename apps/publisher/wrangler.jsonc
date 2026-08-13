@@ -40,7 +40,7 @@
     "GITHUB_REPO": "Geburtstagsspiel",
     "GITHUB_BASE_BRANCH": "main",
     "EDITOR_ORIGIN": "https://matthaeusstumptner.github.io",
-    "EDITOR_PATH_PREFIX": "/Pacman_clone_level_editor/",
+    "EDITOR_PATH_PREFIX": "/Geburtstagsspiel/studio/",
     "GAME_URL": "https://matthaeusstumptner.github.io/Geburtstagsspiel/"
   }
 }

@@ -1,13 +1,11 @@
-import { createPublication, exchangeGithubCode, listPublishedLevels, publicationStatus, readRepositoryFile } from './github.js';
-import { preparePublishedBatch, preparePublishedContent, preparePublishedLevel, publishLevelsFromBody, readPublishBody } from './level-publication.js';
+import { exchangeGithubCode, listPublishedLevels, readRepositoryFile } from './github.js';
+import { publishLevelsFromBody, readPublishBody } from './level-publication.js';
 import {
   ContentConflictError,
   ContentNotFoundError,
   deleteContentItem,
-  finishContentPublication,
   listContentItems,
   readContentItem,
-  recordContentPublication,
   resolveContentReferences,
   saveContentItem,
 } from './content-store.js';
@@ -15,14 +13,13 @@ import {
   deleteDraft,
   DraftConflictError,
   DraftNotFoundError,
-  finishPublication,
   listDrafts,
   readDraft,
-  recordPublication,
   resolveDraftReferences,
   saveDraft,
   syncPublishedDraft,
 } from './draft-store.js';
+import { createLiveRelease, readCurrentLiveRelease, readLiveRelease } from './live-release-store.js';
 import {
   bearerToken,
   corsHeaders,
@@ -163,54 +160,34 @@ async function publish(request, env, session) {
   const contentItems = await resolveContentReferences(env.LEVEL_DB, Array.isArray(body?.items) ? body.items : []);
   if (!drafts.length && !contentItems.length) throw new Error('Bitte mindestens einen Inhalt auswählen.');
   if (drafts.length + contentItems.length > 20) throw new Error('Es können höchstens 20 Inhalte auf einmal veröffentlicht werden.');
-  const levels = drafts.map((draft) => draft.level);
-  const publishedFiles = await listPublishedLevels(env);
-  const initial = levels.map((level, index) => preparePublishedLevel(level, { existing: null, nextMapOrder: publishedFiles.length + index }));
-  const existingFiles = await Promise.all(initial.map((entry) => readRepositoryFile(env, entry.path)));
-  const existingByPath = new Map(initial.map((entry, index) => [entry.path, existingFiles[index]?.value ?? null]));
-  const prepared = preparePublishedBatch(levels, { existingByPath, nextMapOrder: publishedFiles.length });
-  const preparedItems = contentItems.map((item) => ({ ...item, ...preparePublishedContent(item.content) }));
-  const publication = await createPublication(env, {
-    files: [
-      ...prepared.map((entry) => ({
-        path: entry.path,
-        content: entry.value,
-        level: entry.value,
-        item: { type: 'level', id: entry.value.id, name: entry.value.name.standard },
-        warnings: entry.warnings,
-      })),
-      ...preparedItems.map((entry) => ({
-        path: entry.path,
-        content: entry.value,
-        item: { type: entry.type, id: entry.id, name: entry.name },
-        warnings: entry.warnings,
-      })),
-    ],
+  const [draftSummaries, allItems] = await Promise.all([
+    listDrafts(env.LEVEL_DB),
+    listContentItems(env.LEVEL_DB, { includeContent: true }),
+  ]);
+  const allDrafts = await Promise.all(draftSummaries.map((draft) => readDraft(env.LEVEL_DB, draft.id)));
+  const release = await createLiveRelease(env.LEVEL_DB, {
     login: session.login,
+    drafts,
+    items: contentItems,
+    fallback: { levels: allDrafts, items: allItems },
   });
-  await recordPublication(env.LEVEL_DB, { number: publication.number, login: session.login, drafts });
-  await recordContentPublication(env.LEVEL_DB, {
-    number: publication.number,
-    items: preparedItems.map((entry) => ({ ...entry, content: entry.value })),
-  });
-  const warnings = prepared.flatMap((entry) => entry.warnings.map((warning) => `${entry.value.name.standard}: ${warning}`));
-  const count = prepared.length + preparedItems.length;
+  const count = drafts.length + contentItems.length;
   return json({
-    publicationId: publication.number,
-    state: 'testing',
-    phase: 'upload-complete',
-    phaseLabel: 'Inhalte sicher übertragen',
-    progress: 22,
-    detail: `${count === 1 ? 'Der Inhalt wurde' : `${count} Inhalte wurden`} übertragen und werden automatisch geprüft.`,
-    prUrl: publication.url,
-    warnings,
-    levelIds: prepared.map((entry) => entry.value.id),
-    contentIds: preparedItems.map((entry) => `${entry.type}:${entry.id}`),
+    publicationId: release.id,
+    releaseId: release.id,
+    state: 'published',
+    phase: 'published',
+    phaseLabel: 'Sofort live',
+    progress: 100,
+    detail: `${count === 1 ? 'Der Inhalt ist' : `${count} Inhalte sind`} jetzt live.`,
+    gameUrl: env.GAME_URL,
+    warnings: [],
+    levelIds: drafts.map((draft) => draft.id),
+    contentIds: contentItems.map((item) => `${item.type}:${item.id}`),
     drafts: drafts.map((draft) => ({ id: draft.id, revision: draft.revision })),
-    items: preparedItems.map((item) => ({ type: item.type, id: item.id, revision: item.revision })),
-  }, { status: 202, request, env });
+    items: contentItems.map((item) => ({ type: item.type, id: item.id, revision: item.revision })),
+  }, { status: 201, request, env });
 }
-
 export function contentRouteMatch(path) {
   const match = /^\/api\/content\/(character|tileset|block|animation|cutscene|object|event)\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
   return match ? [match[1], match[2]] : null;
@@ -270,13 +247,11 @@ async function api(request, env, path) {
     }), { request, env });
   }
   if (path === '/api/publish' && request.method === 'POST') return publish(request, env, session);
-  const publicationMatch = /^\/api\/publications\/(\d+)$/.exec(path);
+  const publicationMatch = /^\/api\/publications\/([a-z0-9][a-z0-9-]{0,79})$/.exec(path);
   if (publicationMatch && request.method === 'GET') {
-    const publicationId = Number(publicationMatch[1]);
-    const status = await publicationStatus(env, publicationId);
-    await finishPublication(env.LEVEL_DB, publicationId, status);
-    await finishContentPublication(env.LEVEL_DB, publicationId, status);
-    return json(status, { request, env });
+    const release = await readLiveRelease(env.LEVEL_DB, publicationMatch[1]);
+    if (!release) return json({ error: 'Live-Release nicht gefunden.' }, { status: 404, request, env });
+    return json({ state: 'published', phase: 'published', progress: 100, detail: 'Der Inhalt ist live.', gameUrl: env.GAME_URL, releaseId: release.id }, { request, env });
   }
   return json({ error: 'API-Endpunkt nicht gefunden.' }, { status: 404, request, env });
 }
@@ -286,6 +261,17 @@ export default {
     const url = new URL(request.url);
     const missing = missingSecretBindings(env);
     const hasDatabase = databaseAvailable(env);
+    if (request.method === 'GET' && url.pathname === '/api/live/current') {
+      if (!hasDatabase) return json({ error: 'Die Live-Datenbank fehlt.' }, { status: 503, request, env });
+      const release = await readCurrentLiveRelease(env.LEVEL_DB);
+      return release ? json(release, { request, env, headers: { 'Cache-Control': 'no-store' } }) : json({ error: 'Noch kein Live-Release vorhanden.' }, { status: 404, request, env });
+    }
+    const liveReleaseMatch = /^\/api\/live\/releases\/([a-z0-9][a-z0-9-]{0,79})$/.exec(url.pathname);
+    if (request.method === 'GET' && liveReleaseMatch) {
+      if (!hasDatabase) return json({ error: 'Die Live-Datenbank fehlt.' }, { status: 503, request, env });
+      const release = await readLiveRelease(env.LEVEL_DB, liveReleaseMatch[1]);
+      return release ? json(release, { request, env, headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } }) : json({ error: 'Live-Release nicht gefunden.' }, { status: 404, request, env });
+    }
     if (url.pathname === '/health') {
       return json({
         ok: missing.length === 0 && hasDatabase,

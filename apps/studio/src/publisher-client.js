@@ -164,7 +164,7 @@ export class PublisherClient {
   }
 
   publication(publicationId) {
-    if (!Number.isInteger(publicationId) || publicationId < 1) throw new Error('Ungültige Veröffentlichungsnummer.');
+    if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(String(publicationId ?? ''))) throw new Error('Ungültige Veröffentlichungs-ID.');
     return this.#request(`/api/publications/${publicationId}`);
   }
 }

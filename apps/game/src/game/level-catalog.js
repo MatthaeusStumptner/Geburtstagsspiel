@@ -10,44 +10,44 @@ function normalizePublishedLevel(raw, sourcePath) {
   const mapOrder = Number(raw?.source?.mapOrder);
   return {
     ...result.value,
-    source: {
-      ...result.value.source,
-      mapOrder: Number.isInteger(mapOrder) && mapOrder >= 0 ? mapOrder : Number.MAX_SAFE_INTEGER,
-    },
+    source: { ...result.value.source, mapOrder: Number.isInteger(mapOrder) && mapOrder >= 0 ? mapOrder : Number.MAX_SAFE_INTEGER },
   };
 }
 
-const ids = new Set();
-export const LEVEL_DOCUMENTS = Object.freeze(rawCatalog.levels
-  .map((raw) => normalizePublishedLevel(raw, `content/levels/${raw?.id ?? 'unknown'}.level.json`))
-  .sort((left, right) => left.source.mapOrder - right.source.mapOrder || left.id.localeCompare(right.id))
-  .map((level) => {
-    if (ids.has(level.id)) throw new Error(`Doppelte veröffentlichte Level-ID: ${level.id}`);
-    ids.add(level.id);
-    return Object.freeze(level);
-  }));
+function buildCatalog(levels) {
+  if (!Array.isArray(levels) || !levels.length) throw new Error('Es wurden keine veröffentlichten Level gefunden.');
+  const ids = new Set();
+  const documents = Object.freeze(levels
+    .map((raw) => normalizePublishedLevel(raw, `live:${raw?.id ?? 'unknown'}`))
+    .sort((left, right) => left.source.mapOrder - right.source.mapOrder || left.id.localeCompare(right.id))
+    .map((level) => {
+      if (ids.has(level.id)) throw new Error(`Doppelte veröffentlichte Level-ID: ${level.id}`);
+      ids.add(level.id);
+      return Object.freeze(level);
+    }));
+  const map = Object.freeze(documents.map((level) => Object.freeze({
+    id: level.id, icon: level.icon, lat: level.location.latitude, lon: level.location.longitude,
+    layout: level.source.gameLayout, river: level.location.area, home: level.source.home,
+    markerClass: mapMarkerClasses.has(level.source.markerClass) ? level.source.markerClass : '',
+    theme: level.theme.id === 'neighborhood' ? '' : level.theme.id, palette: level.theme.palette,
+    name: level.name, description: level.description, mission: level.mission,
+  })));
+  return { documents, map };
+}
 
-if (!LEVEL_DOCUMENTS.length) throw new Error('Es wurden keine veröffentlichten Level gefunden.');
+export let LEVEL_DOCUMENTS;
+export let PASSAU_LEVELS;
 
-export const PASSAU_LEVELS = Object.freeze(LEVEL_DOCUMENTS.map((level) => Object.freeze({
-  id: level.id,
-  icon: level.icon,
-  lat: level.location.latitude,
-  lon: level.location.longitude,
-  layout: level.source.gameLayout,
-  river: level.location.area,
-  home: level.source.home,
-  markerClass: mapMarkerClasses.has(level.source.markerClass) ? level.source.markerClass : '',
-  theme: level.theme.id === 'neighborhood' ? '' : level.theme.id,
-  palette: level.theme.palette,
-  name: level.name,
-  description: level.description,
-  mission: level.mission,
-})));
+export function installPublishedLevels(levels) {
+  const catalog = buildCatalog(levels);
+  LEVEL_DOCUMENTS = catalog.documents;
+  PASSAU_LEVELS = catalog.map;
+}
+
+installPublishedLevels(rawCatalog.levels);
 
 export function publishedLevel(id) {
-  const level = LEVEL_DOCUMENTS.find((entry) => entry.id === id) ?? LEVEL_DOCUMENTS[0];
-  return clone(level);
+  return clone(LEVEL_DOCUMENTS.find((entry) => entry.id === id) ?? LEVEL_DOCUMENTS[0]);
 }
 
 export function publishedEventStorageKeys() {

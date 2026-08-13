@@ -26,48 +26,40 @@ class FakeD1 {
   async batch(statements) { return Promise.all(statements.map((statement) => this.execute(statement, 'run'))); }
   marker(sql) { return /\/\* ([\w-]+) \*\//.exec(sql)?.[1]; }
   key(type, id) { return `${type}:${id}`; }
+  typeFromSql(sql) {
+    const tables = { characters: 'character', tilesets: 'tileset', blocks: 'block', animations: 'animation', cutscenes: 'cutscene', assets: 'object', events: 'event' };
+    return Object.entries(tables).find(([table]) => new RegExp(`(?:FROM|INTO|UPDATE)\\s+${table}\\b`).test(sql))?.[1] ?? '';
+  }
   async execute(statement, mode) {
-    const marker = this.marker(statement.sql); const value = statement.values;
+    const marker = this.marker(statement.sql); const value = statement.values; const type = this.typeFromSql(statement.sql);
     this.log.push(marker);
     if (marker === 'content-by-id') {
-      const row = this.items.get(this.key(value[0], value[1]));
+      const row = this.items.get(this.key(type, value[0]));
       return row && (!statement.sql.includes('deleted_at IS NULL') || !row.deleted_at) ? { ...row } : null;
     }
-    if (marker === 'list-content') {
-      const type = value[0] || '';
-      return { results: [...this.items.values()].filter((row) => !row.deleted_at && (!type || row.content_type === type)).map((row) => ({ ...row })) };
-    }
+    if (marker === 'list-content') return { results: [...this.items.values()].filter((row) => !row.deleted_at).map((row) => ({ ...row })) };
     if (marker === 'insert-content') {
-      const [type, id, name, description, document, editor, now] = value;
+      const [id, name, description, document, editor, now] = value;
       this.items.set(this.key(type, id), { content_type: type, id, display_name: name, description, document_json: document, revision: 1, status: 'draft', updated_by: editor, updated_at: now, published_revision: null, published_commit_sha: null, publication_id: null, deleted_at: null });
       return { meta: { changes: 1 } };
     }
     if (marker === 'update-content') {
-      const [name, description, document, revision, editor, now, type, id, expected] = value;
+      const [name, description, document, revision, editor, now, id, expected] = value;
       const row = this.items.get(this.key(type, id));
       if (!row || row.revision !== expected) return { meta: { changes: 0 } };
       Object.assign(row, { display_name: name, description, document_json: document, revision, status: 'draft', updated_by: editor, updated_at: now, deleted_at: null, publication_id: null });
       return { meta: { changes: 1 } };
     }
-    if (marker === 'insert-content-revision') {
-      this.revisions.set(`${value[0]}:${value[1]}:${value[2]}`, [...value]);
-      return { meta: { changes: 1 } };
-    }
-    if (marker === 'clear-content-dependencies') {
-      for (const key of [...this.dependencies.keys()]) if (key.startsWith(`${value[0]}:${value[1]}:`)) this.dependencies.delete(key);
-      return { meta: { changes: 1 } };
-    }
-    if (marker === 'insert-content-dependency') {
-      this.dependencies.set(value.join(':'), [...value]);
-      return { meta: { changes: 1 } };
-    }
+    if (marker === 'insert-content-revision') { this.revisions.set(`${value[0]}:${value[1]}:${value[2]}`, [...value]); return { meta: { changes: 1 } }; }
+    if (marker === 'clear-content-dependencies') { for (const key of [...this.dependencies.keys()]) if (key.startsWith(`${value[0]}:${value[1]}:`)) this.dependencies.delete(key); return { meta: { changes: 1 } }; }
+    if (marker === 'insert-content-dependency') { this.dependencies.set(value.join(':'), [...value]); return { meta: { changes: 1 } }; }
     if (marker === 'prune-content-revisions') return { meta: { changes: 0 } };
     if (marker === 'content-reference') {
-      const row = this.items.get(this.key(value[0], value[1]));
-      return { results: row && row.revision === value[2] && !row.deleted_at ? [{ ...row }] : [] };
+      const row = this.items.get(this.key(type, value[0]));
+      return { results: row && row.revision === value[1] && !row.deleted_at ? [{ ...row }] : [] };
     }
     if (marker === 'delete-content') {
-      const [revision, editor, updatedAt, deletedAt, type, id, expected] = value;
+      const [revision, editor, updatedAt, deletedAt, id, expected] = value;
       const row = this.items.get(this.key(type, id));
       if (!row || row.revision !== expected || row.deleted_at) return { meta: { changes: 0 } };
       Object.assign(row, { revision, status: 'deleted', updated_by: editor, updated_at: updatedAt, deleted_at: deletedAt, publication_id: null });
