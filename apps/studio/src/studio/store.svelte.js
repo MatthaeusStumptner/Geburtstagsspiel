@@ -321,6 +321,20 @@ export class StudioState {
     this.revision += 1;
   }
 
+  adoptUnknownCloudContentBaselines(items) {
+    let changed = false;
+    items.forEach((item) => {
+      const key = `${item.type}:${item.id}`;
+      if (this.cloudContentRevisions.has(key) && this.cloudContentHashes.has(key)) return;
+      this.cloudContentRevisions.set(key, item.revision);
+      if (item.content) this.cloudContentHashes.set(key, JSON.stringify(item.content));
+      this.cloudContentBlocked.delete(key);
+      this.cloudItems = [item, ...this.cloudItems.filter((entry) => `${entry.type}:${entry.id}` !== key)];
+      changed = true;
+    });
+    if (changed) this.revision += 1;
+  }
+
   applyCloudDraftList(drafts) {
     this.cloudDrafts = drafts;
     drafts.forEach((draft) => this.cloudRevisions.set(draft.id, draft.revision));
@@ -508,6 +522,8 @@ export class StudioState {
     if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
     clearTimeout(this.cloudSaveTimer);
     await this.cloudQueue;
+    const contentResult = await this.cloudPublisher.bootstrapContent();
+    this.adoptUnknownCloudContentBaselines(contentResult.items ?? []);
     const drafts = [];
     const items = [];
     for (const candidate of candidates) {
