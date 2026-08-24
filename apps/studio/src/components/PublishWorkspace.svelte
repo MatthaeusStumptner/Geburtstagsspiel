@@ -101,6 +101,7 @@
         const completed = Math.min(queue.length, offset + batch.length);
         setPublication({ phase: 'uploading', phaseLabel: 'Inhalte live schalten', progress: 12 + Math.round(completed / queue.length * 78), detail: `${completed} von ${queue.length} Inhalten werden als unveränderlicher Cloud-Stand übernommen.` });
         result = await publisher.publishContent({ drafts: batch.filter((entry) => entry.kind === 'draft').map((entry) => entry.value), items: batch.filter((entry) => entry.kind === 'item').map((entry) => entry.value) });
+        if (result.state === 'published') studio.applyPublicationResult(result);
       }
       setPublication(result); publicationId = String(result.publicationId ?? ''); state = result.state === 'published' ? 'published' : 'progress'; if (state === 'progress') await poll(publicationId);
     } catch (reason) { error = reason.message; state = 'failed'; }
