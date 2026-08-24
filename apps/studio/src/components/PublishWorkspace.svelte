@@ -129,14 +129,14 @@
 
 <section class="workspace publish-workspace" aria-labelledby="publish-workspace-title">
   <header class="workspace-header">
-    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier wählst du Level, Figuren, Objekte und weitere Inhalte getrennt aus. Sie werden als unveränderlicher Cloud-Stand veröffentlicht und sind ohne neuen Spiel-Build sofort live.</p></div>
+    <div><span class="eyebrow">EIN KLICK · AUTOMATISCH GEPRÜFT</span><h2 id="publish-workspace-title">Veröffentlichen</h2><p>Hier veröffentlichst du Level und globale Bibliotheksinhalte unabhängig voneinander. Figuren, Objekte, Tilesets, Blöcke, Animationen, Cutscenes und Ereignisse gehören nicht automatisch zum geöffneten Level.</p></div>
     {#if user}<div class="publisher-user"><span>{user.avatarUrl ? '●' : 'GH'}</span><div><strong>{user.name || user.login}</strong><small>GitHub verbunden</small></div><button onclick={logout}>Abmelden</button></div>{/if}
   </header>
 
   <div class="publish-layout">
     <div class="publication-card">
       <div class="publication-level-icon">{studio.level.icon}</div>
-      <div><span class="eyebrow">AKTUELLES LEVEL</span><h3>{studio.level.name.standard}</h3><p>{studio.level.id} · {studio.level.board.columns} × {studio.level.board.rows} Felder · {studio.pellets.size} Guttis</p></div>
+      <div><span class="eyebrow">AKTUELL GEÖFFNET · NUR ARBEITSKONTEXT</span><h3>{studio.level.name.standard}</h3><p>{studio.level.id} · {studio.level.board.columns} × {studio.level.board.rows} Felder · {studio.pellets.size} Guttis</p></div>
       <div class:invalid={!studio.validation.ok} class="validation-pill">{studio.validation.ok ? '✓ Spielbar' : `⚠ ${studio.validation.errors.length} Fehler`}</div>
     </div>
 
@@ -148,7 +148,7 @@
       <article class="publish-state"><span class="loader"></span><h3>Berechtigung wird geprüft</h3><p>Einen kleinen Moment …</p></article>
     {:else if state === 'review'}
       <article class="publish-state review-state">
-        <span class="state-symbol ok">✓</span><h3>Inhalte auswählen</h3><p>Jeder Eintrag wird eigenständig versioniert. Ein Level enthält zusätzlich vollständige Snapshots seiner verwendeten Figuren und Objekte.</p>
+        <span class="state-symbol ok">✓</span><h3>Unabhängige Cloud-Inhalte auswählen</h3><p>Diese Liste enthält eigenständige Einträge aus dem gesamten Studio – nicht nur Inhalte des geöffneten Levels. Jeder ausgewählte Eintrag wird separat versioniert und live geschaltet.</p>
         {#if levelConflict}
           <section class="cloud-conflict-resolver" aria-labelledby="cloud-conflict-title">
             <span>⚠</span><div><h4 id="cloud-conflict-title">Zwei Fassungen von „{studio.level.name.standard}“</h4><p>Auf diesem Gerät liegt eine andere Fassung als in der gemeinsamen Cloud. Nichts wird automatisch überschrieben.</p></div>
