@@ -250,7 +250,8 @@ export async function syncPublishedDraft(db, input, { sha = '', login = 'github'
 
 export async function resolveDraftReferences(db, references) {
   assertDatabase(db);
-  if (!Array.isArray(references) || !references.length) throw new Error('Bitte mindestens einen gemeinsamen Entwurf auswählen.');
+  if (!Array.isArray(references)) throw new Error('Die Auswahl gemeinsamer Entwürfe ist ungültig.');
+  if (!references.length) return [];
   if (references.length > MAX_DRAFTS_PER_REQUEST) throw new Error(`Es können höchstens ${MAX_DRAFTS_PER_REQUEST} Level auf einmal veröffentlicht werden.`);
   const normalized = references.map((entry) => ({ id: assertDraftId(entry?.id), revision: Number(entry?.revision) }));
   normalized.forEach((entry) => { if (!Number.isInteger(entry.revision) || entry.revision < 1) throw new Error('Eine Entwurfsrevision ist ungültig.'); });

@@ -90,6 +90,7 @@ test('shared drafts save idempotently and reject stale revisions', async () => {
 });
 test('publishing resolves an exact revision and deleted drafts disappear', async () => {
   const db = new FakeD1();
+  assert.deepEqual(await resolveDraftReferences(db, []), []);
   await saveDraft(db, level(), { login: 'redaktion', expectedRevision: 0 });
   const [resolved] = await resolveDraftReferences(db, [{ id: 'hals', revision: 1 }]);
   assert.equal(resolved.level.id, 'hals');

@@ -24,10 +24,14 @@
   let candidateGroups = $derived(['level', 'character', 'object', 'tileset', 'block', 'animation', 'cutscene', 'event']
     .map((type) => ({ type, label: candidates.find((entry) => entry.type === type)?.typeLabel, items: candidates.filter((entry) => entry.type === type) }))
     .filter((group) => group.items.length));
-  let levelConflict = $derived(studio.cloudStatus === 'conflict' && studio.hasCloudConflict());
+  let conflictCandidates = $derived(candidates.filter((entry) => entry.type === 'level'
+    ? studio.hasCloudConflict(entry.id)
+    : studio.hasCloudContentConflict(entry.type, entry.id)));
   let selectionValid = $derived(selectedCandidates.length > 0
     && selectedCandidates.every((entry) => entry.validation.ok)
-    && !selectedCandidates.some((entry) => entry.type === 'level' && studio.hasCloudConflict(entry.id)));
+    && !selectedCandidates.some((entry) => entry.type === 'level'
+      ? studio.hasCloudConflict(entry.id)
+      : studio.hasCloudContentConflict(entry.type, entry.id)));
 
   const steps = [
     ['transfer', 'Sicher übertragen'],
@@ -101,9 +105,12 @@
   function selectAllValid() { selectedKeys = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.key); }
   function clearSelection() { selectedKeys = []; }
   function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = ''; state = 'login'; }
-  async function resolveConflict(strategy) {
-    resolvingConflict = strategy; error = '';
-    try { await studio.resolveCloudConflict(strategy); }
+  async function resolveConflict(candidate, strategy) {
+    resolvingConflict = `${candidate.key}:${strategy}`; error = '';
+    try {
+      if (candidate.type === 'level') await studio.resolveCloudConflict(strategy);
+      else await studio.resolveCloudContentConflict(strategy, candidate.content);
+    }
     catch (reason) { error = reason.message; }
     finally { resolvingConflict = ''; }
   }
@@ -149,13 +156,22 @@
     {:else if state === 'review'}
       <article class="publish-state review-state">
         <span class="state-symbol ok">✓</span><h3>Unabhängige Cloud-Inhalte auswählen</h3><p>Diese Liste enthält eigenständige Einträge aus dem gesamten Studio – nicht nur Inhalte des geöffneten Levels. Jeder ausgewählte Eintrag wird separat versioniert und live geschaltet.</p>
-        {#if levelConflict}
-          <section class="cloud-conflict-resolver" aria-labelledby="cloud-conflict-title">
-            <span>⚠</span><div><h4 id="cloud-conflict-title">Zwei Fassungen von „{studio.level.name.standard}“</h4><p>Auf diesem Gerät liegt eine andere Fassung als in der gemeinsamen Cloud. Nichts wird automatisch überschrieben.</p></div>
-            <div class="cloud-conflict-choices">
-              <button disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict('remote')}><b>{resolvingConflict === 'remote' ? 'Wird geladen …' : 'Gemeinsamen Stand laden'}</b><small>Deine lokale Fassung bleibt automatisch als Sicherung erhalten.</small></button>
-              <button class="primary" disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict('local')}><b>{resolvingConflict === 'local' ? 'Wird übertragen …' : 'Meine Fassung verwenden'}</b><small>Speichert diese Fassung als neue gemeinsame Revision.</small></button>
-            </div>
+        {#if conflictCandidates.length}
+          <section class="publish-merge" aria-labelledby="publish-merge-title">
+            <header><span>⇄</span><div><h4 id="publish-merge-title">Versionsvergleich & Übernahme</h4><p>{conflictCandidates.length === 1 ? 'Ein Inhalt hat' : `${conflictCandidates.length} Inhalte haben`} zwei Fassungen. Entscheide pro Eintrag, welcher Stand gelten soll. Nichts wird automatisch überschrieben.</p></div></header>
+            {#each conflictCandidates as candidate}
+              <article class="merge-entry" data-content-key={candidate.key}>
+                <div class="merge-entry-title"><span>{candidate.icon}</span><div><strong>{candidate.name}</strong><small>{candidate.typeLabel} · {candidate.id}</small></div><em>Entscheidung nötig</em></div>
+                <div class="merge-choice-grid">
+                  <button class="merge-choice local-choice" disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict(candidate, 'local')}>
+                    <span>AUF DIESEM GERÄT</span><b>{resolvingConflict === `${candidate.key}:local` ? 'Wird übertragen …' : 'Arbeitsstand übernehmen'}</b><small>{candidate.detail}</small><em>Als neue gemeinsame Revision speichern</em>
+                  </button>
+                  <button class="merge-choice cloud-choice" disabled={Boolean(resolvingConflict)} onclick={() => resolveConflict(candidate, 'remote')}>
+                    <span>IN DER CLOUD</span><b>{resolvingConflict === `${candidate.key}:remote` ? 'Wird geladen …' : 'Cloud-Stand übernehmen'}</b><small>{candidate.remoteRevision ? `Gemeinsame Revision ${candidate.remoteRevision}` : 'Aktuell gespeicherte Fassung'}</small><em>{candidate.type === 'level' ? 'Lokalen Stand vorher als Sicherung behalten' : 'Lokalen Arbeitsstand unverändert lassen'}</em>
+                  </button>
+                </div>
+              </article>
+            {/each}
             {#if error}<p class="error-copy">{error}</p>{/if}
           </section>
         {/if}
@@ -168,13 +184,13 @@
                 <input type="checkbox" aria-label={`${candidate.typeLabel} ${candidate.name} auswählen`} checked={selectedKeys.includes(candidate.key)} onchange={(event) => toggleCandidate(candidate.key, event.currentTarget.checked)} />
                 <span>{candidate.icon}</span>
                 <div><strong>{candidate.name}{candidate.current ? ' · geöffnet' : ''}</strong><small>{candidate.typeLabel} · {candidate.id} · {candidate.detail}{candidate.savedAt ? ` · ${new Date(candidate.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</small></div>
-                <em class:invalid={!candidate.validation.ok}>{candidate.validation.ok ? '✓ gültig' : `⚠ ${candidate.validation.errors.length}`}</em>
+                {#if candidate.conflict}<em class="invalid">⚠ Auswahl nötig</em>{:else if candidate.cloudChoice === 'remote'}<em class="cloud-choice-status">☁ Cloud gewählt</em>{:else}<em class:invalid={!candidate.validation.ok}>{candidate.validation.ok ? '✓ gültig' : `⚠ ${candidate.validation.errors.length}`}</em>{/if}
               </label>
             {/each}
           {/each}
         </div>
         {#if selectedCandidates.some((entry) => !entry.validation.ok)}<p class="error-copy">Mindestens ein ausgewählter Inhalt enthält Fehler. Entferne ihn aus der Auswahl oder korrigiere ihn zuerst.</p>{/if}
-        {#if levelConflict}<p class="error-copy">Löse zuerst den Cloud-Konflikt. Danach kann die Veröffentlichung ohne Datenverlust fortgesetzt werden.</p>{/if}
+        {#if selectedCandidates.some((entry) => entry.conflict || entry.type === 'level' && studio.hasCloudConflict(entry.id))}<p class="error-copy">Löse zuerst alle ausgewählten Versionskonflikte. Danach kann die Veröffentlichung ohne Datenverlust fortgesetzt werden.</p>{/if}
         <div class="review-facts"><span><b>{selectedCandidates.filter((entry) => entry.type === 'level').length}</b>Level</span><span><b>{selectedCandidates.filter((entry) => ['character', 'object', 'tileset', 'block'].includes(entry.type)).length}</b>Bausteine</span><span><b>{selectedCandidates.filter((entry) => ['animation', 'cutscene', 'event'].includes(entry.type)).length}</b>Abläufe</span></div>
         <button class="primary large-action" id="publisher-confirm" disabled={!selectionValid} onclick={publish}>{selectedCandidates.length === 1 ? `1 ${selectedCandidates[0]?.typeLabel ?? 'Inhalt'} veröffentlichen` : `${selectedCandidates.length} Inhalte gemeinsam veröffentlichen`}</button>
       </article>

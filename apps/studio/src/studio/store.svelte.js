@@ -132,6 +132,7 @@ export class StudioState {
     this.cloudContentRevisions = new Map();
     this.cloudContentHashes = new Map();
     this.cloudContentBlocked = new Set();
+    this.cloudContentOverrides = new Map();
     this.contentSaveTimers = new Map();
     this.cloudQueue = Promise.resolve();
     this.toastTimer = null;
@@ -149,6 +150,7 @@ export class StudioState {
     if (!this.level.cutscenes.some((cutscene) => cutscene.id === this.selectedCutsceneId)) this.selectedCutsceneId = this.level.cutscenes[0]?.id ?? '';
     this.revision += 1;
     if (markDirty) this.levelSync = { ...this.levelSync, dirty: true, source: 'local' };
+    if (markDirty) this.cloudContentOverrides.clear();
     if (save) this.scheduleSave({ cloud });
   }
 
@@ -351,6 +353,7 @@ export class StudioState {
 
   cloudDraftsList() { return this.cloudDrafts; }
   hasCloudConflict(id = this.level?.id) { return Boolean(id && this.cloudBlocked.has(id)); }
+  hasCloudContentConflict(type, id) { return this.cloudContentBlocked.has(`${type}:${id}`); }
 
   saveLocalConflictBackup(level = this.level) {
     const taken = new Set(this.drafts.list().map((entry) => entry.id));
@@ -477,6 +480,7 @@ export class StudioState {
     if (!this.cloudPublisher) return;
     const content = createContentDocument(type, asset);
     const key = `${type}:${content.id}`;
+    this.cloudContentOverrides.delete(key);
     if (this.cloudContentBlocked.has(key)) return;
     clearTimeout(this.contentSaveTimers.get(key));
     this.contentSaveTimers.set(key, setTimeout(() => {
@@ -494,6 +498,7 @@ export class StudioState {
     this.cloudStatus = 'syncing';
     try {
       const saved = await this.cloudPublisher.saveContent(content, this.cloudContentRevisions.get(key) ?? 0);
+      this.cloudContentOverrides.delete(key);
       this.cloudContentRevisions.set(key, saved.revision);
       this.cloudContentHashes.set(key, JSON.stringify(saved.content));
       this.cloudItems = [saved, ...this.cloudItems.filter((item) => `${item.type}:${item.id}` !== key)];
@@ -504,6 +509,7 @@ export class StudioState {
       return { type: saved.type, id: saved.id, revision: saved.revision };
     } catch (error) {
       if (error.status === 409) {
+        this.cloudContentOverrides.delete(key);
         this.cloudContentBlocked.add(key);
         if (error.current?.revision) this.cloudContentRevisions.set(key, error.current.revision);
         this.cloudStatus = 'conflict';
@@ -518,6 +524,43 @@ export class StudioState {
     }
   }
 
+  async resolveCloudContentConflict(strategy, input) {
+    if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
+    if (!['remote', 'local'].includes(strategy)) throw new Error('Unbekannte Konfliktauflösung.');
+    const validation = validateContentDocument(input);
+    if (!validation.ok) throw new Error(validation.errors.join(' '));
+    const local = validation.value;
+    const key = `${local.type}:${local.id}`;
+    if (!this.cloudContentBlocked.has(key)) return { resolved: false, strategy };
+    clearTimeout(this.contentSaveTimers.get(key));
+    this.contentSaveTimers.delete(key);
+    const remote = await this.cloudPublisher.content(local.type, local.id);
+    this.cloudContentRevisions.set(key, remote.revision);
+    this.cloudContentHashes.set(key, JSON.stringify(remote.content));
+    this.cloudItems = [remote, ...this.cloudItems.filter((item) => `${item.type}:${item.id}` !== key)];
+    this.cloudContentBlocked.delete(key);
+
+    if (strategy === 'remote') {
+      this.cloudContentOverrides.set(key, remote);
+      this.cloudStatus = this.cloudBlocked.size || this.cloudContentBlocked.size ? 'conflict' : 'shared';
+      this.cloudError = '';
+      this.revision += 1;
+      this.notify(`${remote.name}: Cloud-Fassung für die Veröffentlichung gewählt`);
+      return { resolved: true, strategy, revision: remote.revision };
+    }
+
+    try {
+      this.cloudContentOverrides.delete(key);
+      const saved = await this.saveContentToCloud(local);
+      this.notify(`${local.name}: Arbeitsstand ist jetzt gemeinsame Revision ${saved.revision}`);
+      return { resolved: true, strategy, revision: saved.revision };
+    } catch (error) {
+      this.cloudContentBlocked.add(key);
+      this.cloudStatus = 'conflict';
+      throw error;
+    }
+  }
+
   async prepareCloudPublication(candidates) {
     if (!this.cloudPublisher) throw new Error('Bitte zuerst mit GitHub verbinden.');
     clearTimeout(this.cloudSaveTimer);
@@ -528,6 +571,7 @@ export class StudioState {
     const items = [];
     for (const candidate of candidates) {
       if (candidate.type === 'level') drafts.push(await this.saveLevelToCloud(candidate.level));
+      else if (candidate.cloudChoice === 'remote' && Number.isInteger(candidate.remoteRevision)) items.push({ type: candidate.type, id: candidate.id, revision: candidate.remoteRevision });
       else items.push(await this.saveContentToCloud(candidate.content));
     }
     return { drafts, items };
@@ -1213,10 +1257,12 @@ export class StudioState {
       }));
     const labels = { character: 'Figur', tileset: 'Tileset', block: 'Block', animation: 'Animation', cutscene: 'Cutscene', object: 'Objekt', event: 'Ereignis' };
     const icons = { character: 'FIG', tileset: 'SET', block: 'BLK', animation: 'ANI', cutscene: 'CUT', object: 'OBJ', event: 'EVT' };
-    const contentCandidate = (input) => {
+    const contentCandidate = (input, metadata = {}) => {
       const content = input?.kind === 'franz-lola-content' ? clone(input) : createContentDocument(input.type, input.document, input);
+      const key = `${content.type}:${content.id}`;
+      const remote = this.cloudItems.find((item) => `${item.type}:${item.id}` === key);
       return {
-        key: `${content.type}:${content.id}`,
+        key,
         type: content.type,
         id: content.id,
         name: content.name,
@@ -1225,14 +1271,19 @@ export class StudioState {
         icon: icons[content.type],
         detail: content.description || 'Wiederverwendbarer Inhalt',
         validation: validateContentDocument(content),
+        conflict: this.cloudContentBlocked.has(key),
+        remoteRevision: this.cloudContentRevisions.get(key) ?? remote?.revision ?? null,
+        remoteUpdatedAt: remote?.updatedAt ?? '',
+        ...metadata,
       };
     };
     const content = new Map();
-    const addContent = (document) => content.set(`${document.type}:${document.id}`, contentCandidate(document));
-    this.cloudItems.forEach((item) => { if (item.content) addContent(item.content); });
+    const addContent = (document, metadata) => content.set(`${document.type}:${document.id}`, contentCandidate(document, metadata));
+    this.cloudItems.forEach((item) => { if (item.content) addContent(item.content, { remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }); });
     levels.forEach((entry) => { if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach(addContent); });
     this.characterAssets.forEach((asset) => addContent(createContentDocument('character', asset)));
     this.library.readCustom().forEach((asset) => addContent(createContentDocument('object', asset)));
+    this.cloudContentOverrides.forEach((item) => addContent(item.content, { cloudChoice: 'remote', remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }));
     return [...levels, ...content.values()];
   }
   deleteDraft(id) {
