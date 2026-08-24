@@ -622,6 +622,11 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 .merge-choice em { margin-top: .15rem; color: var(--gold); font-size: .5rem; font-style: normal; }
 .merge-choice:hover:not(:disabled) { border-color: var(--accent); background: #12313a; }
 .publish-candidate em.cloud-choice-status { color: var(--accent); }
+.publish-candidate em.changed-status { color: var(--gold); }
+.publish-empty { display: grid; justify-items: center; gap: .2rem; border: 1px dashed #355860; border-radius: 8px; padding: 1rem; color: var(--muted); text-align: center; }
+.publish-empty > span { color: var(--good); font-size: 1.1rem; }
+.publish-empty strong { color: #edf6ee; font-size: .65rem; }
+.publish-empty small { font-size: .53rem; }
 .publish-selection-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: .58rem; }
 .publish-selection-toolbar div { display: flex; gap: .3rem; }
 .publish-selection-toolbar button { min-height: 30px; padding: .28rem .42rem; font-size: .54rem; }
