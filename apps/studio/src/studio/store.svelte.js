@@ -10,6 +10,7 @@ import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as bu
 import { migrateLegacyLevel } from '../level-migrations.js';
 import { planCloudDraftAdoption } from '../cloud-draft-policy.js';
 import { publicationChange } from '../publish-selection.js';
+import { reconcilePublicationRecords } from '../publish-selection.js';
 import { collapseAutomaticLocalCopies, createLocalSafetyCopy, isAutomaticLocalCopy } from '../local-copy-policy.js';
 import { StudioHistory } from './history.js';
 
@@ -587,6 +588,13 @@ export class StudioState {
       else items.push(await this.saveContentToCloud(candidate.content));
     }
     return { drafts, items };
+  }
+
+  applyPublicationResult(publication) {
+    const reconciled = reconcilePublicationRecords({ drafts: this.cloudDrafts, items: this.cloudItems }, publication);
+    this.cloudDrafts = reconciled.drafts;
+    this.cloudItems = reconciled.items;
+    this.revision += 1;
   }
 
   undo() {
