@@ -102,13 +102,15 @@ export async function listContentItems(db, { type = '', includeContent = false }
   assertDatabase(db);
   const normalizedType = type ? assertContentType(type) : '';
   const selectedTypes = normalizedType ? [normalizedType] : REGISTRY_TYPES;
-  const selects = selectedTypes.map((entryType) => `
+  const results = await db.batch(selectedTypes.map((entryType) => db.prepare(`/* list-content */
     SELECT '${entryType}' AS content_type, id, display_name, description, ${includeContent ? 'document_json,' : ''}
            revision, status, updated_by, updated_at, published_revision, published_commit_sha, publication_id
-      FROM ${contentTable(entryType)} WHERE deleted_at IS NULL`).join(' UNION ALL ');
-  const result = await db.prepare(`/* list-content */
-    SELECT * FROM (${selects}) ORDER BY content_type ASC, updated_at DESC, id ASC`).all();
-  return result.results.map((row) => publicItem(row, { includeContent }));
+      FROM ${contentTable(entryType)} WHERE deleted_at IS NULL`)));
+  const rows = results.flatMap((result) => result.results ?? []);
+  rows.sort((left, right) => String(left.content_type).localeCompare(String(right.content_type))
+    || String(right.updated_at).localeCompare(String(left.updated_at))
+    || String(left.id).localeCompare(String(right.id)));
+  return rows.map((row) => publicItem(row, { includeContent }));
 }
 
 export async function readContentItem(db, type, id) {

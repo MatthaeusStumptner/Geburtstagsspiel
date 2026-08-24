@@ -37,7 +37,7 @@ class FakeD1 {
       const row = this.items.get(this.key(type, value[0]));
       return row && (!statement.sql.includes('deleted_at IS NULL') || !row.deleted_at) ? { ...row } : null;
     }
-    if (marker === 'list-content') return { results: [...this.items.values()].filter((row) => !row.deleted_at).map((row) => ({ ...row })) };
+    if (marker === 'list-content') return { results: [...this.items.values()].filter((row) => row.content_type === type && !row.deleted_at).map((row) => ({ ...row })) };
     if (marker === 'insert-content') {
       const [id, name, description, document, editor, now] = value;
       this.items.set(this.key(type, id), { content_type: type, id, display_name: name, description, document_json: document, revision: 1, status: 'draft', updated_by: editor, updated_at: now, published_revision: null, published_commit_sha: null, publication_id: null, deleted_at: null });
@@ -81,6 +81,15 @@ test('shared content is idempotent, revision-safe and dependency-indexed', async
   assert.equal(changed.revision, 2);
   await assert.rejects(saveContentItem(db, character('Veraltet'), { expectedRevision: 1, login: 'anderes-gerät' }), ContentConflictError);
   assert.equal((await listContentItems(db, { type: 'character' }))[0].name, 'Postler Franz');
+});
+
+test('listing all shared content queries every physical table without a compound select', async () => {
+  const db = new FakeD1();
+  await saveContentItem(db, character(), { expectedRevision: 0, login: 'redaktion' });
+  db.log = [];
+  const items = await listContentItems(db);
+  assert.deepEqual(items.map((item) => `${item.type}:${item.id}`), ['character:postler']);
+  assert.equal(db.log.filter((marker) => marker === 'list-content').length, 7);
 });
 
 test('invalid dependency updates fail before replacing indexed dependencies', async () => {
