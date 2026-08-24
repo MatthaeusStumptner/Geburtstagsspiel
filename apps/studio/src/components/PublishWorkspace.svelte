@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getPublisherClient, publisherSetupGuidance } from '../publisher-client.js';
+  import { visiblePublishCandidates } from '../publish-selection.js';
 
   let { studio } = $props();
   const publisher = getPublisherClient();
@@ -19,10 +20,13 @@
   let elapsed = $state(0);
   let activity = $state([]);
   let resolvingConflict = $state('');
+  let showAllCandidates = $state(false);
   let candidates = $derived.by(() => { studio.revision; return studio.publishCandidates(); });
   let selectedCandidates = $derived(candidates.filter((entry) => selectedKeys.includes(entry.key)));
+  let pendingCandidates = $derived(candidates.filter((entry) => entry.changed || entry.conflict));
+  let visibleCandidates = $derived(visiblePublishCandidates(candidates, { showAll: showAllCandidates, selectedKeys }));
   let candidateGroups = $derived(['level', 'character', 'object', 'tileset', 'block', 'animation', 'cutscene', 'event']
-    .map((type) => ({ type, label: candidates.find((entry) => entry.type === type)?.typeLabel, items: candidates.filter((entry) => entry.type === type) }))
+    .map((type) => ({ type, label: candidates.find((entry) => entry.type === type)?.typeLabel, items: visibleCandidates.filter((entry) => entry.type === type) }))
     .filter((group) => group.items.length));
   let conflictCandidates = $derived(candidates.filter((entry) => entry.type === 'level'
     ? studio.hasCloudConflict(entry.id)
@@ -102,7 +106,7 @@
     } catch (reason) { error = reason.message; state = 'failed'; }
   }
   function toggleCandidate(key, checked) { selectedKeys = checked ? [...new Set([...selectedKeys, key])] : selectedKeys.filter((entry) => entry !== key); }
-  function selectAllValid() { selectedKeys = candidates.filter((entry) => entry.validation.ok).map((entry) => entry.key); }
+  function selectAllValid() { selectedKeys = pendingCandidates.filter((entry) => entry.validation.ok).map((entry) => entry.key); }
   function clearSelection() { selectedKeys = []; }
   function logout() { publisher.clearSession(); studio.disableCloudDrafts(); user = null; publication = null; publicationId = ''; state = 'login'; }
   async function resolveConflict(candidate, strategy) {
@@ -127,8 +131,7 @@
     const available = new Set(candidates.map((entry) => entry.key));
     const retained = selectedKeys.filter((key) => available.has(key));
     if (!selectionInitialized) {
-      const currentKey = `level:${studio.level.id}`;
-      selectedKeys = candidates.some((entry) => entry.key === currentKey && entry.validation.ok) ? [currentKey] : [];
+      selectedKeys = pendingCandidates.filter((entry) => entry.validation.ok).map((entry) => entry.key);
       selectionInitialized = true;
     } else if (retained.length !== selectedKeys.length) selectedKeys = retained;
   });
@@ -155,7 +158,7 @@
       <article class="publish-state"><span class="loader"></span><h3>Berechtigung wird geprüft</h3><p>Einen kleinen Moment …</p></article>
     {:else if state === 'review'}
       <article class="publish-state review-state">
-        <span class="state-symbol ok">✓</span><h3>Unabhängige Cloud-Inhalte auswählen</h3><p>Diese Liste enthält eigenständige Einträge aus dem gesamten Studio – nicht nur Inhalte des geöffneten Levels. Jeder ausgewählte Eintrag wird separat versioniert und live geschaltet.</p>
+        <span class="state-symbol ok">✓</span><h3>Änderungen veröffentlichen</h3><p>Standardmäßig siehst du nur Inhalte, deren Arbeitsstand noch nicht live ist. Das vollständige Studio-Archiv bleibt bei Bedarf separat einblendbar.</p>
         {#if conflictCandidates.length}
           <section class="publish-merge" aria-labelledby="publish-merge-title">
             <header><span>⇄</span><div><h4 id="publish-merge-title">Versionsvergleich & Übernahme</h4><p>{conflictCandidates.length === 1 ? 'Ein Inhalt hat' : `${conflictCandidates.length} Inhalte haben`} zwei Fassungen. Entscheide pro Eintrag, welcher Stand gelten soll. Nichts wird automatisch überschrieben.</p></div></header>
@@ -176,7 +179,8 @@
           </section>
         {/if}
         <div class="publish-selection">
-          <div class="publish-selection-toolbar"><strong>{selectedCandidates.length} von {candidates.length} ausgewählt</strong><div><button onclick={selectAllValid}>Alle gültigen</button><button onclick={clearSelection}>Auswahl aufheben</button></div></div>
+          <div class="publish-selection-toolbar"><strong>{pendingCandidates.length} {pendingCandidates.length === 1 ? 'Änderung' : 'Änderungen'} · {selectedCandidates.length} ausgewählt</strong><div><button onclick={() => { showAllCandidates = !showAllCandidates; }}>{showAllCandidates ? 'Nur Änderungen' : `Alle Inhalte (${candidates.length})`}</button><button onclick={selectAllValid}>Alle Änderungen</button><button onclick={clearSelection}>Auswahl aufheben</button></div></div>
+          {#if !visibleCandidates.length}<div class="publish-empty"><span>✓</span><strong>Keine unveröffentlichten Änderungen</strong><small>Der gemeinsame Cloud-Stand entspricht dem Live-Stand.</small></div>{/if}
           {#each candidateGroups as group}
             <h4 class="publish-type-heading"><span>{group.label}</span><small>{group.items.length}</small></h4>
             {#each group.items as candidate}
@@ -184,7 +188,7 @@
                 <input type="checkbox" aria-label={`${candidate.typeLabel} ${candidate.name} auswählen`} checked={selectedKeys.includes(candidate.key)} onchange={(event) => toggleCandidate(candidate.key, event.currentTarget.checked)} />
                 <span>{candidate.icon}</span>
                 <div><strong>{candidate.name}{candidate.current ? ' · geöffnet' : ''}</strong><small>{candidate.typeLabel} · {candidate.id} · {candidate.detail}{candidate.savedAt ? ` · ${new Date(candidate.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</small></div>
-                {#if candidate.conflict}<em class="invalid">⚠ Auswahl nötig</em>{:else if candidate.cloudChoice === 'remote'}<em class="cloud-choice-status">☁ Cloud gewählt</em>{:else}<em class:invalid={!candidate.validation.ok}>{candidate.validation.ok ? '✓ gültig' : `⚠ ${candidate.validation.errors.length}`}</em>{/if}
+                {#if candidate.conflict}<em class="invalid">⚠ Auswahl nötig</em>{:else if candidate.cloudChoice === 'remote'}<em class="cloud-choice-status">☁ Cloud gewählt</em>{:else if candidate.changed}<em class="changed-status">● geändert</em>{:else}<em class:invalid={!candidate.validation.ok}>{candidate.validation.ok ? '✓ live' : `⚠ ${candidate.validation.errors.length}`}</em>{/if}
               </label>
             {/each}
           {/each}

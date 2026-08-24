@@ -9,6 +9,7 @@ import { DEFAULT_OBJECT_ASSETS, ObjectLibrary, applyAssetToPlacement, createBlan
 import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as buildSceneGroups, sceneSelectionKey, selectionContext as buildSelectionContext } from '../scene-model.js';
 import { migrateLegacyLevel } from '../level-migrations.js';
 import { planCloudDraftAdoption } from '../cloud-draft-policy.js';
+import { publicationChange } from '../publish-selection.js';
 import { StudioHistory } from './history.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -1239,6 +1240,7 @@ export class StudioState {
   draftsList() { return this.drafts.list(); }
 
   publishCandidates() {
+    const remoteLevels = new Map(this.cloudDrafts.map((entry) => [entry.id, entry]));
     const levelMap = new Map();
     this.cloudDrafts.filter((entry) => entry.level).forEach((entry) => levelMap.set(entry.id, { ...entry, savedAt: entry.updatedAt, current: entry.id === this.level.id }));
     this.drafts.list().forEach((entry) => levelMap.set(entry.id, { ...entry, level: this.drafts.load(entry.id), current: entry.id === this.level.id }));
@@ -1254,9 +1256,14 @@ export class StudioState {
         icon: entry.level.icon,
         detail: `${entry.level.board.columns}×${entry.level.board.rows} Felder`,
         validation: validateLevelDocument(entry.level),
+        changed: publicationChange(entry.level, remoteLevels.get(entry.id)),
       }));
     const labels = { character: 'Figur', tileset: 'Tileset', block: 'Block', animation: 'Animation', cutscene: 'Cutscene', object: 'Objekt', event: 'Ereignis' };
     const icons = { character: 'FIG', tileset: 'SET', block: 'BLK', animation: 'ANI', cutscene: 'CUT', object: 'OBJ', event: 'EVT' };
+    const embeddedKeys = new Set();
+    levels.forEach((entry) => {
+      if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach((document) => embeddedKeys.add(`${document.type}:${document.id}`));
+    });
     const contentCandidate = (input, metadata = {}) => {
       const content = input?.kind === 'franz-lola-content' ? clone(input) : createContentDocument(input.type, input.document, input);
       const key = `${content.type}:${content.id}`;
@@ -1272,6 +1279,7 @@ export class StudioState {
         detail: content.description || 'Wiederverwendbarer Inhalt',
         validation: validateContentDocument(content),
         conflict: this.cloudContentBlocked.has(key),
+        changed: publicationChange(content, remote, { embeddedBaseline: embeddedKeys.has(key) }),
         remoteRevision: this.cloudContentRevisions.get(key) ?? remote?.revision ?? null,
         remoteUpdatedAt: remote?.updatedAt ?? '',
         ...metadata,
@@ -1280,7 +1288,7 @@ export class StudioState {
     const content = new Map();
     const addContent = (document, metadata) => content.set(`${document.type}:${document.id}`, contentCandidate(document, metadata));
     this.cloudItems.forEach((item) => { if (item.content) addContent(item.content, { remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }); });
-    levels.forEach((entry) => { if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach(addContent); });
+    levels.forEach((entry) => { if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach((document) => addContent(document)); });
     this.characterAssets.forEach((asset) => addContent(createContentDocument('character', asset)));
     this.library.readCustom().forEach((asset) => addContent(createContentDocument('object', asset)));
     this.cloudContentOverrides.forEach((item) => addContent(item.content, { cloudChoice: 'remote', remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }));
