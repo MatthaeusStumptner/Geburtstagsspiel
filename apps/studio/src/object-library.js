@@ -2,6 +2,7 @@ import { normalizeSpriteSize } from './sprite-appearance.js';
 import rawCatalog from './data/content-catalog.generated.json' with { type: 'json' };
 
 const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
+export const OBJECT_DRAG_TYPE = 'application/x-franz-lola-object';
 export const LINKED_ASSET_FIELDS = Object.freeze(['name', 'type', 'width', 'height', 'color', 'label', 'appearance', 'spriteAnimation', 'animation', 'effects', 'content', 'textStyle']);
 const slug = (value, fallback = 'objekt') => String(value || fallback)
   .normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/ß/g, 'ss')

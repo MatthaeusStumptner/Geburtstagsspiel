@@ -18,6 +18,7 @@
   let templates = $derived.by(() => studio.templates().filter((level) => `${level.name.standard} ${level.location.area} ${level.id}`.toLowerCase().includes(search.trim().toLowerCase())));
   let drafts = $derived.by(() => { studio.revision; return studio.draftsList(); });
   let sharedDrafts = $derived.by(() => { studio.revision; return studio.cloudDraftsList(); });
+  let cloudSessionState = $state('checking');
 
   const workspaces = [
     ['level', '▦', 'Level', 'Wege & Regeln'],
@@ -90,6 +91,26 @@
     catch (error) { studio.notify(`Löschen fehlgeschlagen: ${error.message}`); }
   }
 
+  function cloudAuthor(login) {
+    if (!login) return 'Unbekannt';
+    return login.toLocaleLowerCase() === studio.cloudUser?.login?.toLocaleLowerCase() ? 'Von dir' : 'Von ' + login;
+  }
+
+  async function restoreCloudSession() {
+    const authenticated = publisher.consumeSessionFromLocation() || publisher.restoreSession();
+    if (!authenticated) { cloudSessionState = 'signed-out'; return; }
+    cloudSessionState = 'checking';
+    try {
+      const user = await publisher.me();
+      await studio.enableCloudDrafts(publisher, user);
+      cloudSessionState = 'connected';
+    } catch (error) {
+      studio.cloudError = error.message;
+      studio.cloudStatus = 'offline';
+      cloudSessionState = publisher.authenticated ? 'error' : 'signed-out';
+    }
+  }
+
   function keyboard(event) {
     const editing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
     if (document.querySelector('.sprite-studio') && (event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) return;
@@ -108,13 +129,7 @@
   }
 
   onMount(() => {
-    publisher.consumeSessionFromLocation();
-    if (publisher.authenticated) {
-      publisher.me().then((user) => studio.enableCloudDrafts(publisher, user)).catch((error) => {
-        studio.cloudError = error.message;
-        studio.cloudStatus = 'offline';
-      });
-    }
+    restoreCloudSession();
     router = new StudioRouter();
     const stopRouter = router.start(routeFromStudio(studio), (route) => {
       applyingRoute = true;
@@ -144,12 +159,20 @@
     <button class="mobile-project-button" onclick={() => projectOpen = !projectOpen}>☰ Projekt</button>
   </header>
 
+  {#if publisher.configured && !studio.cloudUser && cloudSessionState !== 'checking'}
+    <section class="cloud-onboarding" aria-label="Cloud-Verbindung einrichten">
+      <span class="cloud-onboarding-icon" aria-hidden="true">☁</span>
+      <div><strong>Studio mit GitHub verbinden</strong><small>Gemeinsame Stände, Urheber und Versionen werden danach automatisch abgeglichen.</small></div>
+      <a class="button-link primary" href={publisher.loginUrl()}><span class="button-icon" aria-hidden="true">GH</span>Mit GitHub anmelden</a>
+    </section>
+  {/if}
+
   <aside class="project-drawer" id="project-drawer" aria-label="Projekt und Vorlagen" aria-hidden={!projectOpen} inert={!projectOpen}>
     <header><span class="eyebrow">PROJEKT</span><button onclick={() => projectOpen = false} aria-label="Projektleiste schließen">×</button></header>
     <div class="project-actions"><button class="primary" onclick={() => { studio.newLevel(); projectOpen = false; }}>＋ Neues Level</button><button onclick={() => importInput.click()}>↓ JSON importieren</button><input class="visually-hidden" bind:this={importInput} type="file" accept="application/json,.json" aria-label="Leveldatei auswählen" onchange={importFile} /></div>
     <label class="search-field"><span>⌕</span><input bind:value={search} placeholder="Passauer Orte suchen" /></label>
     <div class="project-section template-section"><div class="panel-title"><strong>Passau-Vorlagen</strong><span>{templates.length}</span></div><div class="template-list">{#each templates as level}<button class:active={studio.level.id === level.id} data-template-id={level.id} onclick={() => loadTemplate(level.id)}><span>{level.icon}</span><div><strong>{level.name.standard}</strong><small>{level.location.area} · {level.board.columns}×{level.board.rows}</small></div></button>{/each}</div></div>
-    {#if studio.cloudUser}<div class="project-section shared-draft-section"><div class="panel-title"><strong>☁ Gemeinsame Entwürfe</strong><span>{sharedDrafts.length}</span></div>{#if sharedDrafts.length}<div class="draft-list">{#each sharedDrafts as draft}<div class:active={studio.level.id === draft.id} class="draft-entry"><button class="draft-open" onclick={() => loadSharedDraft(draft.id)}><span>{draft.icon}</span><div><strong>{draft.name}</strong><small>Revision {draft.revision} · {draft.updatedBy}</small></div></button><button class="draft-delete" aria-label={`Gemeinsamen Entwurf ${draft.name} löschen`} title="Für alle Geräte löschen" onclick={() => deleteSharedDraft(draft)}>×</button></div>{/each}</div>{:else}<p class="hint">Noch keine gemeinsamen Entwürfe vorhanden.</p>{/if}</div>{/if}
+    {#if studio.cloudUser}<div class="project-section shared-draft-section"><div class="panel-title"><strong>☁ Gemeinsame Entwürfe</strong><span>{sharedDrafts.length}</span></div>{#if sharedDrafts.length}<div class="draft-list">{#each sharedDrafts as draft}<div class:active={studio.level.id === draft.id} class="draft-entry"><button class="draft-open" onclick={() => loadSharedDraft(draft.id)}><span>{draft.icon}</span><div><strong>{draft.name}</strong><small>Revision {draft.revision} · {cloudAuthor(draft.updatedBy)}</small></div></button><button class="draft-delete" aria-label={`Gemeinsamen Entwurf ${draft.name} löschen`} title="Für alle Geräte löschen" onclick={() => deleteSharedDraft(draft)}>×</button></div>{/each}</div>{:else}<p class="hint">Noch keine gemeinsamen Entwürfe vorhanden.</p>{/if}</div>{/if}
     <div class="project-section draft-section"><div class="panel-title"><strong>Auf diesem Gerät</strong><span>{drafts.length}</span></div>{#if drafts.length}<div class="draft-list">{#each drafts as draft}<div class:active={studio.level.id === draft.id} class="draft-entry"><button class="draft-open" onclick={() => loadDraft(draft.id)}><span>◫</span><div><strong>{draft.name}</strong><small>{new Date(draft.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</small></div></button><button class="draft-delete" aria-label={`Entwurf ${draft.name} löschen`} title="Entwurf löschen" onclick={() => deleteDraft(draft)}>×</button></div>{/each}</div>{:else}<p class="hint">Änderungen erscheinen nach dem ersten Speichern automatisch hier.</p>{/if}</div>
     <footer><button onclick={() => studio.exportLevel()}>↑ Leveldatei exportieren</button><small>{studio.cloudUser ? `Angemeldet als ${studio.cloudUser.login} · Cloud mit lokalem Sicherheitsnetz.` : 'Lokales Sicherheitsnetz aktiv. GitHub-Verbindung unter „Live“ einschalten.'}</small></footer>
   </aside>
@@ -157,7 +180,7 @@
 
   <nav class="discipline-nav" aria-label="Arbeitsbereiche">
     {#each workspaces as [id, icon, label, description]}
-      <button class:active={studio.workspace === id} data-workspace={id} aria-current={studio.workspace === id ? 'page' : undefined} onclick={() => switchWorkspace(id)}><span>{icon}</span><div><strong>{label}</strong><small>{description}</small></div>{#if id === 'events' && studio.level.events.length}<em>{studio.level.events.length}</em>{/if}{#if id === 'cutscenes' && studio.level.cutscenes.length}<em>{studio.level.cutscenes.length}</em>{/if}</button>
+      <button class:active={studio.workspace === id} data-workspace={id} aria-current={studio.workspace === id ? 'page' : undefined} onclick={() => switchWorkspace(id)}><span class="button-icon" aria-hidden="true">{icon}</span><div><strong>{label}</strong><small>{description}</small></div>{#if id === 'events' && studio.level.events.length}<em>{studio.level.events.length}</em>{/if}{#if id === 'cutscenes' && studio.level.cutscenes.length}<em>{studio.level.cutscenes.length}</em>{/if}</button>
     {/each}
   </nav>
 

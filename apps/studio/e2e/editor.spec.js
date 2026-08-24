@@ -51,7 +51,7 @@ async function selectAssetForPlacement(page, id) {
   await page.locator(`[data-asset-id="${id}"]`).click();
   await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'asset');
   await page.locator('.object-inspector [data-action="place-asset"]').click();
-  await expect(page.locator('[data-action="place-asset-toolbar"]')).toHaveClass(/active/);
+  await expect(page.locator('#level-canvas')).toHaveAttribute('data-tool', 'object');
 }
 
 async function openSceneTree(page) {
@@ -133,6 +133,81 @@ async function canvasOpaqueColors(locator) {
   });
 }
 
+test('stored publisher session reconnects automatically and attributes cloud work', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('franz-lola-publisher-session-v1', JSON.stringify({
+      token: 'stored.session-token',
+      expiresAt: Date.now() + 60_000,
+    }));
+  });
+  await page.route('https://franz-lola-publisher.test.workers.dev/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const origin = request.headers().origin;
+    const headers = {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/me') return route.fulfill({ headers, json: { login: 'freundin', name: 'Freundin' } });
+    if (path === '/api/drafts/bootstrap') return route.fulfill({ headers, json: { drafts: [{
+      id: 'hals', name: 'Hals', icon: 'H', area: 'Ilz', revision: 3, status: 'draft',
+      updatedBy: 'freundin', updatedAt: '2026-08-24T12:00:00.000Z',
+    }] } });
+    if (path === '/api/content/bootstrap') return route.fulfill({ headers, json: { items: [] } });
+    return route.fulfill({ status: 404, headers, json: { error: 'Nicht gefunden.' } });
+  });
+
+  await page.goto('/');
+  await expect(page.locator('#level-canvas')).toBeVisible();
+  await expect(page.locator('.topbar-status')).toContainText('GEMEINSAM');
+  await expect(page.locator('.cloud-onboarding')).toHaveCount(0);
+  await openProject(page);
+  await expect(page.locator('.shared-draft-section')).toContainText('Von dir');
+  await page.locator('.drawer-scrim').click();
+  await page.locator('[data-workspace="publish"]').click();
+  await page.getByRole('button', { name: 'Abmelden' }).click();
+  await expect(page.locator('.cloud-onboarding')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+test('drag asset from the library onto the level canvas', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await loadTemplate(page, 'hals');
+  await openObjectLibrary(page);
+
+  const asset = page.locator('[data-asset-id="music-note"]');
+  const canvas = page.locator('#level-canvas');
+  await expect(asset).toHaveAttribute('draggable', 'true');
+  await asset.dragTo(canvas, { targetPosition: { x: 260, y: 210 } });
+
+  await expect(canvas).toHaveAttribute('data-selected-entity', /^decoration:/);
+  await expect(canvas).toHaveClass(/transform-tool/);
+  await expect(page.locator('.object-inspector')).toHaveAttribute('data-object-context', 'instance');
+  expect(errors).toEqual([]);
+});
+test('object workspace keeps one primary action and centers navigation icons', async ({ page }) => {
+  const errors = await openCleanEditor(page);
+  await openObjectLibrary(page);
+
+  await expect(page.locator('#create-object')).toHaveCount(0);
+  await expect(page.locator('[data-action="create-asset"]')).toHaveCount(1);
+  await expect(page.locator('[data-action="place-asset-toolbar"]')).toHaveCount(0);
+
+  const objectsButton = page.locator('[data-workspace="objects"]');
+  const icon = objectsButton.locator('.button-icon');
+  await expect(icon).toBeVisible();
+  const centerOffset = await objectsButton.evaluate((button) => {
+    const slot = button.querySelector('.button-icon');
+    const buttonRect = button.getBoundingClientRect();
+    const slotRect = slot.getBoundingClientRect();
+    return Math.abs((slotRect.top + slotRect.height / 2) - (buttonRect.top + buttonRect.height / 2));
+  });
+  expect(centerOffset).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
 const storyCases = [
   { id: 'home', event: 'Geburtstagspost', eventCount: 3, cutscene: 'Aufbruch am Bramerhof', tracks: 4, keyframes: 8, duration: 4 },
   { id: 'hals', event: 'Das Rauschen der Ilz', eventCount: 2, cutscene: 'Entlang der Ilz', tracks: 4, keyframes: 10, duration: 5.2 },
