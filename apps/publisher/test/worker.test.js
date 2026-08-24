@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { contentRouteMatch } from '../src/index.js';
+import worker, { contentRouteMatch, publisherSessionPayload } from '../src/index.js';
 
 const env = {
   SESSION_SECRET: '0123456789abcdef0123456789abcdef',
@@ -49,6 +49,17 @@ test('OAuth login accepts only the exact editor return path', async () => {
   assert.match(accepted.headers.get('Set-Cookie'), /HttpOnly; Secure; SameSite=Lax/);
 });
 
+test('publisher sessions remain valid for exactly seven days', () => {
+  const nowSeconds = 1_800_000_000;
+  const payload = publisherSessionPayload({ login: 'freundin', name: 'Freundin' }, nowSeconds, 'nonce-1');
+  assert.deepEqual(payload, {
+    type: 'publisher-session',
+    login: 'freundin',
+    name: 'Freundin',
+    nonce: 'nonce-1',
+    exp: nowSeconds + 7 * 24 * 60 * 60,
+  });
+});
 test('content API routes every reusable type including events', () => {
   assert.deepEqual(contentRouteMatch('/api/content/event/eisvogel'), { type: 'event', id: 'eisvogel' });
   assert.deepEqual(contentRouteMatch('/api/content/character/postler'), { type: 'character', id: 'postler' });

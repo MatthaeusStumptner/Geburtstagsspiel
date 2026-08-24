@@ -6,6 +6,12 @@ import {
   normalizePublisherUrl,
   publisherSetupGuidance,
 } from '../src/publisher-client.js';
+class MemoryStorage {
+  constructor() { this.values = new Map(); }
+  getItem(key) { return this.values.get(key) ?? null; }
+  setItem(key, value) { this.values.set(key, String(value)); }
+  removeItem(key) { this.values.delete(key); }
+}
 
 test('unconfigured publisher guidance points maintainers at the monorepo build variable', () => {
   assert.deepEqual(publisherSetupGuidance(), {
@@ -40,6 +46,39 @@ test('OAuth session is consumed from the fragment and removed immediately', asyn
   assert.equal(requests[0].options.headers.Authorization, 'Bearer abc.def-123');
 });
 
+test('OAuth session survives reloads for seven days on the same browser', async () => {
+  const storage = new MemoryStorage();
+  const now = () => Date.UTC(2026, 7, 24, 12);
+  const first = new PublisherClient({ baseUrl: 'https://publisher.example', storage, now });
+  first.consumeSessionFromLocation(
+    { hash: '#publisher_session=abc.def-123', pathname: '/studio/', search: '' },
+    { replaceState() {} },
+  );
+
+  const restored = new PublisherClient({ baseUrl: 'https://publisher.example', storage, now });
+  assert.equal(restored.restoreSession(), true);
+  assert.equal(restored.authenticated, true);
+
+  const afterSevenDays = new PublisherClient({
+    baseUrl: 'https://publisher.example',
+    storage,
+    now: () => now() + 7 * 24 * 60 * 60 * 1000 + 1,
+  });
+  assert.equal(afterSevenDays.restoreSession(), false);
+  assert.equal(afterSevenDays.authenticated, false);
+});
+
+test('clearing a session also removes the persisted browser session', () => {
+  const storage = new MemoryStorage();
+  const client = new PublisherClient({ baseUrl: 'https://publisher.example', storage, now: () => 1_000 });
+  client.consumeSessionFromLocation(
+    { hash: '#publisher_session=temporary', pathname: '/', search: '' },
+    { replaceState() {} },
+  );
+  client.clearSession();
+
+  assert.equal(new PublisherClient({ baseUrl: 'https://publisher.example', storage, now: () => 1_001 }).restoreSession(), false);
+});
 test('session stays in memory and is cleared after unauthorized responses', async () => {
   const client = new PublisherClient({
     baseUrl: 'https://publisher.example',

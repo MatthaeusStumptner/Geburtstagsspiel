@@ -1,4 +1,7 @@
 const SESSION_FRAGMENT_KEY = 'publisher_session';
+const SESSION_STORAGE_KEY = 'franz-lola-publisher-session-v1';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const validSessionToken = (token) => Boolean(token && token.length <= 4096 && /^[A-Za-z0-9._~-]+$/.test(token));
 
 function normalizePublisherUrl(value) {
   if (!value) return '';
@@ -28,11 +31,15 @@ export class PublisherRequestError extends Error {
 export class PublisherClient {
   #baseUrl;
   #fetch;
+  #storage;
+  #now;
   #sessionToken = '';
 
-  constructor({ baseUrl = '', fetchImpl = globalThis.fetch } = {}) {
+  constructor({ baseUrl = '', fetchImpl = globalThis.fetch, storage = globalThis.localStorage, now = Date.now } = {}) {
     this.#baseUrl = normalizePublisherUrl(baseUrl);
     this.#fetch = fetchImpl.bind(globalThis);
+    this.#storage = storage;
+    this.#now = now;
   }
 
   get configured() {
@@ -48,15 +55,34 @@ export class PublisherClient {
     const fragment = new URLSearchParams(location.hash.slice(1));
     const token = fragment.get(SESSION_FRAGMENT_KEY) ?? '';
     fragment.delete(SESSION_FRAGMENT_KEY);
-    if (token && token.length <= 4096 && /^[A-Za-z0-9._~-]+$/.test(token)) this.#sessionToken = token;
+    if (validSessionToken(token)) {
+      this.#sessionToken = token;
+      try { this.#storage?.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token, expiresAt: this.#now() + SESSION_TTL_MS })); } catch {}
+    }
     const remainingHash = fragment.toString();
     const cleanUrl = `${location.pathname ?? '/'}${location.search ?? ''}${remainingHash ? `#${remainingHash}` : ''}`;
     history?.replaceState?.(null, '', cleanUrl);
     return Boolean(this.#sessionToken);
   }
 
+  restoreSession() {
+    try {
+      const saved = JSON.parse(this.#storage?.getItem(SESSION_STORAGE_KEY) ?? 'null');
+      if (!validSessionToken(saved?.token) || !Number.isFinite(saved?.expiresAt) || saved.expiresAt <= this.#now()) {
+        this.clearSession();
+        return false;
+      }
+      this.#sessionToken = saved.token;
+      return true;
+    } catch {
+      this.clearSession();
+      return false;
+    }
+  }
+
   clearSession() {
     this.#sessionToken = '';
+    try { this.#storage?.removeItem(SESSION_STORAGE_KEY); } catch {}
   }
 
   loginUrl(returnTo = globalThis.location?.href ?? '') {

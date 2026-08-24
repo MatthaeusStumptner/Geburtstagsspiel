@@ -9,6 +9,7 @@
   import SelectionSummary from './SelectionSummary.svelte';
   import SpriteSheetEditor from './SpriteSheetEditor.svelte';
   import { resizeAppearance } from '../sprite-appearance.js';
+  import { OBJECT_DRAG_TYPE } from '../object-library.js';
 
   let { studio } = $props();
   let editingAsset = $state(false);
@@ -25,6 +26,7 @@
   let creatorCategory = $state('Eigene Objekte');
   let creatorResolution = $state(24);
   let creatorTemplate = $state('blank');
+  let draggingAssetId = $state('');
   let selected = $derived.by(() => studio.selectedEntity());
   let asset = $derived(studio.selectedAsset);
   let filteredAssets = $derived.by(() => {
@@ -61,6 +63,11 @@
     studio.clearSelection();
     studio.setTool('object');
     mobilePanel = 'canvas';
+  }
+  function dragAsset(event, id) {
+    draggingAssetId = id;
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData(OBJECT_DRAG_TYPE, id);
   }
   function openCreator() {
     creatorName = '';
@@ -115,7 +122,6 @@
 >
   <header class="workspace-header">
     <div><span class="eyebrow">ASSETS & LEVELOBJEKTE</span><h2 id="object-workspace-title">Objektwerkstatt</h2><p>Erstelle globale Vorlagen, bearbeite sie zentral und platziere daraus unabhängig auswählbare Level-Instanzen.</p></div>
-    <button class="primary" id="create-object" onclick={openCreator}>＋ Neues Asset</button>
   </header>
 
   {#if editingAsset && editingAssetDraft}
@@ -134,12 +140,12 @@
           <div class="asset-library-heading">
             <div class="panel-title"><strong>Globale Assets</strong><span>{studio.assets.length}</span></div>
             <p>Einmal erstellen, zentral bearbeiten und in allen Leveln verwenden.</p>
-            <button class="primary" data-action="create-asset" onclick={openCreator}>＋ Neues Asset erstellen</button>
+            <button class="primary icon-label" data-action="create-asset" onclick={openCreator}><span class="button-icon" aria-hidden="true">＋</span><span>Neues Asset erstellen</span></button>
           </div>
           <label class="asset-search">Assets durchsuchen<input type="search" placeholder="Name, Kategorie …" bind:value={assetSearch} /></label>
           <div class="asset-list">
             {#each filteredAssets as entry}
-              <button class:active={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} aria-pressed={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} data-asset-id={entry.id} onclick={() => selectAsset(entry.id)}>
+              <button class:active={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} class:dragging={draggingAssetId === entry.id} aria-pressed={entry.id === studio.selectedAssetId && inspectorContext === 'asset'} data-asset-id={entry.id} draggable={true} ondragstart={(event) => dragAsset(event, entry.id)} ondragend={() => draggingAssetId = ''} onclick={() => selectAsset(entry.id)}>
                 <span class="asset-icon actual"><ObjectThumbnail asset={entry} language={studio.language} /></span><span><strong>{entry.name}</strong><small>{entry.category}</small></span><em>{entry.width}×{entry.height}</em>
               </button>
             {/each}
@@ -150,11 +156,9 @@
 
       <div class="canvas-column mobile-active" data-focus-panel="canvas">
         <div class="canvas-toolbar">
-          <button class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}>↖ Auswählen</button>
-          <button class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}>↔ Bewegen & skalieren</button>
-          <button class:active={studio.tool === 'object'} data-action="place-asset-toolbar" disabled={!asset} onclick={() => placeAsset()}>＋ {asset?.name ?? 'Asset'} platzieren</button>
-          <button onclick={() => { sidebarMode = 'library'; mobilePanel = 'scene'; }}>◆ Assets öffnen</button>
-          <span class="toolbar-help">Klick erkennt den Typ und öffnet sofort die passenden Details · Shift ergänzt · Alt wählt darunter.</span>
+          <button class="icon-label" class:active={studio.tool === 'select'} onclick={() => studio.setTool('select')}><span class="button-icon" aria-hidden="true">↖</span><span>Auswählen</span></button>
+          <button class="icon-label" class:active={studio.tool === 'transform'} data-tool="transform" onclick={() => studio.setTool('transform')}><span class="button-icon" aria-hidden="true">↔</span><span>Bewegen & skalieren</span></button>
+          <span class="toolbar-help">Asset links direkt ins Level ziehen · auf Touch „Im Level platzieren“ wählen.</span>
         </div>
         <LevelCanvas {studio} />
         <footer class="canvas-status"><span>{studio.selectionCount ? `${studio.selectionCount} ausgewählt` : 'Keine Auswahl'}</span><span>Instanzen verwaltest du im Szenenbaum</span><strong>{studio.saveStatus}</strong></footer>
@@ -200,7 +204,7 @@
             <span class="context-badge">GLOBALE ASSET-VORLAGE</span>
             <div class="asset-inspector-title"><span class="asset-inspector-preview"><ObjectThumbnail asset={asset} language={studio.language} /></span><div><h3>{asset.name}</h3><p>In allen Leveln verfügbar · live verknüpft</p></div></div>
           </div>
-          <div class="asset-primary-actions"><button class="primary" data-action="place-asset" onclick={() => placeAsset()}>＋ Im Level platzieren</button>{#if asset.appearance}<button onclick={openAssetEditor}>▦ Sprite bearbeiten</button>{/if}</div>
+          <div class="asset-primary-actions"><button class="primary icon-label" data-action="place-asset" onclick={() => placeAsset()}><span class="button-icon" aria-hidden="true">＋</span><span>Im Level platzieren</span></button>{#if asset.appearance}<button class="icon-label" onclick={openAssetEditor}><span class="button-icon" aria-hidden="true">▦</span><span>Sprite bearbeiten</span></button>{/if}</div>
           <p class="asset-live-hint">✦ Änderungen erscheinen sofort in allen verknüpften Instanzen. Bewusste lokale Abweichungen bleiben erhalten.</p>
           <label>Name<input data-asset-setting="name" value={asset.name} oninput={(event) => studio.updateAsset(['name'], event.currentTarget.value)} /></label>
           <label>Kategorie<input data-asset-setting="category" value={asset.category} oninput={(event) => studio.updateAsset(['category'], event.currentTarget.value)} /></label>

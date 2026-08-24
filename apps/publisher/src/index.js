@@ -42,6 +42,16 @@ const REQUIRED_SECRET_BINDINGS = Object.freeze([
   'ALLOWED_GITHUB_LOGINS',
 ]);
 
+export function publisherSessionPayload(user, nowSeconds = Math.floor(Date.now() / 1000), nonce = crypto.randomUUID()) {
+  return {
+    type: 'publisher-session',
+    login: user.login,
+    name: user.name || user.login,
+    nonce,
+    exp: nowSeconds + 7 * 24 * 60 * 60,
+  };
+}
+
 function missingSecretBindings(env) {
   return REQUIRED_SECRET_BINDINGS.filter((name) => !String(env?.[name] ?? '').trim());
 }
@@ -122,13 +132,7 @@ async function callback(request, env) {
   if (!code || code.length > 512) return response('GitHub hat keinen gültigen Anmeldecode geliefert.', { status: 400, headers: { 'Set-Cookie': oauthCookie('', 0) } });
   const user = await exchangeGithubCode(env, code, url.origin + url.pathname);
   if (!isAllowedLogin(user.login, env)) return response('Dieser GitHub-Account ist nicht als Redaktion freigeschaltet.', { status: 403, headers: { 'Set-Cookie': oauthCookie('', 0) } });
-  const session = await signToken({
-    type: 'publisher-session',
-    login: user.login,
-    name: user.name || user.login,
-    nonce: crypto.randomUUID(),
-    exp: Math.floor(Date.now() / 1000) + 1800,
-  }, env.SESSION_SECRET);
+  const session = await signToken(publisherSessionPayload(user), env.SESSION_SECRET);
   const destination = new URL(returnTo);
   destination.hash = new URLSearchParams({ publisher_session: session }).toString();
   return redirect(destination.toString(), { 'Set-Cookie': oauthCookie('', 0) });

@@ -8,6 +8,7 @@
   import { captureStudioPresentation } from '../render/studio-render-diagnostics.js';
   import { resolveStudioRendererBackend } from '../render/studio-render-backend.js';
   import { useRenderSurface } from '../render/use-render-surface.svelte.js';
+  import { OBJECT_DRAG_TYPE } from '../object-library.js';
 
   let { studio, compact = false, ariaLabel = 'Bearbeitbares Levelraster' } = $props();
   let canvas;
@@ -16,6 +17,7 @@
   const diagnosticsEnabled = import.meta.env.DEV || import.meta.env.MODE === 'test';
   let panning = null;
   let spacePressed = $state(false);
+  let assetDragActive = $state(false);
 
   function characterBounds(character) {
     if (!character) return null;
@@ -109,6 +111,25 @@
     return worldTilePointFromScreen(renderResult.camera, { x: event.clientX, y: event.clientY }, { left: rect.left, top: rect.top }, studio.level);
   }
 
+  function acceptsObjectDrag(event) {
+    return [...(event.dataTransfer?.types ?? [])].includes(OBJECT_DRAG_TYPE);
+  }
+
+  function dragOver(event) {
+    if (!acceptsObjectDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    assetDragActive = true;
+  }
+
+  function dropObject(event) {
+    if (!acceptsObjectDrag(event)) return;
+    event.preventDefault();
+    const assetId = event.dataTransfer.getData(OBJECT_DRAG_TYPE);
+    assetDragActive = false;
+    if (studio.placeObjectAsset(assetId, pointFromEvent(event))) surface.invalidate('object:drop');
+  }
+
   function pointerDown(event) {
     if (![0, 1, 2].includes(event.button)) return;
     event.preventDefault();
@@ -187,7 +208,7 @@
   onkeyup={(event) => { if (event.code === 'Space') spacePressed = false; }}
 />
 
-<div class:compact class="level-canvas-frame" data-viewport-zoom={studio.viewportZoom.toFixed(2)} data-viewport-center={`${studio.viewportCenter.x.toFixed(2)},${studio.viewportCenter.y.toFixed(2)}`} style:--board-ratio={`${studio.level.board.columns} / ${studio.level.board.rows}`}>
+<div class:compact class:drop-target={assetDragActive} class="level-canvas-frame" data-viewport-zoom={studio.viewportZoom.toFixed(2)} data-viewport-center={`${studio.viewportCenter.x.toFixed(2)},${studio.viewportCenter.y.toFixed(2)}`} style:--board-ratio={`${studio.level.board.columns} / ${studio.level.board.rows}`}>
   <div class="canvas-viewport-controls" aria-label="Canvas-Ansicht">
     <button class:active={studio.tool === 'pan'} aria-pressed={studio.tool === 'pan'} onclick={() => studio.setTool(studio.tool === 'pan' ? 'select' : 'pan')} title="Handwerkzeug · Leertaste oder Mausrad gedrückt halten">✋</button>
     <button onclick={() => studio.setViewportZoom(studio.viewportZoom / 1.25)} aria-label="Ansicht verkleinern">−</button>
@@ -209,7 +230,12 @@
     onpointerleave={() => { studio.leaveCanvas(); surface.invalidate('pointer:leave'); }}
     onwheel={zoomWheel}
     oncontextmenu={(event) => event.preventDefault()}
+    ondragenter={dragOver}
+    ondragover={dragOver}
+    ondragleave={() => assetDragActive = false}
+    ondrop={dropObject}
     data-selection-count={studio.selectionCount}
+    data-tool={studio.tool}
     data-selected-entity={studio.selection ? `${studio.selection.kind}:${studio.selection.index}` : ''}
   ></canvas>
 </div>

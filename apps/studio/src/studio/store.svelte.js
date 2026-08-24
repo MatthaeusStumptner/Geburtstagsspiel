@@ -10,6 +10,7 @@ import { chooseSceneCandidate, sceneCandidatesAt, sceneEntity, sceneGroups as bu
 import { migrateLegacyLevel } from '../level-migrations.js';
 import { planCloudDraftAdoption } from '../cloud-draft-policy.js';
 import { publicationChange } from '../publish-selection.js';
+import { collapseAutomaticLocalCopies, createLocalSafetyCopy, isAutomaticLocalCopy } from '../local-copy-policy.js';
 import { StudioHistory } from './history.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -110,11 +111,15 @@ export class StudioState {
   constructor({ storage = globalThis.localStorage } = {}) {
     this.drafts = new DraftRepository(storage);
     this.library = new ObjectLibrary(storage);
+    const objectCleanup = collapseAutomaticLocalCopies(this.library.readCustom());
+    this.library.replaceCustom(objectCleanup.entries);
     this.assetCatalog = Promise.resolve()
       .then(() => this.library.list())
       .then((assets) => { this.assets = assets; }, () => { this.assets = []; })
       .finally(() => { this.assetCatalogReady = true; });
     this.characterLibrary = new CharacterLibrary(storage);
+    const characterCleanup = collapseAutomaticLocalCopies(this.characterLibrary.list());
+    this.characterLibrary.replace(characterCleanup.entries);
     this.characterAssets = this.characterLibrary.list();
     this.history = new StudioHistory();
     const activeDraft = this.drafts.activeEntry();
@@ -303,8 +308,13 @@ export class StudioState {
   }
 
   applyCloudContentList(items) {
-    this.cloudItems = items;
-    items.forEach((item) => {
+    const automaticCopies = items.filter((item) => isAutomaticLocalCopy(item.id));
+    this.cloudItems = items.filter((item) => !isAutomaticLocalCopy(item.id));
+    automaticCopies.forEach((item) => {
+      if (!this.cloudPublisher || !Number.isInteger(item.revision)) return;
+      this.cloudQueue = this.cloudQueue.then(() => this.cloudPublisher.deleteContent(item.type, item.id, item.revision)).catch(() => null);
+    });
+    this.cloudItems.forEach((item) => {
       const key = `${item.type}:${item.id}`;
       this.cloudContentRevisions.set(key, item.revision);
       if (item.content) this.cloudContentHashes.set(key, JSON.stringify(item.content));
@@ -314,9 +324,9 @@ export class StudioState {
       const local = localEntries.find((entry) => entry.id === item.id);
       if (!local) library.save(item.content.document);
       else if (JSON.stringify(createContentDocument(item.type, local)) !== JSON.stringify(item.content)) {
-        library.save({ ...local, id: `${item.id}-lokale-kopie`, name: `${local.name} · lokale Kopie` });
+        library.save(createLocalSafetyCopy(local, item.id));
         library.save(item.content.document);
-        this.notify(`${item.name}: Cloud-Stand geladen · lokale Variante als Kopie erhalten`);
+        this.notify(`${item.name}: Cloud-Stand geladen · eine lokale Sicherung bleibt erhalten`);
       }
     });
     this.assets = this.library.list();
@@ -327,6 +337,7 @@ export class StudioState {
   adoptUnknownCloudContentBaselines(items) {
     let changed = false;
     items.forEach((item) => {
+      if (isAutomaticLocalCopy(item.id)) return;
       const key = `${item.type}:${item.id}`;
       if (this.cloudContentRevisions.has(key) && this.cloudContentHashes.has(key)) return;
       this.cloudContentRevisions.set(key, item.revision);
@@ -478,7 +489,7 @@ export class StudioState {
   }
 
   queueContentSave(type, asset) {
-    if (!this.cloudPublisher) return;
+    if (!this.cloudPublisher || asset?.localOnly || isAutomaticLocalCopy(asset?.id)) return;
     const content = createContentDocument(type, asset);
     const key = `${type}:${content.id}`;
     this.cloudContentOverrides.delete(key);
@@ -805,14 +816,22 @@ export class StudioState {
       this.notify(`${this.selectedCharacterAsset.name} platziert · jetzt direkt ziehen oder am Eckgriff skalieren`);
     } else if (mode === 'power') { this.mutate('Power-Up setzen', (draft) => draft.togglePowerUp(point));
     } else if (mode === 'object' && this.selectedAsset) {
-      const placement = placementFromAsset(this.selectedAsset, point, this.level.decorations.length);
-      this.mutate('Objekt platzieren', (draft) => draft.addDecoration(point, placement));
-      this.tool = 'select';
-      this.selectEntity('decoration', this.level.decorations.findIndex((entry) => entry.id === placement.id), { reveal: true });
+      this.placeObjectAsset(this.selectedAsset.id, point);
     } else if (mode === 'event-visual' && this.selectedEvent) {
       this.mutate('Ereignissymbol setzen', (draft) => { const visual = draft.document.events.find((event) => event.id === this.selectedEventId).visual; visual.x = point.x + 0.5; visual.y = point.y + 0.5; });
     }
     this.cursor = this.cursorFor(point);
+  }
+
+  placeObjectAsset(assetId, point) {
+    const asset = this.assets.find((entry) => entry.id === assetId);
+    if (!asset || !point) return null;
+    const placement = placementFromAsset(asset, point, this.level.decorations.length);
+    this.mutate('Objekt platzieren', (draft) => draft.addDecoration(point, placement));
+    this.tool = 'transform';
+    this.selectEntity('decoration', this.level.decorations.findIndex((entry) => entry.id === placement.id), { reveal: true });
+    this.notify(asset.name + ' platziert · jetzt direkt ziehen oder am Eckgriff skalieren');
+    return placement;
   }
 
   pointerMove(point, pointerId, precisePoint = point) {
@@ -1289,8 +1308,8 @@ export class StudioState {
     const addContent = (document, metadata) => content.set(`${document.type}:${document.id}`, contentCandidate(document, metadata));
     this.cloudItems.forEach((item) => { if (item.content) addContent(item.content, { remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }); });
     levels.forEach((entry) => { if (entry.validation.ok) extractEmbeddedContentDocuments(entry.level).forEach((document) => addContent(document)); });
-    this.characterAssets.forEach((asset) => addContent(createContentDocument('character', asset)));
-    this.library.readCustom().forEach((asset) => addContent(createContentDocument('object', asset)));
+    this.characterAssets.filter((asset) => !asset.localOnly && !isAutomaticLocalCopy(asset.id)).forEach((asset) => addContent(createContentDocument('character', asset)));
+    this.library.readCustom().filter((asset) => !asset.localOnly && !isAutomaticLocalCopy(asset.id)).forEach((asset) => addContent(createContentDocument('object', asset)));
     this.cloudContentOverrides.forEach((item) => addContent(item.content, { cloudChoice: 'remote', remoteRevision: item.revision, remoteUpdatedAt: item.updatedAt }));
     return [...levels, ...content.values()];
   }

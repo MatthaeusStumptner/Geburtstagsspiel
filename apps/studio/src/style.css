@@ -39,6 +39,8 @@ button:disabled { cursor: default; opacity: .4; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.primary, .button-link.primary { border-color: var(--gold); color: #102127; background: var(--gold); font-weight: 900; }
 button.primary:hover, .button-link.primary:hover { background: #ffda77; }
+.icon-label, .button-link { display: inline-flex; align-items: center; justify-content: center; gap: .42rem; }
+.button-icon { display: grid; flex: 0 0 1.65rem; width: 1.65rem; height: 1.65rem; place-items: center; line-height: 1; text-align: center; }
 button.danger, button.danger-subtle { border-color: #6a4140; color: #ffb0a4; background: #2a191b; }
 button.danger { width: 100%; margin-top: .45rem; }
 input, select, textarea {
@@ -80,6 +82,12 @@ h2, h3, p { margin-top: 0; }
 .topbar-status .cloud-status.cloud-warning { color: var(--bad); }
 .topbar-status button { width: 34px; min-height: 34px; padding: 0; font-size: 1rem; }
 .topbar-status .conflict-link { width: auto; min-height: 30px; border-color: #7b4945; border-radius: 99px; padding: .3rem .55rem; color: var(--bad); background: #2a191b; font-size: .53rem; font-weight: 900; letter-spacing: .05em; }
+.cloud-onboarding { position: fixed; z-index: 32; top: 70px; right: .8rem; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: .65rem; width: min(620px, calc(100vw - 1.6rem)); border: 1px solid #4d747a; border-radius: 10px; padding: .55rem; background: rgba(10, 31, 38, .97); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
+.cloud-onboarding-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); background: #092027; }
+.cloud-onboarding div { display: grid; gap: .1rem; }
+.cloud-onboarding strong { font-size: .68rem; }
+.cloud-onboarding small { color: var(--muted); font-size: .55rem; line-height: 1.35; }
+.cloud-onboarding .button-link { min-height: 34px; font-size: .59rem; }
 .mobile-project-button, .mobile-workspace-select { display: none; }
 
 .discipline-nav {
@@ -162,6 +170,8 @@ h2, h3, p { margin-top: 0; }
 .level-canvas-frame canvas.transform-tool { cursor: move; }
 .level-canvas-frame canvas.pan-tool { cursor: grab; }
 .level-canvas-frame canvas.pan-tool:active { cursor: grabbing; }
+.level-canvas-frame.drop-target::after { position: absolute; z-index: 6; inset: 50% auto auto 50%; transform: translate(-50%, -50%); border: 1px solid var(--accent); border-radius: 999px; padding: .65rem 1rem; content: 'Objekt hier ablegen'; color: #082027; background: var(--accent); box-shadow: 0 .8rem 2rem #000a; font-size: .7rem; font-weight: 900; pointer-events: none; }
+.level-canvas-frame.drop-target canvas { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(85, 217, 221, .22), var(--shadow); }
 .level-canvas-frame.compact { padding: .4rem; }
 .canvas-viewport-controls { position: absolute; z-index: 5; top: .5rem; right: .5rem; display: flex; align-items: center; gap: 2px; border: 1px solid #3d626a; border-radius: 7px; padding: 3px; background: rgba(5, 18, 24, .92); box-shadow: 0 .5rem 1.5rem #0008; backdrop-filter: blur(8px); }
 .canvas-viewport-controls button { min-width: 30px; min-height: 30px; border: 0; padding: .25rem .45rem; font-size: .58rem; }
@@ -286,6 +296,8 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 .asset-list { display: grid; gap: .35rem; }
 .asset-list button { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: .45rem; min-height: 50px; padding: .4rem; text-align: left; }
 .asset-list button.active { border-color: var(--accent); background: #143139; }
+.asset-list button[draggable="true"] { cursor: grab; }
+.asset-list button.dragging { opacity: .58; cursor: grabbing; }
 .asset-icon { display: grid; height: 30px; place-items: center; border: 1px solid #3b5b61; color: var(--gold); background: #07151b; }
 .asset-icon.actual { overflow: hidden; padding: 1px; }
 .object-thumbnail { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
@@ -703,6 +715,8 @@ details summary { cursor: pointer; color: var(--gold); font-size: .62rem; }
 }
 
 @media (max-width: 560px) {
+  .cloud-onboarding { top: 64px; grid-template-columns: 30px minmax(0, 1fr); }
+  .cloud-onboarding .button-link { grid-column: 1 / -1; width: 100%; }
   .cloud-conflict-choices { grid-template-columns: 1fr; }
   .merge-choice-grid { grid-template-columns: 1fr; }
   .studio-topbar { padding: .45rem .55rem; }
